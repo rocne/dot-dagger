@@ -12,4 +12,4 @@ This is the `dot-dagger` repository — a home for Dagger pipelines and CI/CD co
 
 ## Documentation
 
-Docs live in `docs/`. Files there may be works-in-progress — treat them as drafts unless otherwise noted.
+Claude reference docs live in `.claude/docs/`. These are works-in-progress intended as context for Claude, not general project documentation.
