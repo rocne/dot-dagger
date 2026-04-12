@@ -22,3 +22,13 @@ go.work.sum
 
 # Build output
 dist/
+
+# Environment / secrets
+.env
+.env.*
+
+# Logs
+*.log
+
+# Claude local settings
+.claude/settings.local.json
