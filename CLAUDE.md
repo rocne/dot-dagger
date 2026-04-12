@@ -23,3 +23,7 @@ Commit and push fairly often. Before committing, validate that things are in a g
 ## Documentation
 
 Claude reference docs live in `.claude/docs/`. These are works-in-progress intended as context for Claude, not general project documentation.
+
+## TODO / Deferred Tasks
+
+`.claude/TODO.md` tracks known deferred items. Keep it up to date as tasks are completed or new ones come up.
