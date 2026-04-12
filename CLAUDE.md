@@ -4,9 +4,20 @@ This file contains guidance for Claude when working in this repository.
 
 This is a living document. As we discuss conventions, preferences, and project decisions, relevant guidance should be added here. For example, if I ask you to write tests for a module, infer that running tests is part of validation going forward.
 
-## Branch Naming
+## Branching Strategy
 
-Prefix all Claude-created branches with `claude-`, e.g. `claude-fix-pipeline`, `claude-add-feature`.
+This project uses trunk-based development:
+
+- `main` — default branch, always stable
+- `feature/<name>` — all feature work branches off `main` and PRs back into it
+- Releases are triggered by pushing a semver tag (e.g. `v0.1.0`) to `main`
+
+### Branch Naming
+
+- Human-authored branches: `feature/<name>`
+- Claude-authored branches: `feature/claude-<name>`
+
+The `feature/claude-` prefix makes it visually clear the branch was Claude's work.
 
 ## Repository
 

@@ -11,6 +11,10 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ---
 
+## Documentation
+
+- [ ] `CONTRIBUTING.md` — defer until project goes public or has external contributors
+
 ## Git / CI Infrastructure
 
 - [ ] GitHub Actions CI workflow (build + test) — defer until `go.mod` exists
