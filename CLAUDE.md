@@ -38,3 +38,35 @@ Claude reference docs live in `.claude/docs/`. These are works-in-progress inten
 ## TODO / Deferred Tasks
 
 `.claude/TODO.md` tracks known deferred items. Keep it up to date as tasks are completed or new ones come up.
+
+## Token Efficiency
+
+Follow these rules to avoid consuming unnecessary context.
+
+### Session startup
+
+At the start of each session, read:
+- `CLAUDE.md` (this file)
+- `.claude/TODO.md`
+
+Defer all other files until the task requires them.
+
+### Spec documents
+
+The spec is split into focused sections under `.claude/docs/spec/`. Always start with `index.md` to identify which section is relevant, then read only that section. Never read the full spec speculatively.
+
+| Task involves... | Read... |
+|-----------------|---------|
+| Predicates / conditions | `predicates.md` |
+| DAG / ordering / annotations | `dag.md` |
+| Symlinks | `symlinks.md` |
+| Shell init generation | `shell-init.md` |
+| CLI commands | `cli.md` |
+| Config files | `env.md` |
+| Architecture / structure | `architecture.md` |
+
+### File reading discipline
+
+- Use Grep to locate relevant code before reading whole files
+- Read files incrementally (with offset/limit) when only part is needed
+- Don't re-read a file to confirm something already established in the current conversation
