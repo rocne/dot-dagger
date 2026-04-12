@@ -11,6 +11,12 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ---
 
+## Git / CI Infrastructure
+
+- [ ] GitHub Actions CI workflow (build + test) — defer until `go.mod` exists
+- [ ] GitHub Actions lint workflow (`golangci-lint`) — defer until `go.mod` exists
+- [ ] PR template (`.github/pull_request_template.md`)
+
 ## Implementation
 
 _(To be filled in as planning begins)_
