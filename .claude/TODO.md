@@ -36,4 +36,4 @@ _(To be filled in as planning begins)_
 - [x] Unknown annotation/predicate behavior — resolved: `dota` warns or errors (configurable), never silently false.
 - [ ] Review `link_root` and `@symlink` relative path semantics more carefully before finalising spec. Current resolution: `@symlink` destinations are implicit-relative to `link_root` if they don't start with `/` or `~/`. Needs validation against real use cases.
 - [ ] Spec out `dotp` fully — package manager spec only noted as "separate" in v1, needs its own specv2 section.
-- [ ] Rename / retire `dot-dagger` repo as the suite repos are created. `dotr` becomes the top-level repo.
+- [x] Repo rename/retire — handled naturally as suite repos are created; not worth tracking.
