@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(.claude/docs/spec/**/*.md)",
+      "Edit(.claude/docs/spec-review.md)",
+      "Edit(.claude/TODO.md)"
+    ]
+  }
+}

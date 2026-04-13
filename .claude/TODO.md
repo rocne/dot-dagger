@@ -24,3 +24,10 @@ Items that are known but intentionally deferred. Update this as things get done 
 ## Implementation
 
 _(To be filled in as planning begins)_
+
+---
+
+## Architecture / Design
+
+- [ ] Consider splitting dot-dagger into separate tools: a standalone DAG/source-order resolver, and a separate linker tool that handles symlinking. Source order resolution feels potentially independent from the linking concern. Revisit before implementation begins.
+- [ ] Review `link_root` and `@symlink` relative path semantics more carefully before finalising spec. Current resolution: `@symlink` destinations are implicit-relative to `link_root` if they don't start with `/` or `~/`. Needs validation against real use cases.
