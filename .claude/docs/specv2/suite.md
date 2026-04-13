@@ -1,0 +1,119 @@
+# Suite Architecture
+
+## Tools
+
+| Tool | CLI | Type | Uses | Owns | Repo |
+|------|-----|------|------|------|------|
+| `dota` | none | library only | — | Annotation parsing, predicate engine | `dota` |
+| `dote` | `dote` | binary + library | `dota` | `env.yaml`, environment detection | `dote` |
+| `dotd` | `dotd` | binary + library | `dota`, `dote` | `scripts/`, DAG, `init.sh` | `dotd` |
+| `dotl` | `dotl` | binary + library | `dota`, `dote` | `conf/`, `bin/` | `dotl` |
+| `dotp` | `dotp` | binary + library | `dota`, `dote` | Package management | `dotp` |
+| `dotr` | `dotr` | binary + library | all | Orchestrator | `dotr` |
+
+Each tool is both a standalone binary and an importable Go library. `dotr` composes the others at the library level — no subprocess calls.
+
+---
+
+## Dependency Graph
+
+```
+dota  ←──────────────────────────────────────────┐
+  ↑                                               │
+dote (uses dota)                                  │
+  ↑         ↑          ↑          ↑              │
+dotd       dotl       dotp       ...             │
+  └─────────┴──────────┴──────────┴──── dotr ────┘
+```
+
+`dota` has no dependencies within the suite. `dote` depends only on `dota`. All other tools depend on both.
+
+---
+
+## Directory Ownership
+
+Special directories in a dotfiles repo are owned by specific tools:
+
+| Directory | Owned by | Purpose |
+|-----------|----------|---------|
+| `scripts/` | `dotd` | Shell scripts to source; DAG-ordered into `init.sh` |
+| `conf/` | `dotl` | Config files symlinked to `~` (or `link_root`) |
+| `bin/` | `dotl` | Executables symlinked onto PATH |
+
+---
+
+## Standalone vs Orchestrated Mode
+
+**Standalone:** Each tool operates on its owned directories independently. No predicate filtering — `dotl` standalone walks `conf/` and `bin/` and links everything. `dote` provides env context.
+
+**Orchestrated (`dotr`):** `dotd` runs file selection with full predicate evaluation (including registered extensions from `dotp`). `dotr` passes the resulting filtered file list to `dotl` and `dotp`, which act on what they receive.
+
+---
+
+## Composition Model
+
+In orchestrated mode (`dotr`):
+
+1. `dote` resolves the environment from `env.yaml` and system detectors
+2. `dotp` registers its annotation handler and `installable()` predicate with `dota`
+3. `dotd` runs file selection — evaluates predicates against the dotfiles tree using env from `dote`; produces the active file set
+4. `dotp` acts on active files — installs packages declared via `@package`
+5. `dotl` acts on active files — applies symlinks for `conf/` and `bin/`
+6. `dotd` generates `init.sh` from the active `scripts/` set
+
+---
+
+## Config File
+
+Per-directory metadata for non-annotatable files is stored in `.dotr.yaml`. All tools in the suite read the section relevant to them.
+
+```yaml
+dote:
+  # environment overrides for this subtree
+
+dotd:
+  when: "os == macos"
+  defaults:
+    when: "os == macos"
+
+dotl:
+  link_root: ~/.config/nvim
+```
+
+Named `.dotr.yaml` to acknowledge the suite ecosystem. Each tool reads only its own section.
+
+---
+
+## What v1 sections carry forward
+
+Most v1 design decisions apply unchanged, attributed to the tool that now owns them:
+
+| v1 section | Now owned by |
+|-----------|-------------|
+| Predicate grammar and evaluation | `dota` |
+| Environment detection, `env.yaml` | `dote` |
+| DAG, logical names, annotations | `dotd` (uses `dota`, `dote`) |
+| Symlink strategy, drift detection | `dotl` (uses `dota`, `dote`) |
+| Shell init generation | `dotd` |
+| `.dotd.yaml` config files | renamed to `.dotr.yaml` |
+
+### Open questions
+
+- `link_root` and `@symlink` relative path semantics — still needs validation against real use cases (originally deferred in v1)
+
+---
+
+## Repos
+
+Each tool is its own repository. `dotr` is the top-level repo and imports the others as Go module dependencies.
+
+| Repo | Command | Notes |
+|------|---------|-------|
+| `dota` | — | No CLI; pure library |
+| `dote` | `dote` | `dote show` to dump resolved environment |
+| `dotd` | `dotd` | |
+| `dotl` | `dotl` | |
+| `dotp` | `dotp` | |
+| `dotr` | `dotr` | Top-level orchestrator |
+
+The current `dot-dagger` repo will be retired as these repos are created.

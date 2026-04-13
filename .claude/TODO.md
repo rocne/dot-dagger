@@ -29,5 +29,11 @@ _(To be filled in as planning begins)_
 
 ## Architecture / Design
 
-- [ ] Consider splitting dot-dagger into separate tools: a standalone DAG/source-order resolver, and a separate linker tool that handles symlinking. Source order resolution feels potentially independent from the linking concern. Revisit before implementation begins.
+- [x] Consider splitting dot-dagger into separate tools — resolved: suite of 6 tools (`dota`, `dote`, `dotd`, `dotl`, `dotp`, `dotr`). See `.claude/docs/specv2/`.
+- [x] Decide `env.yaml` ownership — resolved: `dote` owns it. New dedicated library/tool for environment resolution.
+- [x] Config file naming — resolved: `.dotr.yaml`, sections namespaced by tool.
+- [x] Standalone file selection for `dotl`/`dotp` — resolved: standalone = unconditional walk of owned dirs; orchestrated = receives filtered list from `dotd` via `dotr`.
+- [x] Unknown annotation/predicate behavior — resolved: `dota` warns or errors (configurable), never silently false.
 - [ ] Review `link_root` and `@symlink` relative path semantics more carefully before finalising spec. Current resolution: `@symlink` destinations are implicit-relative to `link_root` if they don't start with `/` or `~/`. Needs validation against real use cases.
+- [ ] Spec out `dotp` fully — package manager spec only noted as "separate" in v1, needs its own specv2 section.
+- [ ] Rename / retire `dot-dagger` repo as the suite repos are created. `dotr` becomes the top-level repo.
