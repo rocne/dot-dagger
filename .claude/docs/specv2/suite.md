@@ -13,6 +13,8 @@
 
 Each tool is both a standalone binary and an importable Go library. `dotr` composes the others at the library level — no subprocess calls.
 
+**Design goal: composability parity.** The behaviour achievable through `dotr` must be straightforwardly reproducible by composing the individual tools. A user who wants only part of the system — or who wants to script their own orchestration — should be able to reach the same outcome without `dotr`. `dotr` is a convenience, not a gate.
+
 ---
 
 ## Dependency Graph
