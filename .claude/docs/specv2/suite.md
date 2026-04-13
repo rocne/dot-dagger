@@ -11,8 +11,6 @@
 | `dotp` | `dotp` | binary + library | `dota`, `dote` | Package management | `dotp` |
 | `dotr` | `dotr` | binary + library | all | Orchestrator | `dotr` |
 
-Each tool is both a standalone binary and an importable Go library. `dotr` composes the others at the library level — no subprocess calls.
-
 **Design goal: composability parity.** The behaviour achievable through `dotr` must be straightforwardly reproducible by composing the individual tools. A user who wants only part of the system — or who wants to script their own orchestration — should be able to reach the same outcome without `dotr`. `dotr` is a convenience, not a gate.
 
 ---
@@ -105,17 +103,8 @@ Most v1 design decisions apply unchanged, attributed to the tool that now owns t
 
 ---
 
-## Repos
+## Repository
 
-Each tool is its own repository. `dotr` is the top-level repo and imports the others as Go module dependencies.
+Single repository (`dotr`), single Go module. All tools live in `cmd/`; all logic in `internal/`. See [structure.md](structure.md) for the full layout.
 
-| Repo | Command | Notes |
-|------|---------|-------|
-| `dota` | — | No CLI; pure library |
-| `dote` | `dote` | `dote show` to dump resolved environment |
-| `dotd` | `dotd` | |
-| `dotl` | `dotl` | |
-| `dotp` | `dotp` | |
-| `dotr` | `dotr` | Top-level orchestrator |
-
-The current `dot-dagger` repo will be retired as these repos are created.
+The current `dot-dagger` repo will be retired when `dotr` is created.
