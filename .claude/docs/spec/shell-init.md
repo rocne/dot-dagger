@@ -27,7 +27,6 @@ All scripts are sourced into a single `init.sh`. Shell-specific inclusion is han
 Colored emoji output with plain ASCII fallback when the terminal does not support it.
 
 ```
-✂  dot-dagger
 ✅  Environment resolved  os=macos  shell=zsh  context=personal
 ✅  12 nodes active
 ✅  8 symlinks applied
@@ -44,3 +43,4 @@ Colored emoji output with plain ASCII fallback when the terminal does not suppor
 | ❓ | `[?]` | Prompt |
 | ⏭ | `[skip]` | Skipped |
 | 🔄 | `[...]` | In progress |
+| ✨ | `[done]` | Completed |

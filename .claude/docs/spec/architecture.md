@@ -53,7 +53,7 @@ dot-dagger/
 | Decision | Rationale |
 |----------|-----------|
 | Go, single binary | No runtime dependency. Distributable via curl. Fast startup. |
-| Convention over config | `scripts/`, `bin/`, `dots/` directories just work. `.dotd.yaml` only when needed. |
+| Convention over config | `scripts/`, `bin/`, `conf/` directories just work. `.dotd.yaml` only when needed. Convention names configurable for power users. |
 | Full dot-path logical names | Always predictable. No skipping of unnamed directories. `@name` for aliasing when paths are too long. |
 | `@name` replaces full logical name | Enables variant files cleanly. Two files share a `@name`, predicates must be mutually exclusive. |
 | `@after` is ordering only | Never affects inclusion. Missing or inactive targets are no-ops, never errors. |
@@ -61,13 +61,17 @@ dot-dagger/
 | Directory `when` as shared default | Avoids repeating the same predicate on every non-annotatable file in a directory. Cascades to all subdirectories, not just immediate files. |
 | `.dotd.yaml` purpose is fallback | Primary use is metadata for files that cannot carry annotations. Not a module manifest. |
 | Missing required keys prompt or halt | Never silently exclude files due to unset keys. Always surface the issue. |
-| `nosync-` gitignore enforced at install | Prevents accidental staging of private files before the user has set up gitignore. |
+| `nosync-` is user responsibility | `nosync-` is stripped at runtime. User must gitignore. `dotd install` and `dotd check` warn and offer to add `nosync-*` to `.gitignore` if missing — never silently. |
 | Symlink destination conflict detection | Separate from logical name conflicts. Two `@symlink` to same path with overlapping predicates is an error. |
 | Custom annotation dispatch | Extends dot-dagger without modifying it. External tools own their annotations. |
 | `--dry-run` skips annotation handlers | Annotation handlers have side effects. dry-run must be fully safe. |
 | `exists()` predicate function | Capability gating without package manager coupling. |
 | Two distinct `dot-` transformations | Logical names strip `dot-` entirely (DAG identity). Symlink destinations replace `dot-` with `.` (filesystem convention). Different rules, different functions. |
-| `dot-` replacement applies at every level | Consistent rule — any path component starting with `dot-` gets its prefix replaced with `.`. `@retain-prefix` opts out per file's last component. |
+| `dot-` transformation applies uniformly | Any path component starting with `dot-` gets its prefix replaced with `.`. Files and directories follow the same rule. `@retain-prefix` opts out for a specific component. |
+| `conf/` renamed from `dots/` | `conf/` more precisely describes the purpose: config files that third-party tools expect at a fixed path. `dots/` implied "dotfiles broadly" which was misleading. |
+| `conf/` symlinks relative to `~` by default | `link_root` in `.dotd.yaml` allows overriding the base path per subtree. Cascades to subdirectories. |
+| `@symlink` path is implicit-relative | Absolute if starting with `/` or `~/`, otherwise relative to `link_root`. No new sigil needed — mirrors Unix path conventions. |
+| Special dirs recognised until first encounter | Once inside a special dir, further special dirs inside it are ignored. Prevents confusing nesting without a hard depth cap. Allows `nosync-work/tmux/scripts/` and other deep but legitimate layouts. |
 | `directory` and `defaults` sections in `.dotd.yaml` | Clear separation between properties of the directory node itself and defaults that cascade to contents. |
 | `files.path` uses true filename, predicates use logical names | Consistent with how annotations work — the filesystem is addressed by real name, the DAG by logical name. |
 | Single shell-agnostic `init.sh` | One source line in any rc file. Shell-specific content handled by predicates. Uses POSIX `.` not bash `source`. |
@@ -75,6 +79,9 @@ dot-dagger/
 | Atomic `init.sh` write | Temp file + rename. A crash during apply never leaves a partial init.sh. |
 | Symlink ownership by repo root prefix | Symlinks pointing into the repo are owned and updated freely. Foreign symlinks require `--force`. |
 | No state file | Runtime scan from active nodes. Never out of sync. |
+| Single `dotd check` command | Replaces separate `dotd status` and `dotd check`. One command covers state inspection and error detection. Expandable to subcommands later if needed. |
+| No `dotd diff` command | Deployment artifacts are symlinks and `init.sh`. `dotd apply --dry-run` covers the preview use case. A dedicated diff command adds complexity without meaningful value. |
+| No modules concept | Directories are the natural organisational unit. `@module` and `dotd module` subcommands removed. |
 | `Resolve()` never prompts | Returns `*MissingKeysError`; the CLI catches with `errors.As` and decides whether to prompt or halt based on TTY. |
 | Injectable test seams everywhere | `Evaluator.LookPath`, `Resolver.Detectors`, `Resolver.RunCmd`, `walker.readAnnotations`, `walker.readDotdYaml` — all injectable. Real implementations are zero values or defaults. |
 | All errors collected before returning | `dotd check` shows every problem at once, not just the first one. `errors.Join` throughout. |

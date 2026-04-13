@@ -10,26 +10,13 @@ dotd <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `dotd install` | Set up dot-dagger — rc wiring, first-run env prompts |
+| `dotd install` | Set up dot-dagger — rc wiring, first-run env prompts, gitignore check for `nosync-*` |
 | `dotd install --apply` | Set up then immediately apply |
 | `dotd apply` | Full reconciliation — evaluate predicates, resolve DAG, symlink, generate `init.sh` |
-| `dotd diff` | Show what apply would change |
-| `dotd check` | Validate predicates, DAG, annotations, `.dotd.yaml` files |
-| `dotd status` | Full status report |
-| `dotd status config` | Config and annotation validation |
-| `dotd status env` | Environment health |
-| `dotd status files` | Filesystem drift |
-| `dotd doctor` | Analyse status, propose and optionally apply fixes |
-| `dotd add <file>` | Begin tracking a file — fuzzy picker or `--module` |
+| `dotd check` | Full status and validation — environment health, filesystem drift, predicate/DAG/annotation errors |
+| `dotd add <file>` | Begin tracking a file — fuzzy picker |
 | `dotd uninstall <path>` | Remove artifacts for files under a path |
 | `dotd uninstall --all` | Remove everything |
-
-### `dotd module` subcommands
-
-| Command | Description |
-|---------|-------------|
-| `dotd module create <n>` | Scaffold a new directory with `scripts/`, `bin/`, `dots/`, and optional `.dotd.yaml` |
-| `dotd module list` | List all directories with their active file counts |
 
 ### `dotd env` subcommands
 
@@ -48,7 +35,7 @@ dotd <command> [options]
 | `--env <key=val>` | Override env key for this invocation |
 | `--interactive` / `--no-interactive` | Force interactivity mode |
 | `--verbose` | Detailed output |
-| `--all` | Required for unscoped destructive operations |
+| `--all` | Required for unscoped destructive operations (e.g. `dotd uninstall --all`) |
 
 Interactivity defaults to `--interactive` when a TTY is detected, `--no-interactive` otherwise.
 

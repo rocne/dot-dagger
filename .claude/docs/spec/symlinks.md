@@ -2,15 +2,27 @@
 
 ## 9. Symlink Strategy
 
-### `dots/` → `$HOME`
+### `conf/` → `~` (default)
 
 ```
-dots/dot-zshrc                     → ~/.zshrc
-dots/dot-config/tmux/tmux.conf     → ~/.config/tmux/tmux.conf
-dots/dot-config/dot-tmux/tmux.conf → ~/.config/.tmux/tmux.conf
+conf/dot-zshrc                     → ~/.zshrc
+conf/dot-config/tmux/tmux.conf     → ~/.config/tmux/tmux.conf
+conf/dot-config/dot-tmux/tmux.conf → ~/.config/.tmux/tmux.conf
+nosync-work/conf/dot-gitconfig     → ~/.gitconfig
 ```
 
-Every `dot-` prefix at every path level is replaced with `.`. Non-`dot-` components are used as-is.
+Every `dot-` prefix at every path level is replaced with `.`. Non-`dot-` components are used as-is. The `nosync-` prefix is stripped from implicit symlink destinations.
+
+#### `link_root`
+
+The default symlink destination root is `~`. Any directory's `.dotd.yaml` can override this with a `link_root` field under `directory:`:
+
+```yaml
+directory:
+  link_root: ~/.config/someapp
+```
+
+All files under that directory that get symlinked will use `link_root` as the base instead of `~`. `link_root` cascades to subdirectories unless overridden by a closer `.dotd.yaml`.
 
 ### `bin/` → managed bin dir
 
@@ -18,15 +30,21 @@ Every `dot-` prefix at every path level is replaced with `.`. Non-`dot-` compone
 bin/tmux-sessionizer → ~/.local/bin/dot-dagger/tmux-sessionizer
 ```
 
-The managed bin dir is added to PATH in the generated `init.sh`. It is the only PATH addition dot-dagger makes.
+The managed bin dir defaults to `~/.local/bin/dot-dagger/` (or `$XDG_BIN_HOME/dot-dagger/` if `$XDG_BIN_HOME` is set). It is configurable in `config.yaml`. It is the only `PATH` addition dot-dagger makes, prepended in the generated `init.sh`.
 
 ### `@symlink` → explicit destination
 
-Any file anywhere in the repo can declare `@symlink <path>` to be symlinked to an explicit destination. Tilde (`~/`) is expanded to the home directory.
+Any file anywhere in the repo can declare `@symlink <path>` to be symlinked to an explicit destination. Destination path rules:
+
+- Starts with `/` → absolute path
+- Starts with `~/` → relative to `$HOME`
+- Anything else → relative to `link_root` (or `~` if no `link_root` is set)
+
+`@symlink` destinations are taken literally — no `nosync-` stripping, no `dot-` transformation. `@symlink` is the mechanism for overriding default destination behaviour.
 
 ### Ownership
 
-A symlink is owned by dot-dagger if its current target starts with the repo root path. Owned symlinks are updated freely (e.g. when switching between variant files). Foreign symlinks — pointing outside the repo — require `--force`.
+A symlink is owned by dot-dagger if its current target starts with the dotfiles repo root path. Owned symlinks are updated freely (e.g. when switching between variant files). Foreign symlinks — pointing outside the repo — require `--force`.
 
 ### Conflict handling
 
@@ -40,7 +58,7 @@ When a file's predicate no longer matches, `dotd apply` removes its deployed art
 
 ## 10. Drift Detection
 
-`dotd status files` compares deployed state to source at runtime. No state file — candidate paths are derived from active nodes in the current environment.
+`dotd check` compares deployed state to source at runtime. No state file — candidate paths are derived from active nodes in the current environment.
 
 Symlink states reported:
 
@@ -52,5 +70,3 @@ Symlink states reported:
 | Conflict | Real file at the expected destination |
 
 Fully managed directories get a full recursive diff. Partially managed directories (like `~/`) only diff managed files — unmanaged siblings are ignored.
-
-`dotd status env` checks that builtins are detected, context is set, the rc file is wired, and the repo is not behind origin.

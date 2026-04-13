@@ -1,6 +1,6 @@
 # dot-dagger Spec Index
 
-**Status:** Draft v1.2 | **CLI:** `dotd` | **Language:** Go
+**Status:** Draft v1.3 | **CLI:** `dotd` | **Language:** Go
 
 dot-dagger is a dotfiles composition engine — predicate-gated files, DAG-ordered sourcing, symlink management, single generated `init.sh`.
 
@@ -10,7 +10,7 @@ dot-dagger is a dotfiles composition engine — predicate-gated files, DAG-order
 
 | File | Contents |
 |------|----------|
-| [overview.md](overview.md) | §1 Overview, §2 Directory Conventions (`scripts/`, `bin/`, `dots/`, `dot-`, `nosync-`) |
+| [overview.md](overview.md) | §1 Overview, §2 Directory Conventions (`scripts/`, `bin/`, `conf/`, `dot-`, `nosync-`) |
 | [dag.md](dag.md) | §3 Logical Names & DAG, §5 Annotations, §6 `.dotd.yaml` |
 | [predicates.md](predicates.md) | §4 Predicate System — grammar, env keys, resolution precedence, `exists()` |
 | [env.md](env.md) | §7 Config Files (`config.yaml`, `env.yaml`) |
@@ -24,8 +24,11 @@ dot-dagger is a dotfiles composition engine — predicate-gated files, DAG-order
 ## Quick Reference
 
 - Predicate effective value: `directory_when AND file_when`
-- Logical name derivation: strip `nosync-`, strip `dot-`, strip extension — dot-separated from repo root
-- Symlink destination: replace `dot-` with `.` at every path level
+- Logical name derivation: strip `nosync-`, strip `dot-`, strip extension — dot-separated from dotfiles repo root
+- Symlink destination: replace `dot-` with `.` at every path level (uniform — files and directories follow the same rule)
+- `conf/` symlinks to `~` by default; `link_root` in `.dotd.yaml` overrides the base path
+- `@symlink` path: absolute if `/` or `~/`, otherwise relative to `link_root`
+- Special dirs recognised until first encounter — `scripts/conf/` is ignored, `nosync-work/tmux/scripts/` is valid
 - Default ordering: alphabetical by logical name within each DAG frontier (Kahn's + alpha tie-break)
 - Missing env keys: prompt (TTY) or halt (non-interactive) — never silent
 

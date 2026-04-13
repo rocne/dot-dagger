@@ -15,7 +15,7 @@ Applied per path component, in order:
 tmux/scripts/helpers.sh         → tmux.scripts.helpers
 scripts/math.sh                 → scripts.math
 nosync-work/scripts/aliases.sh  → work.scripts.aliases
-dots/dot-config/tmux/tmux.conf  → dots.config.tmux.tmux
+conf/dot-config/tmux/tmux.conf  → conf.config.tmux.tmux
 nosync-dot-secrets/api.sh       → secrets.api
 ```
 
@@ -54,7 +54,7 @@ Files with no `@after` declarations are sourced in deterministic alphabetical or
 
 Two active nodes with the same logical name — whether derived or declared via `@name` — is a conflict error. Predicates must be mutually exclusive for variant files sharing a name.
 
-Two active files both declaring `@symlink` to the same destination is a separate symlink destination conflict — detected independently from logical name conflicts. Conventional `dots/` and `bin/` destination conflicts are detected by the linker, which knows the runtime home directory.
+Two active files both declaring `@symlink` to the same destination is a separate symlink destination conflict — detected independently from logical name conflicts. Conventional `conf/` and `bin/` destination conflicts are detected by the linker, which knows the runtime home directory.
 
 ---
 
@@ -76,16 +76,15 @@ Metadata is declared as comment annotations at the top of a file.
 | `@when <expr>` | Inclusion predicate. Multiple lines are ANDed. |
 | `@after <ref>` | DAG ordering dependency — logical name or path prefix ending in `/` |
 | `@name <logical-name>` | Override the full logical name of this file |
-| `@module <n>` | Declare module membership (for organisational tooling) |
-| `@symlink <path>` | Symlink this file to an explicit destination (tilde-expanded) |
-| `@retain-prefix` | Opt out of `dot-` transformation for this file's last path component |
+| `@symlink <path>` | Symlink this file to an explicit destination (see symlinks.md for path rules) |
+| `@retain-prefix` | Opt out of `dot-` transformation for this path component |
 | custom | Dispatched to registered external handlers |
 
 ### `@symlink`
 
-Opts any file into symlinking at an explicit destination. Rarely needed — `dots/` handles the common case. Used for files outside `dots/` that need symlinking, or for dotfiles that need a non-conventional destination.
+Opts any file into symlinking at an explicit destination. Rarely needed — `conf/` handles the common case. Used for files outside `conf/` that need symlinking, or for config files that need a non-conventional destination.
 
-Files in `dots/` are symlinked by convention — `@symlink` is only needed there to override the default destination. `@symlink` takes precedence over convention in all cases.
+Files in `conf/` are symlinked by convention — `@symlink` is only needed there to override the default destination. `@symlink` takes precedence over convention in all cases. See [symlinks.md](symlinks.md) for destination path rules.
 
 ### Custom annotations
 
@@ -121,6 +120,7 @@ An optional metadata file that can appear in any directory. Its primary purpose 
 directory:
   when: "os=macos"        # gates traversal — don't enter unless this matches
   retain_prefix: true     # don't transform dot- on this directory's name in symlink paths
+  link_root: ~/.config/someapp  # override symlink destination root for this subtree
 
 # Defaults that cascade to all files inside
 defaults:
@@ -139,7 +139,7 @@ files:
     symlink: ~/.gitconfig
 
   - path: settings.json
-    symlink: "~/Library/Application Support/SomeApp/settings.json"
+    symlink: "settings.json"   # relative to link_root
     when: "os=macos"
     retain_prefix: true
 ```
