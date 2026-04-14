@@ -41,6 +41,6 @@ See `.claude/docs/implementation-plan.md` for the full phased plan.
 - [x] Config file naming — resolved: `.dotr.yaml`, sections namespaced by tool.
 - [x] Standalone file selection for `dotl`/`dotp` — resolved: standalone = unconditional walk of owned dirs; orchestrated = receives filtered list from `dotd` via `dotr`.
 - [x] Unknown annotation/predicate behavior — resolved: `dota` warns or errors (configurable), never silently false.
-- [ ] Review `link_root` and `@symlink` relative path semantics more carefully before finalising spec. Current resolution: `@symlink` destinations are implicit-relative to `link_root` if they don't start with `/` or `~/`. Needs validation against real use cases.
+- [x] Review `link_root` and `@symlink` relative path semantics — resolved: `link_root` cascades from `.dotr.yaml` `dotl` section; inner overrides outer; empty = fallback to `Options.LinkRoot`. `@symlink` relative paths resolve against effective `link_root`.
 - [x] Spec out `dotp` fully — see `.claude/docs/specv2/dotp.md`.
 - [x] Repo rename/retire — handled naturally as suite repos are created; not worth tracking.

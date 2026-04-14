@@ -237,6 +237,71 @@ func TestLogicalNameFor(t *testing.T) {
 	}
 }
 
+func TestWalkLinkRootCascade(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		// nvim subdir has a .dotr.yaml with dotl.link_root set.
+		"nvim/.dotr.yaml":         "dotl:\n  link_root: /custom/nvim\n",
+		"nvim/conf/dot-init.lua":   "",
+		// Top-level conf has no link_root override.
+		"conf/dot-zshrc": "",
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	linkRootOf := func(rel string) string {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		for _, n := range nodes {
+			if n.Path == full {
+				return n.LinkRoot
+			}
+		}
+		t.Fatalf("node not found: %s", rel)
+		return ""
+	}
+
+	if got := linkRootOf("nvim/conf/dot-init.lua"); got != "/custom/nvim" {
+		t.Errorf("nvim/conf/dot-init.lua: LinkRoot = %q, want /custom/nvim", got)
+	}
+	if got := linkRootOf("conf/dot-zshrc"); got != "" {
+		t.Errorf("conf/dot-zshrc: LinkRoot = %q, want empty", got)
+	}
+}
+
+func TestWalkLinkRootInnerOverridesOuter(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		".dotr.yaml":              "dotl:\n  link_root: /outer\n",
+		"nvim/.dotr.yaml":         "dotl:\n  link_root: /inner\n",
+		"nvim/conf/dot-init.lua":   "",
+		"conf/dot-zshrc":          "",
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	linkRootOf := func(rel string) string {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		for _, n := range nodes {
+			if n.Path == full {
+				return n.LinkRoot
+			}
+		}
+		t.Fatalf("node not found: %s", rel)
+		return ""
+	}
+
+	if got := linkRootOf("nvim/conf/dot-init.lua"); got != "/inner" {
+		t.Errorf("nvim/conf/dot-init.lua: LinkRoot = %q, want /inner", got)
+	}
+	if got := linkRootOf("conf/dot-zshrc"); got != "/outer" {
+		t.Errorf("conf/dot-zshrc: LinkRoot = %q, want /outer", got)
+	}
+}
+
 func TestCombineWhen(t *testing.T) {
 	tests := []struct{ a, b, want string }{
 		{"", "", ""},

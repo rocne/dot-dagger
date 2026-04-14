@@ -11,6 +11,15 @@ import (
 	"github.com/rocne/dot-dagger/internal/dotryaml"
 )
 
+// expandTilde replaces a leading ~/ with the user's home directory.
+func expandTilde(s string) string {
+	if strings.HasPrefix(s, "~/") {
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, s[2:])
+	}
+	return s
+}
+
 // Kind identifies which special directory type a file belongs to.
 type Kind int
 
@@ -53,6 +62,11 @@ type Node struct {
 	// It merges cascading directory defaults with the file's own @when.
 	// Empty string means unconditionally active.
 	EffectiveWhen string
+
+	// LinkRoot is the symlink destination root for this file, derived from
+	// the nearest ancestor .dotr.yaml with dotl.link_root set.
+	// Empty means use the linker's default (Options.LinkRoot).
+	LinkRoot string
 }
 
 // specialDirNames maps directory base names to their Kind.
@@ -69,18 +83,19 @@ var specialDirNames = map[string]Kind{
 func Walk(root string) ([]Node, error) {
 	root = filepath.Clean(root)
 	var nodes []Node
-	err := walkDir(root, root, KindOther, false, "", &nodes)
+	err := walkDir(root, root, KindOther, false, "", "", &nodes)
 	return nodes, err
 }
 
 // walkDir recurses into dir.
 //
-//   - root:          repo root (for logical name computation)
-//   - dir:           current directory being walked
-//   - inheritedKind: kind inherited from a parent special dir (KindOther = not in one)
-//   - inSpecialDir:  true if we are already inside a special dir
-//   - cascadeWhen:   accumulated @when expression from ancestor .dotr.yaml defaults
-func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhen string, nodes *[]Node) error {
+//   - root:             repo root (for logical name computation)
+//   - dir:              current directory being walked
+//   - inheritedKind:    kind inherited from a parent special dir (KindOther = not in one)
+//   - inSpecialDir:     true if we are already inside a special dir
+//   - cascadeWhen:      accumulated @when expression from ancestor .dotr.yaml defaults
+//   - cascadeLinkRoot:  link_root from nearest ancestor .dotr.yaml dotl section
+func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhen, cascadeLinkRoot string, nodes *[]Node) error {
 	// Load .dotr.yaml for this directory.
 	cfg, err := dotryaml.LoadFile(filepath.Join(dir, ".dotr.yaml"))
 	if err != nil {
@@ -93,6 +108,12 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 	// callers that evaluate predicates lazily. For the walker we always descend
 	// and let fileset filter. But we do combine cascading defaults.
 	dirDefaultWhen := combineWhen(cascadeWhen, cfg.Dotd.Defaults.When)
+
+	// link_root cascade: inner .dotr.yaml overrides outer. Expand ~/ at walk time.
+	effectiveLinkRoot := cascadeLinkRoot
+	if cfg.Dotl.LinkRoot != "" {
+		effectiveLinkRoot = expandTilde(cfg.Dotl.LinkRoot)
+	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -123,7 +144,7 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 			}
 
 			childCascade := dirDefaultWhen
-			if err := walkDir(root, fullPath, childKind, childInSpecial, childCascade, nodes); err != nil {
+			if err := walkDir(root, fullPath, childKind, childInSpecial, childCascade, effectiveLinkRoot, nodes); err != nil {
 				return err
 			}
 			continue
@@ -155,6 +176,7 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 			LogicalName:   logicalName,
 			Annotations:   anns,
 			EffectiveWhen: effectiveWhen,
+			LinkRoot:      effectiveLinkRoot,
 		})
 	}
 	return nil

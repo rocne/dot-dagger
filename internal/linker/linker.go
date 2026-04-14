@@ -192,9 +192,16 @@ func Remove(links []Link) error {
 
 // destFor returns the symlink destination for a node, or "" if not linkable.
 func destFor(n fileset.Node, opts Options) (string, error) {
+	// Resolve effective link root: per-node value (from .dotr.yaml cascade) takes
+	// precedence over the flat Options.LinkRoot.
+	linkRoot := opts.LinkRoot
+	if n.LinkRoot != "" {
+		linkRoot = n.LinkRoot
+	}
+
 	// @symlink annotation takes precedence.
 	if a, ok := annotation.First(n.Annotations, annotation.KeySymlink); ok && a.Value != "" {
-		return resolveSymlinkDest(a.Value, opts.LinkRoot), nil
+		return resolveSymlinkDest(a.Value, linkRoot), nil
 	}
 
 	switch n.Kind {
@@ -203,7 +210,7 @@ func destFor(n fileset.Node, opts Options) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(opts.LinkRoot, rel), nil
+		return filepath.Join(linkRoot, rel), nil
 
 	case fileset.KindBin:
 		return filepath.Join(opts.BinDir, filepath.Base(n.Path)), nil

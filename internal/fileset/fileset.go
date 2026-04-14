@@ -33,6 +33,11 @@ type Node struct {
 
 	// Annotations are the resolved annotations for this file.
 	Annotations []annotation.Annotation
+
+	// LinkRoot is the symlink destination root for this file, derived from
+	// the nearest ancestor .dotr.yaml with dotl.link_root set.
+	// Empty means use the linker's default (Options.LinkRoot).
+	LinkRoot string
 }
 
 // Set is the shared in-memory context passed to all downstream stages.
@@ -96,6 +101,7 @@ func Build(nodes []walk.Node, env map[string]string, opts *Options) (*Set, error
 				Kind:        n.Kind,
 				LogicalName: n.LogicalName,
 				Annotations: n.Annotations,
+				LinkRoot:    n.LinkRoot,
 			})
 		}
 	}

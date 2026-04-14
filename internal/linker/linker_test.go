@@ -113,6 +113,29 @@ func TestPlanBinNode(t *testing.T) {
 	}
 }
 
+func TestPlanConfNodePerNodeLinkRoot(t *testing.T) {
+	nodes := []fileset.Node{
+		{
+			Path:     "/repo/nvim/conf/dot-init.lua",
+			Kind:     fileset.KindConf,
+			LinkRoot: "/custom/nvim",
+		},
+	}
+	opts := Options{LinkRoot: "/home/user", BinDir: "/home/user/.local/bin"}
+	links, err := Plan(nodes, opts)
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("len(links) = %d, want 1", len(links))
+	}
+	// confRelPath strips the conf/ prefix component, so the dest is /custom/nvim/.init.lua.
+	want := "/custom/nvim/.init.lua"
+	if links[0].Dst != want {
+		t.Errorf("Dst = %q, want %q", links[0].Dst, want)
+	}
+}
+
 func TestPlanScriptNodeSkipped(t *testing.T) {
 	nodes := []fileset.Node{
 		{Path: "/repo/scripts/base.sh", Kind: fileset.KindScript},
