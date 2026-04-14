@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/dag"
@@ -46,7 +47,7 @@ func init() {
 	pf.BoolVar(&flagForce, "force", false, "override safety checks")
 	pf.BoolVar(&flagVerbose, "verbose", false, "detailed output")
 
-	rootCmd.AddCommand(applyCmd, checkCmd, installCmd)
+	rootCmd.AddCommand(applyCmd, checkCmd, installCmd, envCmd)
 }
 
 var applyCmd = &cobra.Command{
@@ -196,6 +197,89 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// --- dotd env ---
+
+var envCmd = &cobra.Command{
+	Use:   "env",
+	Short: "Inspect and modify env.yaml",
+}
+
+var envListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "Show all resolved env key-value pairs",
+	RunE:  runEnvList,
+}
+
+var envGetCmd = &cobra.Command{
+	Use:   "get <key>",
+	Short: "Get a specific env key",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runEnvGet,
+}
+
+var envSetCmd = &cobra.Command{
+	Use:   "set <key=value>",
+	Short: "Set a key in env.yaml",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runEnvSet,
+}
+
+func init() {
+	envCmd.AddCommand(envListCmd, envGetCmd, envSetCmd)
+}
+
+func runEnvList(cmd *cobra.Command, args []string) error {
+	resolved, err := resolveEnv()
+	if err != nil {
+		return err
+	}
+	keys := sortedKeys(resolved)
+	for _, k := range keys {
+		fmt.Printf("%s=%s\n", k, resolved[k])
+	}
+	return nil
+}
+
+func runEnvGet(cmd *cobra.Command, args []string) error {
+	resolved, err := resolveEnv()
+	if err != nil {
+		return err
+	}
+	key := args[0]
+	val, ok := resolved[key]
+	if !ok {
+		return fmt.Errorf("key %q not found in resolved environment", key)
+	}
+	fmt.Println(val)
+	return nil
+}
+
+func runEnvSet(cmd *cobra.Command, args []string) error {
+	parts := strings.SplitN(args[0], "=", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("expected key=value, got %q", args[0])
+	}
+	key, val := parts[0], parts[1]
+
+	ef, err := env.LoadEnvFileFromPath(flagEnvFile)
+	if err != nil {
+		return err
+	}
+	ef.Env[key] = val
+
+	if flagDryRun {
+		fmt.Printf("would set %s=%s in %s\n", key, val, flagEnvFile)
+		return nil
+	}
+	if err := env.SaveEnvFileToPath(flagEnvFile, ef); err != nil {
+		return err
+	}
+	if flagVerbose {
+		fmt.Printf("set %s=%s in %s\n", key, val, flagEnvFile)
+	}
+	return nil
+}
+
 var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Set up dot-dagger — rc wiring and first-run configuration",
@@ -251,5 +335,14 @@ func defaultEnvFile() string {
 func defaultInitFile() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "dot-dagger", "init.sh")
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 

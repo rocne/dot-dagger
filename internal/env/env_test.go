@@ -2,6 +2,8 @@ package env
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -114,5 +116,66 @@ func TestLoadEnvFileFromPathMissing(t *testing.T) {
 	}
 	if ef.Env == nil {
 		t.Error("Env map is nil for missing file")
+	}
+}
+
+func TestSaveEnvFileToPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sub", "env.yaml")
+
+	ef := &EnvFile{
+		Env:          map[string]string{"context": "work", "role": "desktop"},
+		DotfilesRepo: "~/dotfiles",
+	}
+	if err := SaveEnvFileToPath(path, ef); err != nil {
+		t.Fatalf("SaveEnvFileToPath() error = %v", err)
+	}
+
+	// Round-trip: reload and verify.
+	got, err := LoadEnvFileFromPath(path)
+	if err != nil {
+		t.Fatalf("LoadEnvFileFromPath() error = %v", err)
+	}
+	if got.Env["context"] != "work" {
+		t.Errorf("context = %q, want work", got.Env["context"])
+	}
+	if got.Env["role"] != "desktop" {
+		t.Errorf("role = %q, want desktop", got.Env["role"])
+	}
+	if got.DotfilesRepo != "~/dotfiles" {
+		t.Errorf("dotfiles_repo = %q, want ~/dotfiles", got.DotfilesRepo)
+	}
+}
+
+func TestSaveEnvFileToPathAtomic(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "env.yaml")
+
+	// Write initial content.
+	ef := &EnvFile{Env: map[string]string{"a": "1"}}
+	if err := SaveEnvFileToPath(path, ef); err != nil {
+		t.Fatalf("first save error = %v", err)
+	}
+
+	// Overwrite.
+	ef.Env["a"] = "2"
+	if err := SaveEnvFileToPath(path, ef); err != nil {
+		t.Fatalf("second save error = %v", err)
+	}
+
+	got, err := LoadEnvFileFromPath(path)
+	if err != nil {
+		t.Fatalf("load error = %v", err)
+	}
+	if got.Env["a"] != "2" {
+		t.Errorf("a = %q, want 2", got.Env["a"])
+	}
+
+	// No leftover temp files.
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Errorf("leftover temp file: %s", e.Name())
+		}
 	}
 }

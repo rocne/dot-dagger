@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -123,4 +124,33 @@ func LoadEnvFileFromPath(path string) (*EnvFile, error) {
 	}
 	defer f.Close()
 	return LoadEnvFile(f)
+}
+
+// SaveEnvFileToPath writes ef to path atomically (temp file + rename).
+// Creates parent directories as needed.
+func SaveEnvFileToPath(path string, ef *EnvFile) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("env: mkdir %s: %w", filepath.Dir(path), err)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".env-*.yaml.tmp")
+	if err != nil {
+		return fmt.Errorf("env: create temp: %w", err)
+	}
+	tmpPath := tmp.Name()
+	enc := yaml.NewEncoder(tmp)
+	enc.SetIndent(2)
+	if err := enc.Encode(ef); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("env: encode env.yaml: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("env: close temp: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("env: write %s: %w", path, err)
+	}
+	return nil
 }
