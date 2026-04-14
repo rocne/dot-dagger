@@ -27,6 +27,7 @@ v1 specified a single `dotd` binary. v2 redesigns this as a suite of focused too
 | [structure.md](structure.md) | Repo/module layout, internal packages, FileSet, I/O boundary, standalone vs orchestrated |
 | [annotation.md](annotation.md) | `dota` — annotation system, predicate extension, custom handlers, unknown annotation behavior |
 | [dote.md](dote.md) | `dote` — environment resolution, `env.yaml`, custom detectors, CLI |
+| [dotp.md](dotp.md) | `dotp` — package management, `@require`/`@request`, registry, priority |
 
 > Remaining v1 sections (predicates, DAG, symlinks, shell-init, CLI) carry forward with adjustments noted in [suite.md](suite.md). Full rewrites deferred until design stabilises.
 
@@ -38,6 +39,6 @@ v1 specified a single `dotd` binary. v2 redesigns this as a suite of focused too
 - **`dote`** — env resolution, `env.yaml`, custom detectors; `dote show` for debugging
 - **`dotd`** — file selection, DAG resolution, `init.sh` generation; owns `scripts/`
 - **`dotl`** — symlink apply/remove/check; owns `conf/`, `bin/`
-- **`dotp`** — package management; registers `installable()` predicate and `@package` annotation
+- **`dotp`** — package management; `@require` (hard gate) and `@request` (soft ask); `installed()`/`installable()` predicates
 - **`dotr`** — orchestrator; wires tools together into full shell management
 - **`.dotr.yaml`** — per-directory config for non-annotatable files; sectioned by tool

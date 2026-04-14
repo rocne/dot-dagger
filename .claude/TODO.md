@@ -35,5 +35,5 @@ _(To be filled in as planning begins)_
 - [x] Standalone file selection for `dotl`/`dotp` — resolved: standalone = unconditional walk of owned dirs; orchestrated = receives filtered list from `dotd` via `dotr`.
 - [x] Unknown annotation/predicate behavior — resolved: `dota` warns or errors (configurable), never silently false.
 - [ ] Review `link_root` and `@symlink` relative path semantics more carefully before finalising spec. Current resolution: `@symlink` destinations are implicit-relative to `link_root` if they don't start with `/` or `~/`. Needs validation against real use cases.
-- [ ] Spec out `dotp` fully — package manager spec only noted as "separate" in v1, needs its own specv2 section.
+- [x] Spec out `dotp` fully — see `.claude/docs/specv2/dotp.md`.
 - [x] Repo rename/retire — handled naturally as suite repos are created; not worth tracking.

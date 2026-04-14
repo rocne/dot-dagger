@@ -60,19 +60,19 @@ This means running standalone `dotd` with `@package` annotations (a `dotp` conce
 
 ---
 
-## `@package` annotation (owned by `dotp`)
+## Package annotations (owned by `dotp`)
 
-`dotp` registers the `@package` annotation and `installable()` predicate. Together they solve the file-selection / package-installation ordering problem without circular dependencies.
+`dotp` registers `@require`, `@request`, `installed()`, and `installable()`. See [dotp.md](dotp.md) for full details.
 
-### What `@package` does
+### `@require pkg` — hard gate
 
-When `dotp` is active (registered with `dota`), a file annotated with `@package nvim` gets an implicit extension to its effective `@when` condition:
+File is only active if `installable(pkg) || installed(pkg)`. Failure is loud (error).
 
-```
-effective_when = (original_when) && (exists(nvim) || installable(nvim))
-```
+### `@request pkg` — soft ask
 
-This means `dotd` includes the file if the package already exists *or* can be installed — without needing a second selection pass. `dotp` then installs declared packages for all active files.
+File is always active. dotp installs if it can; silently skips if not.
+
+Both solve the file-selection / package-installation ordering problem without circular dependencies — selection and installation intent are resolved in one pass.
 
 ---
 
