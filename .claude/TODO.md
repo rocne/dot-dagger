@@ -29,8 +29,8 @@ See `.claude/docs/implementation-plan.md` for the full phased plan.
 - [x] Phase 1 — `internal/annotation`, `internal/predicate`
 - [x] Phase 2 — `internal/dotryaml`, `internal/env`, `cmd/dote`
 - [x] Phase 3 — `internal/walk`, `internal/fileset`
-- [ ] Phase 4 — `internal/dag`, `internal/initgen`, `internal/linker`, `internal/packages`
-- [ ] Phase 5 — `cmd/dotd`, `cmd/dotl`, `cmd/dotp`, `cmd/dotr`
+- [x] Phase 4 — `internal/dag`, `internal/initgen`, `internal/linker`, `internal/packages`
+- [x] Phase 5 — `cmd/dotd`, `cmd/dotl`, `cmd/dotp`, `cmd/dotr`
 
 ---
 

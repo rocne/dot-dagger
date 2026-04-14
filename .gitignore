@@ -1,5 +1,9 @@
 # Binaries
-dotd
+/dotd
+/dote
+/dotl
+/dotp
+/dotr
 *.exe
 *.exe~
 *.dll
