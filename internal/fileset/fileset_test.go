@@ -81,6 +81,20 @@ func TestBuildEnvStored(t *testing.T) {
 	}
 }
 
+func TestBuildUnfilteredIncludesAll(t *testing.T) {
+	nodes := []walk.Node{
+		{Path: "/a.sh", Kind: KindScript, LogicalName: "a", EffectiveWhen: "os=never-true"},
+		{Path: "/b.sh", Kind: KindScript, LogicalName: "b", EffectiveWhen: "os=also-never"},
+		{Path: "/c.sh", Kind: KindScript, LogicalName: "c", EffectiveWhen: ""},
+	}
+
+	s := BuildUnfiltered(nodes)
+
+	if len(s.Nodes) != 3 {
+		t.Fatalf("len(Nodes) = %d, want 3 (all nodes included regardless of @when)", len(s.Nodes))
+	}
+}
+
 func TestBuildMissingEnvKeyError(t *testing.T) {
 	nodes := []walk.Node{
 		{Path: "/a.sh", Kind: KindScript, LogicalName: "a", EffectiveWhen: "context=work"},

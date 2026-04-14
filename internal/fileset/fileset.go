@@ -76,6 +76,23 @@ type Options struct {
 	Funcs *predicate.FuncRegistry
 }
 
+// BuildUnfiltered converts walk nodes to fileset nodes without predicate
+// evaluation — every node is included regardless of @when expressions.
+// Used by standalone tools (dotl, dotp) that operate unconditionally.
+func BuildUnfiltered(nodes []walk.Node) *Set {
+	active := make([]Node, 0, len(nodes))
+	for _, n := range nodes {
+		active = append(active, Node{
+			Path:        n.Path,
+			Kind:        n.Kind,
+			LogicalName: n.LogicalName,
+			Annotations: n.Annotations,
+			LinkRoot:    n.LinkRoot,
+		})
+	}
+	return &Set{Nodes: active}
+}
+
 // Build evaluates predicates on raw walk nodes against env and returns
 // a Set containing only the active nodes.
 // Nodes with an empty EffectiveWhen are unconditionally included.

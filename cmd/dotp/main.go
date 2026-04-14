@@ -1,4 +1,6 @@
 // Command dotp manages package installation for the dotr suite.
+// Standalone mode: unconditional — packages from all files are acted on
+// regardless of @when predicates. Use dotr for predicate-filtered installs.
 package main
 
 import (
@@ -6,10 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/rocne/dot-dagger/internal/dotryaml"
-	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/walk"
@@ -24,8 +24,6 @@ func main() {
 
 type config struct {
 	dotfiles string
-	envFile  string
-	env      []string
 	dryRun   bool
 	verbose  bool
 }
@@ -35,20 +33,18 @@ func newRootCmd() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:   "dotp",
-		Short: "Dotfiles package manager — installs packages declared via @require/@request",
+		Short: "Dotfiles package manager — installs packages declared via @require/@request (unconditional)",
 	}
 
 	pf := root.PersistentFlags()
 	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
-	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
-	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print install commands without executing")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
 
 	root.AddCommand(
 		&cobra.Command{
 			Use:   "install",
-			Short: "Install all packages for active files",
+			Short: "Install all packages declared across all files",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runInstall(cmd, cfg)
 			},
@@ -62,7 +58,7 @@ func newRootCmd() *cobra.Command {
 		},
 		&cobra.Command{
 			Use:   "list",
-			Short: "List all packages declared across active files",
+			Short: "List all packages declared across all files",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runList(cmd, cfg)
 			},
@@ -192,35 +188,11 @@ func runList(cmd *cobra.Command, cfg *config) error {
 // --- helpers ---
 
 func loadContext(cfg *config) (*fileset.Set, *packages.Registry, []string, error) {
-	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	overrides := make(map[string]string)
-	for k, v := range ef.Env {
-		overrides[k] = v
-	}
-	for _, kv := range cfg.env {
-		parts := strings.SplitN(kv, "=", 2)
-		if len(parts) != 2 {
-			return nil, nil, nil, fmt.Errorf("invalid --env value %q: expected key=value", kv)
-		}
-		overrides[parts[0]] = parts[1]
-	}
-	r := env.NewResolver()
-	resolved, err := r.Resolve(overrides)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
 	walked, err := walk.Walk(cfg.dotfiles)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
 	}
-	nodes, err := fileset.Build(walked, resolved, nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	nodes := fileset.BuildUnfiltered(walked)
 
 	reg, err := packages.LoadFile(filepath.Join(cfg.dotfiles, "packages.yaml"))
 	if err != nil {
@@ -263,9 +235,4 @@ func defaultDotfiles() string {
 	}
 	dir, _ := os.Getwd()
 	return dir
-}
-
-func defaultEnvFile() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "dot-dagger", "env.yaml")
 }

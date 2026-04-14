@@ -19,21 +19,8 @@ func run(t *testing.T, args ...string) (string, error) {
 	return buf.String(), err
 }
 
-func emptyEnvFile(t *testing.T) string {
-	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "env.yaml")
-	if err := os.WriteFile(path, []byte("env: {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
 func TestListNoRequirements(t *testing.T) {
-	out, err := run(t, "list",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", t.TempDir(),
-	)
+	out, err := run(t, "list", "--dotfiles", t.TempDir())
 	if err != nil {
 		t.Fatalf("list error = %v", err)
 	}
@@ -43,10 +30,7 @@ func TestListNoRequirements(t *testing.T) {
 }
 
 func TestCheckNoRequirements(t *testing.T) {
-	out, err := run(t, "check",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", t.TempDir(),
-	)
+	out, err := run(t, "check", "--dotfiles", t.TempDir())
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
@@ -61,16 +45,12 @@ func TestListWithRequirements(t *testing.T) {
 	if err := os.MkdirAll(scriptsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Script with @require and @request annotations.
 	content := "# @require fzf\n# @request ripgrep\nexport FOO=1\n"
 	if err := os.WriteFile(filepath.Join(scriptsDir, "tools.sh"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "list",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", dotfiles,
-	)
+	out, err := run(t, "list", "--dotfiles", dotfiles)
 	if err != nil {
 		t.Fatalf("list error = %v", err)
 	}
@@ -80,19 +60,32 @@ func TestListWithRequirements(t *testing.T) {
 	if !strings.Contains(out, "ripgrep") {
 		t.Errorf("expected ripgrep in list output: %q", out)
 	}
-	if !strings.Contains(out, "@require") {
-		t.Errorf("expected @require in list output: %q", out)
+}
+
+func TestListIncludesWhenGatedFiles(t *testing.T) {
+	// Standalone: @when-gated files still included unconditionally.
+	dotfiles := t.TempDir()
+	scriptsDir := filepath.Join(dotfiles, "scripts")
+	if err := os.MkdirAll(scriptsDir, 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(out, "@request") {
-		t.Errorf("expected @request in list output: %q", out)
+	content := "# @when os=never-true\n# @require fzf\n"
+	if err := os.WriteFile(filepath.Join(scriptsDir, "tools.sh"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "list", "--dotfiles", dotfiles)
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+	// Standalone: fzf listed regardless of @when.
+	if !strings.Contains(out, "fzf") {
+		t.Errorf("expected fzf listed unconditionally: %q", out)
 	}
 }
 
 func TestInstallDryRunNoRequirements(t *testing.T) {
-	_, err := run(t, "install", "--dry-run",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", t.TempDir(),
-	)
+	_, err := run(t, "install", "--dry-run", "--dotfiles", t.TempDir())
 	if err != nil {
 		t.Fatalf("install --dry-run error = %v", err)
 	}
@@ -101,7 +94,6 @@ func TestInstallDryRunNoRequirements(t *testing.T) {
 func TestCheckWithRequirements(t *testing.T) {
 	dotfiles := t.TempDir()
 
-	// Create packages.yaml with a known package.
 	pkgYaml := `package_managers:
   brew:
     install: brew install {package}
@@ -121,14 +113,10 @@ packages:
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "check",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", dotfiles,
-	)
+	out, err := run(t, "check", "--dotfiles", dotfiles)
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
-	// fzf is either installed or not — just check it appears in output.
 	if !strings.Contains(out, "fzf") {
 		t.Errorf("expected fzf in check output: %q", out)
 	}

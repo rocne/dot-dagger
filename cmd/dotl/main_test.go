@@ -19,21 +19,8 @@ func run(t *testing.T, args ...string) (string, error) {
 	return buf.String(), err
 }
 
-func emptyEnvFile(t *testing.T) string {
-	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "env.yaml")
-	if err := os.WriteFile(path, []byte("env: {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
 func TestCheckEmptyRepo(t *testing.T) {
-	out, err := run(t, "check",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", t.TempDir(),
-	)
+	out, err := run(t, "check", "--dotfiles", t.TempDir())
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
@@ -54,30 +41,45 @@ func TestCheckReportsSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "check",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", dotfiles,
-		"--link-root", linkRoot,
-	)
+	out, err := run(t, "check", "--dotfiles", dotfiles, "--link-root", linkRoot)
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
-	// One conf file → one missing symlink.
 	if !strings.Contains(out, "1 missing") {
 		t.Errorf("expected '1 missing': %q", out)
 	}
 }
 
+func TestCheckIncludesWhenGatedFiles(t *testing.T) {
+	// Standalone: @when-gated files still included unconditionally.
+	dotfiles := t.TempDir()
+	linkRoot := t.TempDir()
+
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// This file would be filtered out in orchestrated mode (os=never-true).
+	content := "# @when os=never-true\n"
+	if err := os.WriteFile(filepath.Join(confDir, "dot-zshrc"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "check", "--dotfiles", dotfiles, "--link-root", linkRoot)
+	if err != nil {
+		t.Fatalf("check error = %v", err)
+	}
+	// Standalone: file included regardless of @when → shows as missing symlink.
+	if !strings.Contains(out, "1 missing") {
+		t.Errorf("expected file included unconditionally: %q", out)
+	}
+}
+
 func TestApplyDryRunEmptyRepo(t *testing.T) {
-	out, err := run(t, "apply", "--dry-run",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", t.TempDir(),
-	)
+	_, err := run(t, "apply", "--dry-run", "--dotfiles", t.TempDir())
 	if err != nil {
 		t.Fatalf("apply --dry-run error = %v", err)
 	}
-	// No output for empty repo — nothing to link.
-	_ = out
 }
 
 func TestApplyDryRunWithConfFile(t *testing.T) {
@@ -92,16 +94,12 @@ func TestApplyDryRunWithConfFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "apply", "--dry-run",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", dotfiles,
-		"--link-root", linkRoot,
-	)
+	out, err := run(t, "apply", "--dry-run", "--dotfiles", dotfiles, "--link-root", linkRoot)
 	if err != nil {
 		t.Fatalf("apply --dry-run error = %v", err)
 	}
 	if !strings.Contains(out, ".zshrc") {
-		t.Errorf("expected .zshrc symlink in dry-run output: %q", out)
+		t.Errorf("expected .zshrc in dry-run output: %q", out)
 	}
 }
 
@@ -118,24 +116,18 @@ func TestRemoveDryRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create the symlink so it shows as owned.
 	dst := filepath.Join(linkRoot, ".zshrc")
 	if err := os.Symlink(src, dst); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "remove", "--dry-run",
-		"--env-file", emptyEnvFile(t),
-		"--dotfiles", dotfiles,
-		"--link-root", linkRoot,
-	)
+	out, err := run(t, "remove", "--dry-run", "--dotfiles", dotfiles, "--link-root", linkRoot)
 	if err != nil {
 		t.Fatalf("remove --dry-run error = %v", err)
 	}
 	if !strings.Contains(out, ".zshrc") {
 		t.Errorf("expected .zshrc in dry-run remove output: %q", out)
 	}
-	// Symlink must not be removed.
 	if _, err := os.Lstat(dst); err != nil {
 		t.Error("dry-run must not remove symlink")
 	}

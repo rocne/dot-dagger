@@ -1,13 +1,12 @@
 // Command dotl applies, checks, and removes symlinks for conf/ and bin/ nodes.
+// Standalone mode: unconditional — all files in conf/ and bin/ are linked,
+// regardless of @when predicates. Use dotr for predicate-filtered linking.
 package main
 
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/linker"
 	"github.com/rocne/dot-dagger/internal/walk"
@@ -22,8 +21,6 @@ func main() {
 
 type config struct {
 	dotfiles string
-	envFile  string
-	env      []string
 	linkRoot string
 	binDir   string
 	dryRun   bool
@@ -36,13 +33,11 @@ func newRootCmd() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:   "dotl",
-		Short: "Dotfiles linker — symlinks conf/ and bin/ files into the system",
+		Short: "Dotfiles linker — symlinks conf/ and bin/ files into the system (unconditional)",
 	}
 
 	pf := root.PersistentFlags()
 	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
-	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
-	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
 	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
 	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
@@ -52,7 +47,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(
 		&cobra.Command{
 			Use:   "apply",
-			Short: "Plan and apply symlinks for active conf/ and bin/ nodes",
+			Short: "Plan and apply symlinks for all conf/ and bin/ nodes",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runApply(cmd, cfg)
 			},
@@ -177,35 +172,12 @@ func runRemove(cmd *cobra.Command, cfg *config) error {
 	return nil
 }
 
-// --- helpers ---
-
 func buildFileSet(cfg *config) (*fileset.Set, error) {
-	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
-	if err != nil {
-		return nil, err
-	}
-	overrides := make(map[string]string)
-	for k, v := range ef.Env {
-		overrides[k] = v
-	}
-	for _, kv := range cfg.env {
-		parts := strings.SplitN(kv, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid --env value %q: expected key=value", kv)
-		}
-		overrides[parts[0]] = parts[1]
-	}
-	r := env.NewResolver()
-	resolved, err := r.Resolve(overrides)
-	if err != nil {
-		return nil, err
-	}
-
 	walked, err := walk.Walk(cfg.dotfiles)
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
 	}
-	return fileset.Build(walked, resolved, nil)
+	return fileset.BuildUnfiltered(walked), nil
 }
 
 func planLinks(cfg *config, nodes *fileset.Set) ([]linker.Link, error) {
@@ -225,7 +197,3 @@ func defaultDotfiles() string {
 	return dir
 }
 
-func defaultEnvFile() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "dot-dagger", "env.yaml")
-}
