@@ -13,40 +13,40 @@ import (
 )
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "dote",
-	Short: "Environment resolution for the dotr suite",
+type config struct {
+	envFile string
+	env     []string
 }
 
-var showCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Display the resolved environment",
-	RunE:  runShow,
+func newRootCmd() *cobra.Command {
+	cfg := &config{}
+
+	root := &cobra.Command{
+		Use:   "dote",
+		Short: "Environment resolution for the dotr suite",
+	}
+
+	show := &cobra.Command{
+		Use:   "show",
+		Short: "Display the resolved environment",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runShow(cmd, cfg)
+		},
+	}
+	show.Flags().StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
+	show.Flags().StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
+
+	root.AddCommand(show)
+	return root
 }
 
-var (
-	flagEnvFile string
-	flagEnv     []string
-)
-
-func init() {
-	showCmd.Flags().StringVar(&flagEnvFile, "env-file", defaultEnvFile(), "path to env.yaml")
-	showCmd.Flags().StringArrayVar(&flagEnv, "env", nil, "env override as key=value (repeatable)")
-	rootCmd.AddCommand(showCmd)
-}
-
-func defaultEnvFile() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "dot-dagger", "env.yaml")
-}
-
-func runShow(cmd *cobra.Command, args []string) error {
-	ef, err := env.LoadEnvFileFromPath(flagEnvFile)
+func runShow(cmd *cobra.Command, cfg *config) error {
+	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 	for k, v := range ef.Env {
 		overrides[k] = v
 	}
-	for _, kv := range flagEnv {
+	for _, kv := range cfg.env {
 		parts := strings.SplitN(kv, "=", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid --env value %q: expected key=value", kv)
@@ -66,19 +66,23 @@ func runShow(cmd *cobra.Command, args []string) error {
 	r := env.NewResolver()
 	resolved, err := r.Resolve(overrides)
 
-	// Print whatever resolved, even on partial error.
-	printEnv(resolved)
+	printEnv(cmd, resolved)
 
 	return err
 }
 
-func printEnv(m map[string]string) {
+func printEnv(cmd *cobra.Command, m map[string]string) {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		fmt.Printf("%s=%s\n", k, m[k])
+		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, m[k])
 	}
+}
+
+func defaultEnvFile() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "dot-dagger", "env.yaml")
 }
