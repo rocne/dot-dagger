@@ -17,43 +17,62 @@ import (
 )
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "dotp",
-	Short: "Dotfiles package manager — installs packages declared via @require/@request",
+type config struct {
+	dotfiles string
+	envFile  string
+	env      []string
+	dryRun   bool
+	verbose  bool
 }
 
-var (
-	flagDotfiles string
-	flagEnvFile  string
-	flagEnv      []string
-	flagDryRun   bool
-	flagVerbose  bool
-)
+func newRootCmd() *cobra.Command {
+	cfg := &config{}
 
-func init() {
-	pf := rootCmd.PersistentFlags()
-	pf.StringVar(&flagDotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
-	pf.StringVar(&flagEnvFile, "env-file", defaultEnvFile(), "path to env.yaml")
-	pf.StringArrayVar(&flagEnv, "env", nil, "env override as key=value (repeatable)")
-	pf.BoolVar(&flagDryRun, "dry-run", false, "print install commands without executing")
-	pf.BoolVar(&flagVerbose, "verbose", false, "detailed output")
+	root := &cobra.Command{
+		Use:   "dotp",
+		Short: "Dotfiles package manager — installs packages declared via @require/@request",
+	}
 
-	rootCmd.AddCommand(installCmd, checkCmd, listCmd)
+	pf := root.PersistentFlags()
+	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
+	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
+	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
+	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print install commands without executing")
+	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
+
+	root.AddCommand(
+		&cobra.Command{
+			Use:   "install",
+			Short: "Install all packages for active files",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runInstall(cmd, cfg)
+			},
+		},
+		&cobra.Command{
+			Use:   "check",
+			Short: "Report package status without installing",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runCheck(cmd, cfg)
+			},
+		},
+		&cobra.Command{
+			Use:   "list",
+			Short: "List all packages declared across active files",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runList(cmd, cfg)
+			},
+		},
+	)
+	return root
 }
 
-var installCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Install all packages for active files",
-	RunE:  runInstall,
-}
-
-func runInstall(cmd *cobra.Command, args []string) error {
-	nodes, reg, priority, err := loadContext()
+func runInstall(cmd *cobra.Command, cfg *config) error {
+	nodes, reg, priority, err := loadContext(cfg)
 	if err != nil {
 		return err
 	}
@@ -65,8 +84,8 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		if installed {
-			if flagVerbose {
-				fmt.Printf("  installed  %s\n", req.Package)
+			if cfg.verbose {
+				fmt.Fprintf(cmd.OutOrStdout(), "  installed  %s\n", req.Package)
 			}
 			continue
 		}
@@ -81,9 +100,8 @@ func runInstall(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("dotp: %s: @require %q: not installed and not installable",
 					req.NodePath, req.Package)
 			}
-			// @request: silently skip.
-			if flagVerbose {
-				fmt.Printf("  skip       %s (not installable)\n", req.Package)
+			if cfg.verbose {
+				fmt.Fprintf(cmd.OutOrStdout(), "  skip       %s (not installable)\n", req.Package)
 			}
 			continue
 		}
@@ -93,36 +111,33 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		fmt.Printf("  install    %s via %s: %s\n", req.Package, mgr, installCmd)
-		if flagDryRun {
+		fmt.Fprintf(cmd.OutOrStdout(), "  install    %s via %s: %s\n", req.Package, mgr, installCmd)
+		if cfg.dryRun {
 			continue
 		}
 
-		if err := runShellCmd(installCmd); err != nil {
+		c := exec.Command("sh", "-c", installCmd)
+		c.Stdout = cmd.OutOrStdout()
+		c.Stderr = cmd.ErrOrStderr()
+		if err := c.Run(); err != nil {
 			if req.Hard {
 				return fmt.Errorf("dotp: install %s: %w", req.Package, err)
 			}
-			fmt.Fprintf(os.Stderr, "warning: install %s: %v\n", req.Package, err)
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: install %s: %v\n", req.Package, err)
 		}
 	}
 	return nil
 }
 
-var checkCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Report package status without installing",
-	RunE:  runCheck,
-}
-
-func runCheck(cmd *cobra.Command, args []string) error {
-	nodes, reg, priority, err := loadContext()
+func runCheck(cmd *cobra.Command, cfg *config) error {
+	nodes, reg, priority, err := loadContext(cfg)
 	if err != nil {
 		return err
 	}
 
 	reqs := packages.CollectRequests(nodes.Nodes)
 	if len(reqs) == 0 {
-		fmt.Println("no package requirements found")
+		fmt.Fprintln(cmd.OutOrStdout(), "no package requirements found")
 		return nil
 	}
 
@@ -147,26 +162,20 @@ func runCheck(cmd *cobra.Command, args []string) error {
 			status = "not available"
 		}
 
-		fmt.Printf("  %-10s %-20s %s\n", kind, req.Package, status)
+		fmt.Fprintf(cmd.OutOrStdout(), "  %-10s %-20s %s\n", kind, req.Package, status)
 	}
 	return nil
 }
 
-var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all packages declared across active files",
-	RunE:  runList,
-}
-
-func runList(cmd *cobra.Command, args []string) error {
-	nodes, _, _, err := loadContext()
+func runList(cmd *cobra.Command, cfg *config) error {
+	nodes, _, _, err := loadContext(cfg)
 	if err != nil {
 		return err
 	}
 
 	reqs := packages.CollectRequests(nodes.Nodes)
 	if len(reqs) == 0 {
-		fmt.Println("no package requirements found")
+		fmt.Fprintln(cmd.OutOrStdout(), "no package requirements found")
 		return nil
 	}
 
@@ -175,15 +184,15 @@ func runList(cmd *cobra.Command, args []string) error {
 		if req.Hard {
 			kind = "@require"
 		}
-		fmt.Printf("%-10s %s  (%s)\n", kind, req.Package, req.NodePath)
+		fmt.Fprintf(cmd.OutOrStdout(), "%-10s %s  (%s)\n", kind, req.Package, req.NodePath)
 	}
 	return nil
 }
 
 // --- helpers ---
 
-func loadContext() (*fileset.Set, *packages.Registry, []string, error) {
-	ef, err := env.LoadEnvFileFromPath(flagEnvFile)
+func loadContext(cfg *config) (*fileset.Set, *packages.Registry, []string, error) {
+	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -191,7 +200,7 @@ func loadContext() (*fileset.Set, *packages.Registry, []string, error) {
 	for k, v := range ef.Env {
 		overrides[k] = v
 	}
-	for _, kv := range flagEnv {
+	for _, kv := range cfg.env {
 		parts := strings.SplitN(kv, "=", 2)
 		if len(parts) != 2 {
 			return nil, nil, nil, fmt.Errorf("invalid --env value %q: expected key=value", kv)
@@ -204,25 +213,25 @@ func loadContext() (*fileset.Set, *packages.Registry, []string, error) {
 		return nil, nil, nil, err
 	}
 
-	walked, err := walk.Walk(flagDotfiles)
+	walked, err := walk.Walk(cfg.dotfiles)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("walk %s: %w", flagDotfiles, err)
+		return nil, nil, nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
 	}
 	nodes, err := fileset.Build(walked, resolved, nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	reg, err := packages.LoadFile(filepath.Join(flagDotfiles, "packages.yaml"))
+	reg, err := packages.LoadFile(filepath.Join(cfg.dotfiles, "packages.yaml"))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	cfg, err := dotryaml.LoadFile(filepath.Join(flagDotfiles, ".dotr.yaml"))
+	dotrcfg, err := dotryaml.LoadFile(filepath.Join(cfg.dotfiles, ".dotr.yaml"))
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	priority := cfg.Dote.PackageManagers.Priority
+	priority := dotrcfg.Dote.PackageManagers.Priority
 
 	return nodes, reg, priority, nil
 }
@@ -246,13 +255,6 @@ func resolveInstallCmd(pkg string, reg *packages.Registry, priority []string) (s
 		return mgr, cmd, nil
 	}
 	return "", "", fmt.Errorf("dotp: no installable manager found for %q", pkg)
-}
-
-func runShellCmd(cmdStr string) error {
-	c := exec.Command("sh", "-c", cmdStr)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
 }
 
 func defaultDotfiles() string {

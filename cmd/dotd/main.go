@@ -18,163 +18,197 @@ import (
 )
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "dotd",
-	Short: "Dotfiles script DAG — generates init.sh and applies conf/bin symlinks",
+type config struct {
+	dotfiles string
+	envFile  string
+	env      []string
+	initFile string
+	linkRoot string
+	binDir   string
+	dryRun   bool
+	force    bool
+	verbose  bool
 }
 
-// Global flags shared by subcommands.
-var (
-	flagDotfiles string
-	flagEnvFile  string
-	flagEnv      []string
-	flagDryRun   bool
-	flagForce    bool
-	flagVerbose  bool
-)
+func newRootCmd() *cobra.Command {
+	cfg := &config{}
 
-func init() {
-	pf := rootCmd.PersistentFlags()
-	pf.StringVar(&flagDotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
-	pf.StringVar(&flagEnvFile, "env-file", defaultEnvFile(), "path to env.yaml")
-	pf.StringArrayVar(&flagEnv, "env", nil, "env override as key=value (repeatable)")
-	pf.BoolVar(&flagDryRun, "dry-run", false, "print actions without executing")
-	pf.BoolVar(&flagForce, "force", false, "override safety checks")
-	pf.BoolVar(&flagVerbose, "verbose", false, "detailed output")
+	root := &cobra.Command{
+		Use:   "dotd",
+		Short: "Dotfiles script DAG — generates init.sh and applies conf/bin symlinks",
+	}
 
-	rootCmd.AddCommand(applyCmd, checkCmd, installCmd, envCmd)
+	pf := root.PersistentFlags()
+	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
+	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
+	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
+	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
+	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
+	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
+
+	apply := &cobra.Command{
+		Use:   "apply",
+		Short: "Full reconciliation — evaluate predicates, resolve DAG, symlink, generate init.sh",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runApply(cmd, cfg)
+		},
+	}
+	apply.Flags().StringVar(&cfg.initFile, "init-file", defaultInitFile(), "path to write init.sh")
+	apply.Flags().StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
+	apply.Flags().StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
+
+	check := &cobra.Command{
+		Use:   "check",
+		Short: "Full status and validation — environment health, filesystem drift, errors",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCheck(cmd, cfg)
+		},
+	}
+	check.Flags().StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
+	check.Flags().StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
+
+	install := &cobra.Command{
+		Use:   "install",
+		Short: "Set up dot-dagger — rc wiring and first-run configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(cmd.ErrOrStderr(), "dotd install: not yet implemented")
+			return nil
+		},
+	}
+
+	envParent := &cobra.Command{
+		Use:   "env",
+		Short: "Inspect and modify env.yaml",
+	}
+	envParent.AddCommand(
+		&cobra.Command{
+			Use:   "list",
+			Short: "Show all resolved env key-value pairs",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runEnvList(cmd, cfg)
+			},
+		},
+		&cobra.Command{
+			Use:   "get <key>",
+			Short: "Get a specific env key",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runEnvGet(cmd, cfg, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "set <key=value>",
+			Short: "Set a key in env.yaml",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runEnvSet(cmd, cfg, args[0])
+			},
+		},
+	)
+
+	root.AddCommand(apply, check, install, envParent)
+	return root
 }
 
-var applyCmd = &cobra.Command{
-	Use:   "apply",
-	Short: "Full reconciliation — evaluate predicates, resolve DAG, symlink, generate init.sh",
-	RunE:  runApply,
-}
+// --- command implementations ---
 
-func init() {
-	applyCmd.Flags().StringVar(&flagInitFile, "init-file", defaultInitFile(), "path to write init.sh")
-	applyCmd.Flags().StringVar(&flagLinkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
-	applyCmd.Flags().StringVar(&flagBinDir, "bin-dir", "", "bin directory for bin/ files")
-}
-
-var (
-	flagInitFile string
-	flagLinkRoot string
-	flagBinDir   string
-)
-
-func runApply(cmd *cobra.Command, args []string) error {
-	resolved, err := resolveEnv()
+func runApply(cmd *cobra.Command, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
 	}
 
-	nodes, err := buildFileSet(resolved)
+	nodes, err := buildFileSet(cfg, resolved)
 	if err != nil {
 		return err
 	}
 
-	// DAG-order scripts, generate init.sh.
 	scripts := nodes.Scripts()
 	ordered, err := dag.Build(scripts)
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
 
-	content := initgen.Generate(ordered, flagBinDir)
-	if flagDryRun {
-		fmt.Printf("# would write %s\n", flagInitFile)
-		fmt.Print(string(content))
+	content := initgen.Generate(ordered, cfg.binDir)
+	if cfg.dryRun {
+		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s\n", cfg.initFile)
+		fmt.Fprint(cmd.OutOrStdout(), string(content))
 	} else {
-		if err := initgen.WriteFile(flagInitFile, content); err != nil {
+		if err := initgen.WriteFile(cfg.initFile, content); err != nil {
 			return err
 		}
-		if flagVerbose {
-			fmt.Printf("wrote %s (%d scripts)\n", flagInitFile, len(ordered))
+		if cfg.verbose {
+			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s (%d scripts)\n", cfg.initFile, len(ordered))
 		}
 	}
 
-	// Plan and apply symlinks (conf + bin).
 	opts := linker.Options{
-		RepoRoot: flagDotfiles,
-		LinkRoot: flagLinkRoot,
-		BinDir:   flagBinDir,
+		RepoRoot: cfg.dotfiles,
+		LinkRoot: cfg.linkRoot,
+		BinDir:   cfg.binDir,
 	}
 	links, err := linker.Plan(nodes.Nodes, opts)
 	if err != nil {
 		return fmt.Errorf("linker plan: %w", err)
 	}
-	links = linker.Check(links, flagDotfiles)
+	links = linker.Check(links, cfg.dotfiles)
 
-	if flagDryRun {
+	if cfg.dryRun {
 		for _, l := range links {
-			fmt.Printf("# symlink %s → %s (state: %s)\n", l.Src, l.Dst, l.State)
+			fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s → %s (state: %s)\n", l.Src, l.Dst, l.State)
 		}
 		return nil
 	}
 
-	if err := linker.Apply(links, flagForce); err != nil {
+	if err := linker.Apply(links, cfg.force); err != nil {
 		return err
 	}
-	if flagVerbose {
-		fmt.Printf("applied %d symlinks\n", len(links))
+	if cfg.verbose {
+		fmt.Fprintf(cmd.OutOrStdout(), "applied %d symlinks\n", len(links))
 	}
 	return nil
 }
 
-var checkCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Full status and validation — environment health, filesystem drift, errors",
-	RunE:  runCheck,
-}
-
-func init() {
-	checkCmd.Flags().StringVar(&flagLinkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
-	checkCmd.Flags().StringVar(&flagBinDir, "bin-dir", "", "bin directory for bin/ files")
-}
-
-func runCheck(cmd *cobra.Command, args []string) error {
-	resolved, err := resolveEnv()
+func runCheck(cmd *cobra.Command, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
 	}
 
-	if flagVerbose {
-		fmt.Println("=== environment ===")
-		for k, v := range resolved {
-			fmt.Printf("  %s=%s\n", k, v)
+	if cfg.verbose {
+		fmt.Fprintln(cmd.OutOrStdout(), "=== environment ===")
+		for _, k := range sortedKeys(resolved) {
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s=%s\n", k, resolved[k])
 		}
 	}
 
-	nodes, err := buildFileSet(resolved)
+	nodes, err := buildFileSet(cfg, resolved)
 	if err != nil {
 		return err
 	}
 
-	// Check DAG validity.
 	scripts := nodes.Scripts()
 	ordered, err := dag.Build(scripts)
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
-	fmt.Printf("scripts: %d active, DAG OK\n", len(ordered))
+	fmt.Fprintf(cmd.OutOrStdout(), "scripts: %d active, DAG OK\n", len(ordered))
 
-	// Check symlinks.
 	opts := linker.Options{
-		RepoRoot: flagDotfiles,
-		LinkRoot: flagLinkRoot,
-		BinDir:   flagBinDir,
+		RepoRoot: cfg.dotfiles,
+		LinkRoot: cfg.linkRoot,
+		BinDir:   cfg.binDir,
 	}
 	links, err := linker.Plan(nodes.Nodes, opts)
 	if err != nil {
 		return fmt.Errorf("linker plan: %w", err)
 	}
-	links = linker.Check(links, flagDotfiles)
+	links = linker.Check(links, cfg.dotfiles)
 
 	var ok, missing, wrong, conflict int
 	for _, l := range links {
@@ -183,116 +217,74 @@ func runCheck(cmd *cobra.Command, args []string) error {
 			ok++
 		case linker.StateMissing:
 			missing++
-			fmt.Printf("  missing: %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  missing: %s\n", l.Dst)
 		case linker.StateWrongTarget:
 			wrong++
-			fmt.Printf("  wrong-target: %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  wrong-target: %s\n", l.Dst)
 		case linker.StateConflict:
 			conflict++
-			fmt.Printf("  conflict: %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  conflict: %s\n", l.Dst)
 		}
 	}
-	fmt.Printf("symlinks: %d ok, %d missing, %d wrong-target, %d conflict\n",
+	fmt.Fprintf(cmd.OutOrStdout(), "symlinks: %d ok, %d missing, %d wrong-target, %d conflict\n",
 		ok, missing, wrong, conflict)
 	return nil
 }
 
-// --- dotd env ---
-
-var envCmd = &cobra.Command{
-	Use:   "env",
-	Short: "Inspect and modify env.yaml",
-}
-
-var envListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "Show all resolved env key-value pairs",
-	RunE:  runEnvList,
-}
-
-var envGetCmd = &cobra.Command{
-	Use:   "get <key>",
-	Short: "Get a specific env key",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runEnvGet,
-}
-
-var envSetCmd = &cobra.Command{
-	Use:   "set <key=value>",
-	Short: "Set a key in env.yaml",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runEnvSet,
-}
-
-func init() {
-	envCmd.AddCommand(envListCmd, envGetCmd, envSetCmd)
-}
-
-func runEnvList(cmd *cobra.Command, args []string) error {
-	resolved, err := resolveEnv()
+func runEnvList(cmd *cobra.Command, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
 	}
-	keys := sortedKeys(resolved)
-	for _, k := range keys {
-		fmt.Printf("%s=%s\n", k, resolved[k])
+	for _, k := range sortedKeys(resolved) {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
 	}
 	return nil
 }
 
-func runEnvGet(cmd *cobra.Command, args []string) error {
-	resolved, err := resolveEnv()
+func runEnvGet(cmd *cobra.Command, cfg *config, key string) error {
+	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
 	}
-	key := args[0]
 	val, ok := resolved[key]
 	if !ok {
 		return fmt.Errorf("key %q not found in resolved environment", key)
 	}
-	fmt.Println(val)
+	fmt.Fprintln(cmd.OutOrStdout(), val)
 	return nil
 }
 
-func runEnvSet(cmd *cobra.Command, args []string) error {
-	parts := strings.SplitN(args[0], "=", 2)
+func runEnvSet(cmd *cobra.Command, cfg *config, kv string) error {
+	parts := strings.SplitN(kv, "=", 2)
 	if len(parts) != 2 {
-		return fmt.Errorf("expected key=value, got %q", args[0])
+		return fmt.Errorf("expected key=value, got %q", kv)
 	}
 	key, val := parts[0], parts[1]
 
-	ef, err := env.LoadEnvFileFromPath(flagEnvFile)
+	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
 	if err != nil {
 		return err
 	}
 	ef.Env[key] = val
 
-	if flagDryRun {
-		fmt.Printf("would set %s=%s in %s\n", key, val, flagEnvFile)
+	if cfg.dryRun {
+		fmt.Fprintf(cmd.OutOrStdout(), "would set %s=%s in %s\n", key, val, cfg.envFile)
 		return nil
 	}
-	if err := env.SaveEnvFileToPath(flagEnvFile, ef); err != nil {
+	if err := env.SaveEnvFileToPath(cfg.envFile, ef); err != nil {
 		return err
 	}
-	if flagVerbose {
-		fmt.Printf("set %s=%s in %s\n", key, val, flagEnvFile)
+	if cfg.verbose {
+		fmt.Fprintf(cmd.OutOrStdout(), "set %s=%s in %s\n", key, val, cfg.envFile)
 	}
 	return nil
 }
 
-var installCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Set up dot-dagger — rc wiring and first-run configuration",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Fprintln(os.Stderr, "dotd install: not yet implemented")
-		return nil
-	},
-}
-
 // --- helpers ---
 
-func resolveEnv() (map[string]string, error) {
-	ef, err := env.LoadEnvFileFromPath(flagEnvFile)
+func resolveEnv(cfg *config) (map[string]string, error) {
+	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +292,7 @@ func resolveEnv() (map[string]string, error) {
 	for k, v := range ef.Env {
 		overrides[k] = v
 	}
-	for _, kv := range flagEnv {
+	for _, kv := range cfg.env {
 		parts := strings.SplitN(kv, "=", 2)
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("invalid --env value %q: expected key=value", kv)
@@ -311,12 +303,21 @@ func resolveEnv() (map[string]string, error) {
 	return r.Resolve(overrides)
 }
 
-func buildFileSet(resolved map[string]string) (*fileset.Set, error) {
-	walked, err := walk.Walk(flagDotfiles)
+func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error) {
+	walked, err := walk.Walk(cfg.dotfiles)
 	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", flagDotfiles, err)
+		return nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
 	}
 	return fileset.Build(walked, resolved, nil)
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func defaultDotfiles() string {
@@ -336,13 +337,3 @@ func defaultInitFile() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "dot-dagger", "init.sh")
 }
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
-

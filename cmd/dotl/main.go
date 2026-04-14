@@ -15,141 +15,148 @@ import (
 )
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "dotl",
-	Short: "Dotfiles linker — symlinks conf/ and bin/ files into the system",
+type config struct {
+	dotfiles string
+	envFile  string
+	env      []string
+	linkRoot string
+	binDir   string
+	dryRun   bool
+	force    bool
+	verbose  bool
 }
 
-var (
-	flagDotfiles string
-	flagEnvFile  string
-	flagEnv      []string
-	flagLinkRoot string
-	flagBinDir   string
-	flagDryRun   bool
-	flagForce    bool
-	flagVerbose  bool
-)
+func newRootCmd() *cobra.Command {
+	cfg := &config{}
 
-func init() {
-	pf := rootCmd.PersistentFlags()
-	pf.StringVar(&flagDotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
-	pf.StringVar(&flagEnvFile, "env-file", defaultEnvFile(), "path to env.yaml")
-	pf.StringArrayVar(&flagEnv, "env", nil, "env override as key=value (repeatable)")
-	pf.StringVar(&flagLinkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
-	pf.StringVar(&flagBinDir, "bin-dir", "", "bin directory for bin/ files")
-	pf.BoolVar(&flagDryRun, "dry-run", false, "print actions without executing")
-	pf.BoolVar(&flagForce, "force", false, "override safety checks")
-	pf.BoolVar(&flagVerbose, "verbose", false, "detailed output")
+	root := &cobra.Command{
+		Use:   "dotl",
+		Short: "Dotfiles linker — symlinks conf/ and bin/ files into the system",
+	}
 
-	rootCmd.AddCommand(applyCmd, checkCmd, removeCmd)
+	pf := root.PersistentFlags()
+	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
+	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
+	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
+	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
+	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
+	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
+	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
+	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
+
+	root.AddCommand(
+		&cobra.Command{
+			Use:   "apply",
+			Short: "Plan and apply symlinks for active conf/ and bin/ nodes",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runApply(cmd, cfg)
+			},
+		},
+		&cobra.Command{
+			Use:   "check",
+			Short: "Report symlink state without making changes",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runCheck(cmd, cfg)
+			},
+		},
+		&cobra.Command{
+			Use:   "remove",
+			Short: "Remove owned symlinks",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runRemove(cmd, cfg)
+			},
+		},
+	)
+	return root
 }
 
-var applyCmd = &cobra.Command{
-	Use:   "apply",
-	Short: "Plan and apply symlinks for active conf/ and bin/ nodes",
-	RunE:  runApply,
-}
-
-func runApply(cmd *cobra.Command, args []string) error {
-	nodes, err := buildFileSet()
+func runApply(cmd *cobra.Command, cfg *config) error {
+	nodes, err := buildFileSet(cfg)
 	if err != nil {
 		return err
 	}
 
-	links, err := planLinks(nodes)
+	links, err := planLinks(cfg, nodes)
 	if err != nil {
 		return err
 	}
-	links = linker.Check(links, flagDotfiles)
+	links = linker.Check(links, cfg.dotfiles)
 
-	if flagDryRun {
+	if cfg.dryRun {
 		for _, l := range links {
 			if l.State != linker.StateOK {
-				fmt.Printf("symlink %s → %s\n", l.Src, l.Dst)
+				fmt.Fprintf(cmd.OutOrStdout(), "symlink %s → %s\n", l.Src, l.Dst)
 			}
 		}
 		return nil
 	}
 
-	if err := linker.Apply(links, flagForce); err != nil {
+	if err := linker.Apply(links, cfg.force); err != nil {
 		return err
 	}
-	if flagVerbose {
-		fmt.Printf("applied %d symlinks\n", len(links))
+	if cfg.verbose {
+		fmt.Fprintf(cmd.OutOrStdout(), "applied %d symlinks\n", len(links))
 	}
 	return nil
 }
 
-var checkCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Report symlink state without making changes",
-	RunE:  runCheck,
-}
-
-func runCheck(cmd *cobra.Command, args []string) error {
-	nodes, err := buildFileSet()
+func runCheck(cmd *cobra.Command, cfg *config) error {
+	nodes, err := buildFileSet(cfg)
 	if err != nil {
 		return err
 	}
 
-	links, err := planLinks(nodes)
+	links, err := planLinks(cfg, nodes)
 	if err != nil {
 		return err
 	}
-	links = linker.Check(links, flagDotfiles)
+	links = linker.Check(links, cfg.dotfiles)
 
 	var ok, missing, wrong, conflict int
 	for _, l := range links {
 		switch l.State {
 		case linker.StateOK:
 			ok++
-			if flagVerbose {
-				fmt.Printf("  ok       %s\n", l.Dst)
+			if cfg.verbose {
+				fmt.Fprintf(cmd.OutOrStdout(), "  ok       %s\n", l.Dst)
 			}
 		case linker.StateMissing:
 			missing++
-			fmt.Printf("  missing  %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  missing  %s\n", l.Dst)
 		case linker.StateWrongTarget:
 			wrong++
-			fmt.Printf("  wrong    %s → %s\n", l.Dst, l.Src)
+			fmt.Fprintf(cmd.OutOrStdout(), "  wrong    %s → %s\n", l.Dst, l.Src)
 		case linker.StateConflict:
 			conflict++
-			fmt.Printf("  conflict %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  conflict %s\n", l.Dst)
 		}
 	}
-	fmt.Printf("%d ok, %d missing, %d wrong-target, %d conflict\n",
+	fmt.Fprintf(cmd.OutOrStdout(), "%d ok, %d missing, %d wrong-target, %d conflict\n",
 		ok, missing, wrong, conflict)
 	return nil
 }
 
-var removeCmd = &cobra.Command{
-	Use:   "remove",
-	Short: "Remove owned symlinks",
-	RunE:  runRemove,
-}
-
-func runRemove(cmd *cobra.Command, args []string) error {
-	nodes, err := buildFileSet()
+func runRemove(cmd *cobra.Command, cfg *config) error {
+	nodes, err := buildFileSet(cfg)
 	if err != nil {
 		return err
 	}
 
-	links, err := planLinks(nodes)
+	links, err := planLinks(cfg, nodes)
 	if err != nil {
 		return err
 	}
-	links = linker.Check(links, flagDotfiles)
+	links = linker.Check(links, cfg.dotfiles)
 
-	if flagDryRun {
+	if cfg.dryRun {
 		for _, l := range links {
 			if l.Owned {
-				fmt.Printf("remove %s\n", l.Dst)
+				fmt.Fprintf(cmd.OutOrStdout(), "remove %s\n", l.Dst)
 			}
 		}
 		return nil
@@ -158,22 +165,22 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if err := linker.Remove(links); err != nil {
 		return err
 	}
-	if flagVerbose {
+	if cfg.verbose {
 		var removed int
 		for _, l := range links {
 			if l.Owned {
 				removed++
 			}
 		}
-		fmt.Printf("removed %d symlinks\n", removed)
+		fmt.Fprintf(cmd.OutOrStdout(), "removed %d symlinks\n", removed)
 	}
 	return nil
 }
 
 // --- helpers ---
 
-func buildFileSet() (*fileset.Set, error) {
-	ef, err := env.LoadEnvFileFromPath(flagEnvFile)
+func buildFileSet(cfg *config) (*fileset.Set, error) {
+	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +188,7 @@ func buildFileSet() (*fileset.Set, error) {
 	for k, v := range ef.Env {
 		overrides[k] = v
 	}
-	for _, kv := range flagEnv {
+	for _, kv := range cfg.env {
 		parts := strings.SplitN(kv, "=", 2)
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("invalid --env value %q: expected key=value", kv)
@@ -194,18 +201,18 @@ func buildFileSet() (*fileset.Set, error) {
 		return nil, err
 	}
 
-	walked, err := walk.Walk(flagDotfiles)
+	walked, err := walk.Walk(cfg.dotfiles)
 	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", flagDotfiles, err)
+		return nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
 	}
 	return fileset.Build(walked, resolved, nil)
 }
 
-func planLinks(nodes *fileset.Set) ([]linker.Link, error) {
+func planLinks(cfg *config, nodes *fileset.Set) ([]linker.Link, error) {
 	opts := linker.Options{
-		RepoRoot: flagDotfiles,
-		LinkRoot: flagLinkRoot,
-		BinDir:   flagBinDir,
+		RepoRoot: cfg.dotfiles,
+		LinkRoot: cfg.linkRoot,
+		BinDir:   cfg.binDir,
 	}
 	return linker.Plan(nodes.Nodes, opts)
 }

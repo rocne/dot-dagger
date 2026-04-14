@@ -21,159 +21,157 @@ import (
 )
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "dotr",
-	Short: "Dotfiles orchestrator — composes dote, dotd, dotl, and dotp",
+type config struct {
+	dotfiles string
+	envFile  string
+	env      []string
+	initFile string
+	linkRoot string
+	binDir   string
+	dryRun   bool
+	force    bool
+	verbose  bool
 }
 
-var (
-	flagDotfiles string
-	flagEnvFile  string
-	flagEnv      []string
-	flagInitFile string
-	flagLinkRoot string
-	flagBinDir   string
-	flagDryRun   bool
-	flagForce    bool
-	flagVerbose  bool
-)
+func newRootCmd() *cobra.Command {
+	cfg := &config{}
 
-func init() {
-	pf := rootCmd.PersistentFlags()
-	pf.StringVar(&flagDotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
-	pf.StringVar(&flagEnvFile, "env-file", defaultEnvFile(), "path to env.yaml")
-	pf.StringArrayVar(&flagEnv, "env", nil, "env override as key=value (repeatable)")
-	pf.StringVar(&flagInitFile, "init-file", defaultInitFile(), "path to write init.sh")
-	pf.StringVar(&flagLinkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
-	pf.StringVar(&flagBinDir, "bin-dir", "", "bin directory for bin/ files")
-	pf.BoolVar(&flagDryRun, "dry-run", false, "print actions without executing")
-	pf.BoolVar(&flagForce, "force", false, "override safety checks")
-	pf.BoolVar(&flagVerbose, "verbose", false, "detailed output")
+	root := &cobra.Command{
+		Use:   "dotr",
+		Short: "Dotfiles orchestrator — composes dote, dotd, dotl, and dotp",
+	}
 
-	rootCmd.AddCommand(applyCmd, checkCmd)
+	pf := root.PersistentFlags()
+	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
+	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
+	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
+	pf.StringVar(&cfg.initFile, "init-file", defaultInitFile(), "path to write init.sh")
+	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
+	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
+	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
+	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
+	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
+
+	root.AddCommand(
+		&cobra.Command{
+			Use:   "apply",
+			Short: "Full orchestrated reconciliation: env → fileset → packages → links → init.sh",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runApply(cmd, cfg)
+			},
+		},
+		&cobra.Command{
+			Use:   "check",
+			Short: "Validate all stages without making changes",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runCheck(cmd, cfg)
+			},
+		},
+	)
+	return root
 }
 
-var applyCmd = &cobra.Command{
-	Use:   "apply",
-	Short: "Full orchestrated reconciliation: env → fileset → packages → links → init.sh",
-	RunE:  runApply,
-}
-
-func runApply(cmd *cobra.Command, args []string) error {
-	// 1. Resolve environment.
-	resolved, err := resolveEnv()
+func runApply(cmd *cobra.Command, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
 	}
-	if flagVerbose {
-		fmt.Printf("env: %d keys resolved\n", len(resolved))
+	if cfg.verbose {
+		fmt.Fprintf(cmd.OutOrStdout(), "env: %d keys resolved\n", len(resolved))
 	}
 
-	// 2. Walk + build fileset.
-	nodes, err := buildFileSet(resolved)
+	nodes, err := buildFileSet(cfg, resolved)
 	if err != nil {
 		return err
 	}
-	if flagVerbose {
-		fmt.Printf("fileset: %d active nodes\n", len(nodes.Nodes))
+	if cfg.verbose {
+		fmt.Fprintf(cmd.OutOrStdout(), "fileset: %d active nodes\n", len(nodes.Nodes))
 	}
 
-	// 3. Load package registry and priority.
-	reg, priority, err := loadPackageContext()
+	reg, priority, err := loadPackageContext(cfg)
 	if err != nil {
 		return err
 	}
 
-	// 4. Install packages (dotp step).
 	reqs := packages.CollectRequests(nodes.Nodes)
 	for _, req := range reqs {
-		if err := handlePackage(req, reg, priority); err != nil {
+		if err := handlePackage(cmd, cfg, req, reg, priority); err != nil {
 			return err
 		}
 	}
 
-	// 5. Apply symlinks (dotl step).
 	opts := linker.Options{
-		RepoRoot: flagDotfiles,
-		LinkRoot: flagLinkRoot,
-		BinDir:   flagBinDir,
+		RepoRoot: cfg.dotfiles,
+		LinkRoot: cfg.linkRoot,
+		BinDir:   cfg.binDir,
 	}
 	links, err := linker.Plan(nodes.Nodes, opts)
 	if err != nil {
 		return fmt.Errorf("linker plan: %w", err)
 	}
-	links = linker.Check(links, flagDotfiles)
+	links = linker.Check(links, cfg.dotfiles)
 
-	if flagDryRun {
+	if cfg.dryRun {
 		for _, l := range links {
 			if l.State != linker.StateOK {
-				fmt.Printf("# symlink %s → %s\n", l.Src, l.Dst)
+				fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s → %s\n", l.Src, l.Dst)
 			}
 		}
 	} else {
-		if err := linker.Apply(links, flagForce); err != nil {
+		if err := linker.Apply(links, cfg.force); err != nil {
 			return err
 		}
-		if flagVerbose {
-			fmt.Printf("symlinks: %d applied\n", len(links))
+		if cfg.verbose {
+			fmt.Fprintf(cmd.OutOrStdout(), "symlinks: %d applied\n", len(links))
 		}
 	}
 
-	// 6. Generate init.sh (dotd step).
 	scripts := nodes.Scripts()
 	ordered, err := dag.Build(scripts)
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
-	content := initgen.Generate(ordered, flagBinDir)
+	content := initgen.Generate(ordered, cfg.binDir)
 
-	if flagDryRun {
-		fmt.Printf("# would write %s (%d scripts)\n", flagInitFile, len(ordered))
-		fmt.Print(string(content))
+	if cfg.dryRun {
+		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s (%d scripts)\n", cfg.initFile, len(ordered))
+		fmt.Fprint(cmd.OutOrStdout(), string(content))
 	} else {
-		if err := initgen.WriteFile(flagInitFile, content); err != nil {
+		if err := initgen.WriteFile(cfg.initFile, content); err != nil {
 			return err
 		}
-		if flagVerbose {
-			fmt.Printf("init.sh: wrote %s (%d scripts)\n", flagInitFile, len(ordered))
+		if cfg.verbose {
+			fmt.Fprintf(cmd.OutOrStdout(), "init.sh: wrote %s (%d scripts)\n", cfg.initFile, len(ordered))
 		}
 	}
 	return nil
 }
 
-var checkCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Validate all stages without making changes",
-	RunE:  runCheck,
-}
-
-func runCheck(cmd *cobra.Command, args []string) error {
-	resolved, err := resolveEnv()
+func runCheck(cmd *cobra.Command, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
 	}
 
-	nodes, err := buildFileSet(resolved)
+	nodes, err := buildFileSet(cfg, resolved)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("fileset: %d active nodes\n", len(nodes.Nodes))
+	fmt.Fprintf(cmd.OutOrStdout(), "fileset: %d active nodes\n", len(nodes.Nodes))
 
-	// DAG check.
 	scripts := nodes.Scripts()
 	ordered, err := dag.Build(scripts)
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
-	fmt.Printf("scripts: %d active, DAG OK\n", len(ordered))
+	fmt.Fprintf(cmd.OutOrStdout(), "scripts: %d active, DAG OK\n", len(ordered))
 
-	// Package check.
-	reg, priority, err := loadPackageContext()
+	reg, priority, err := loadPackageContext(cfg)
 	if err != nil {
 		return err
 	}
@@ -183,9 +181,9 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
 		installable, _ := packages.Installable(req.Package, reg, priority, exec.LookPath)
 		if !installed && !installable && req.Hard {
-			fmt.Printf("  MISSING @require: %s (from %s)\n", req.Package, req.NodePath)
+			fmt.Fprintf(cmd.OutOrStdout(), "  MISSING @require: %s (from %s)\n", req.Package, req.NodePath)
 			pkgMissing++
-		} else if flagVerbose {
+		} else if cfg.verbose {
 			status := "not available"
 			if installed {
 				status = "installed"
@@ -196,26 +194,25 @@ func runCheck(cmd *cobra.Command, args []string) error {
 			if req.Hard {
 				kind = "@require"
 			}
-			fmt.Printf("  %-10s %-20s %s\n", kind, req.Package, status)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-10s %-20s %s\n", kind, req.Package, status)
 		}
 	}
 	if pkgMissing > 0 {
-		fmt.Printf("packages: %d hard requirements unmet\n", pkgMissing)
+		fmt.Fprintf(cmd.OutOrStdout(), "packages: %d hard requirements unmet\n", pkgMissing)
 	} else {
-		fmt.Printf("packages: %d requirements, all OK\n", len(reqs))
+		fmt.Fprintf(cmd.OutOrStdout(), "packages: %d requirements, all OK\n", len(reqs))
 	}
 
-	// Symlink check.
 	opts := linker.Options{
-		RepoRoot: flagDotfiles,
-		LinkRoot: flagLinkRoot,
-		BinDir:   flagBinDir,
+		RepoRoot: cfg.dotfiles,
+		LinkRoot: cfg.linkRoot,
+		BinDir:   cfg.binDir,
 	}
 	links, err := linker.Plan(nodes.Nodes, opts)
 	if err != nil {
 		return fmt.Errorf("linker plan: %w", err)
 	}
-	links = linker.Check(links, flagDotfiles)
+	links = linker.Check(links, cfg.dotfiles)
 
 	var ok, missing, wrong, conflict int
 	for _, l := range links {
@@ -224,26 +221,26 @@ func runCheck(cmd *cobra.Command, args []string) error {
 			ok++
 		case linker.StateMissing:
 			missing++
-			if flagVerbose {
-				fmt.Printf("  missing  %s\n", l.Dst)
+			if cfg.verbose {
+				fmt.Fprintf(cmd.OutOrStdout(), "  missing  %s\n", l.Dst)
 			}
 		case linker.StateWrongTarget:
 			wrong++
-			fmt.Printf("  wrong    %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  wrong    %s\n", l.Dst)
 		case linker.StateConflict:
 			conflict++
-			fmt.Printf("  conflict %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  conflict %s\n", l.Dst)
 		}
 	}
-	fmt.Printf("symlinks: %d ok, %d missing, %d wrong-target, %d conflict\n",
+	fmt.Fprintf(cmd.OutOrStdout(), "symlinks: %d ok, %d missing, %d wrong-target, %d conflict\n",
 		ok, missing, wrong, conflict)
 	return nil
 }
 
 // --- helpers ---
 
-func resolveEnv() (map[string]string, error) {
-	ef, err := env.LoadEnvFileFromPath(flagEnvFile)
+func resolveEnv(cfg *config) (map[string]string, error) {
+	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +248,7 @@ func resolveEnv() (map[string]string, error) {
 	for k, v := range ef.Env {
 		overrides[k] = v
 	}
-	for _, kv := range flagEnv {
+	for _, kv := range cfg.env {
 		parts := strings.SplitN(kv, "=", 2)
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("invalid --env value %q: expected key=value", kv)
@@ -262,34 +259,34 @@ func resolveEnv() (map[string]string, error) {
 	return r.Resolve(overrides)
 }
 
-func buildFileSet(resolved map[string]string) (*fileset.Set, error) {
-	walked, err := walk.Walk(flagDotfiles)
+func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error) {
+	walked, err := walk.Walk(cfg.dotfiles)
 	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", flagDotfiles, err)
+		return nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
 	}
 	return fileset.Build(walked, resolved, nil)
 }
 
-func loadPackageContext() (*packages.Registry, []string, error) {
-	reg, err := packages.LoadFile(filepath.Join(flagDotfiles, "packages.yaml"))
+func loadPackageContext(cfg *config) (*packages.Registry, []string, error) {
+	reg, err := packages.LoadFile(filepath.Join(cfg.dotfiles, "packages.yaml"))
 	if err != nil {
 		return nil, nil, err
 	}
-	cfg, err := dotryaml.LoadFile(filepath.Join(flagDotfiles, ".dotr.yaml"))
+	dotrcfg, err := dotryaml.LoadFile(filepath.Join(cfg.dotfiles, ".dotr.yaml"))
 	if err != nil {
 		return nil, nil, err
 	}
-	return reg, cfg.Dote.PackageManagers.Priority, nil
+	return reg, dotrcfg.Dote.PackageManagers.Priority, nil
 }
 
-func handlePackage(req packages.PackageRequest, reg *packages.Registry, priority []string) error {
+func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest, reg *packages.Registry, priority []string) error {
 	installed, err := packages.Installed(req.Package, reg, exec.LookPath)
 	if err != nil {
 		return err
 	}
 	if installed {
-		if flagVerbose {
-			fmt.Printf("  installed  %s\n", req.Package)
+		if cfg.verbose {
+			fmt.Fprintf(cmd.OutOrStdout(), "  installed  %s\n", req.Package)
 		}
 		return nil
 	}
@@ -304,8 +301,8 @@ func handlePackage(req packages.PackageRequest, reg *packages.Registry, priority
 			return fmt.Errorf("dotr: %s: @require %q: not installed and not installable",
 				req.NodePath, req.Package)
 		}
-		if flagVerbose {
-			fmt.Printf("  skip       %s (not installable)\n", req.Package)
+		if cfg.verbose {
+			fmt.Fprintf(cmd.OutOrStdout(), "  skip       %s (not installable)\n", req.Package)
 		}
 		return nil
 	}
@@ -315,19 +312,19 @@ func handlePackage(req packages.PackageRequest, reg *packages.Registry, priority
 		return err
 	}
 
-	fmt.Printf("  install    %s via %s: %s\n", req.Package, mgr, installCmd)
-	if flagDryRun {
+	fmt.Fprintf(cmd.OutOrStdout(), "  install    %s via %s: %s\n", req.Package, mgr, installCmd)
+	if cfg.dryRun {
 		return nil
 	}
 
 	c := exec.Command("sh", "-c", installCmd)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
+	c.Stdout = cmd.OutOrStdout()
+	c.Stderr = cmd.ErrOrStderr()
 	if err := c.Run(); err != nil {
 		if req.Hard {
 			return fmt.Errorf("dotr: install %s: %w", req.Package, err)
 		}
-		fmt.Fprintf(os.Stderr, "warning: install %s: %v\n", req.Package, err)
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: install %s: %v\n", req.Package, err)
 	}
 	return nil
 }
