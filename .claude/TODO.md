@@ -26,11 +26,11 @@ Items that are known but intentionally deferred. Update this as things get done 
 See `.claude/docs/implementation-plan.md` for the full phased plan.
 
 - [x] Phase 0 — repo bootstrap (LICENSE, go.mod, skeleton, CI, lint, PR template)
-- [ ] Phase 1 — `internal/annotation`, `internal/predicate`
-- [ ] Phase 2 — `internal/dotryaml`, `internal/env`, `cmd/dote`
-- [ ] Phase 3 — `internal/walk`, `internal/fileset`
-- [ ] Phase 4 — `internal/dag`, `internal/initgen`, `internal/linker`, `internal/packages`
-- [ ] Phase 5 — `cmd/dotd`, `cmd/dotl`, `cmd/dotp`, `cmd/dotr`
+- [x] Phase 1 — `internal/annotation`, `internal/predicate`
+- [x] Phase 2 — `internal/dotryaml`, `internal/env`, `cmd/dote`
+- [x] Phase 3 — `internal/walk`, `internal/fileset`
+- [x] Phase 4 — `internal/dag`, `internal/initgen`, `internal/linker`, `internal/packages`
+- [x] Phase 5 — `cmd/dotd`, `cmd/dotl`, `cmd/dotp`, `cmd/dotr`
 
 ---
 
@@ -41,6 +41,6 @@ See `.claude/docs/implementation-plan.md` for the full phased plan.
 - [x] Config file naming — resolved: `.dotr.yaml`, sections namespaced by tool.
 - [x] Standalone file selection for `dotl`/`dotp` — resolved: standalone = unconditional walk of owned dirs; orchestrated = receives filtered list from `dotd` via `dotr`.
 - [x] Unknown annotation/predicate behavior — resolved: `dota` warns or errors (configurable), never silently false.
-- [ ] Review `link_root` and `@symlink` relative path semantics more carefully before finalising spec. Current resolution: `@symlink` destinations are implicit-relative to `link_root` if they don't start with `/` or `~/`. Needs validation against real use cases.
+- [x] Review `link_root` and `@symlink` relative path semantics — resolved: `link_root` cascades from `.dotr.yaml` `dotl` section; inner overrides outer; empty = fallback to `Options.LinkRoot`. `@symlink` relative paths resolve against effective `link_root`.
 - [x] Spec out `dotp` fully — see `.claude/docs/specv2/dotp.md`.
 - [x] Repo rename/retire — handled naturally as suite repos are created; not worth tracking.
