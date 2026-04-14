@@ -18,6 +18,8 @@ const (
 	KeyAfter        = "after"
 	KeySymlink      = "symlink"
 	KeyRetainPrefix = "retain-prefix"
+	KeyRequire      = "require"
+	KeyRequest      = "request"
 )
 
 // IsCoreKey reports whether key is a built-in annotation key handled directly
