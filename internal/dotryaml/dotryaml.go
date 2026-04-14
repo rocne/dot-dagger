@@ -28,15 +28,28 @@ type PackageManagersConfig struct {
 	Priority []string `yaml:"priority"`
 }
 
-// DotdSection holds dotd-owned config: directory-level when and cascading defaults.
+// DotdSection holds dotd-owned config: directory-level when, cascading defaults,
+// and per-file metadata for files that cannot carry annotations.
 type DotdSection struct {
 	When     string       `yaml:"when"`
 	Defaults DotdDefaults `yaml:"defaults"`
+	Files    []FileEntry  `yaml:"files"`
 }
 
 // DotdDefaults holds values that cascade to all files within the directory.
 type DotdDefaults struct {
 	When string `yaml:"when"`
+}
+
+// FileEntry provides annotation metadata for a file that cannot carry annotations
+// (e.g. JSON, binary). Path is the true filename on disk.
+type FileEntry struct {
+	Path         string `yaml:"path"`
+	When         string `yaml:"when"`
+	After        string `yaml:"after"`
+	Name         string `yaml:"name"`
+	Symlink      string `yaml:"symlink"`
+	RetainPrefix bool   `yaml:"retain_prefix"`
 }
 
 // DotlSection holds dotl-owned config: symlink root override.
