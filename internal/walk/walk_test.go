@@ -220,20 +220,55 @@ func TestWalkNameAnnotation(t *testing.T) {
 
 func TestLogicalNameFor(t *testing.T) {
 	tests := []struct {
-		rel  string
-		want string
+		rel          string
+		retainPrefix bool
+		want         string
 	}{
-		{"scripts/helpers.sh", "scripts.helpers"},
-		{"conf/dot-gitconfig", "conf.gitconfig"},
-		{"nosync-work/scripts/aliases.sh", "work.scripts.aliases"},
-		{"nosync-dot-secrets/api.sh", "secrets.api"},
-		{"conf/dot-config/tmux/tmux.conf", "conf.config.tmux.tmux"},
+		{"scripts/helpers.sh", false, "scripts.helpers"},
+		{"conf/dot-gitconfig", false, "conf.gitconfig"},
+		{"nosync-work/scripts/aliases.sh", false, "work.scripts.aliases"},
+		{"nosync-dot-secrets/api.sh", false, "secrets.api"},
+		{"conf/dot-config/tmux/tmux.conf", false, "conf.config.tmux.tmux"},
+		// retain-prefix: dot- kept on last component, nosync- still stripped.
+		{"conf/dot-gitconfig", true, "conf.dot-gitconfig"},
+		{"nosync-dot-secrets/api.sh", true, "secrets.api"},       // nosync- stripped, no dot- to retain
+		{"conf/dot-config/tmux/dot-tmux.conf", true, "conf.config.tmux.dot-tmux"},
 	}
 	for _, tt := range tests {
-		got := logicalNameFor("/root", "/root/"+filepath.FromSlash(tt.rel))
+		got := logicalNameFor("/root", "/root/"+filepath.FromSlash(tt.rel), tt.retainPrefix)
 		if got != tt.want {
-			t.Errorf("logicalNameFor(%q) = %q, want %q", tt.rel, got, tt.want)
+			t.Errorf("logicalNameFor(%q, retainPrefix=%v) = %q, want %q", tt.rel, tt.retainPrefix, got, tt.want)
 		}
+	}
+}
+
+func TestWalkRetainPrefix(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		"conf/dot-gitconfig":       "",                    // no retain-prefix → conf.gitconfig
+		"conf/dot-zshrc":           "# @retain-prefix\n", // retain-prefix → conf.dot-zshrc
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	nameOf := func(rel string) string {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		for _, n := range nodes {
+			if n.Path == full {
+				return n.LogicalName
+			}
+		}
+		t.Fatalf("node not found: %s", rel)
+		return ""
+	}
+
+	if got := nameOf("conf/dot-gitconfig"); got != "conf.gitconfig" {
+		t.Errorf("dot-gitconfig logical name = %q, want conf.gitconfig", got)
+	}
+	if got := nameOf("conf/dot-zshrc"); got != "conf.dot-zshrc" {
+		t.Errorf("dot-zshrc logical name = %q, want conf.dot-zshrc", got)
 	}
 }
 
