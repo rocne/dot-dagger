@@ -6,8 +6,8 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## Project Setup
 
-- [ ] Add `LICENSE` (MIT decided, just needs the file)
-- [ ] Initialize `go.mod` (defer until first `.go` file is written)
+- [x] Add `LICENSE` (MIT)
+- [x] Initialize `go.mod` (module `github.com/rocne/dot-dagger` — rename deferred)
 
 ---
 
@@ -17,15 +17,15 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## Git / CI Infrastructure
 
-- [ ] GitHub Actions CI workflow (build + test) — defer until `go.mod` exists
-- [ ] GitHub Actions lint workflow (`golangci-lint`) — defer until `go.mod` exists
-- [ ] PR template (`.github/pull_request_template.md`)
+- [x] GitHub Actions CI workflow (build + test)
+- [x] GitHub Actions lint workflow (`golangci-lint`)
+- [x] PR template (`.github/pull_request_template.md`)
 
 ## Implementation
 
 See `.claude/docs/implementation-plan.md` for the full phased plan.
 
-- [ ] Phase 0 — repo bootstrap (LICENSE, go.mod, skeleton, CI, lint, PR template)
+- [x] Phase 0 — repo bootstrap (LICENSE, go.mod, skeleton, CI, lint, PR template)
 - [ ] Phase 1 — `internal/annotation`, `internal/predicate`
 - [ ] Phase 2 — `internal/dotryaml`, `internal/env`, `cmd/dote`
 - [ ] Phase 3 — `internal/walk`, `internal/fileset`
