@@ -23,7 +23,14 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## Implementation
 
-_(To be filled in as planning begins)_
+See `.claude/docs/implementation-plan.md` for the full phased plan.
+
+- [ ] Phase 0 — repo bootstrap (LICENSE, go.mod, skeleton, CI, lint, PR template)
+- [ ] Phase 1 — `internal/annotation`, `internal/predicate`
+- [ ] Phase 2 — `internal/dotryaml`, `internal/env`, `cmd/dote`
+- [ ] Phase 3 — `internal/walk`, `internal/fileset`
+- [ ] Phase 4 — `internal/dag`, `internal/initgen`, `internal/linker`, `internal/packages`
+- [ ] Phase 5 — `cmd/dotd`, `cmd/dotl`, `cmd/dotp`, `cmd/dotr`
 
 ---
 
