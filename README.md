@@ -99,22 +99,37 @@ The core dotr bet: **conditions belong on files, not in shell code or central ma
 
 ## Install
 
+### install.sh (recommended)
+
+```sh
+curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh
+```
+
+Detects your OS and architecture, downloads the latest release, and installs to `~/.local/bin`. Requires [gh CLI](https://cli.github.com) authenticated with `gh auth login`.
+
+Install a specific tool or version:
+
+```sh
+# install dotl instead of dotr
+curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- dotl
+
+# install a specific version
+curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- dotr --version v0.1.4
+
+# install to a custom directory
+curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --dir /usr/local/bin
+```
+
 ### From source
 
 ```sh
 git clone https://github.com/rocne/dot-dagger
 cd dot-dagger
 go install ./cmd/dotr ./cmd/dotd ./cmd/dotl ./cmd/dotp ./cmd/dote
-```
-
-### Pre-built binaries
-
-Each tool releases independently. Download from the [releases page](../../releases).
-
-```sh
-# Example: dotr v0.1.0, macOS arm64
-curl -L https://github.com/rocne/dot-dagger/releases/download/dotr-v0.1.0/dotr_v0.1.0_darwin_arm64.tar.gz \
-  | tar xz && sudo mv dotr /usr/local/bin/
 ```
 
 ---
@@ -502,13 +517,21 @@ packages:
       package: somelib
 ```
 
-Package manager priority (which manager wins when multiple are available) is set in `.dotr.yaml`:
+Package manager priority (which manager wins when multiple are available) is set in `packages.yaml` under `package_managers.priority`. Per-package `prefer` overrides the global order for a specific package:
 
 ```yaml
-# .dotr.yaml (repo root)
-dote:
-  package_managers:
-    priority: [brew, apt, dnf, pacman, pip, cargo]
+package_managers:
+  priority: [brew, apt, dnf]   # global preference order
+  brew:
+    install: brew install {package}
+    ...
+
+packages:
+  ripgrep:
+    prefer: [dnf, brew]        # use dnf for this package if available
+    binary: rg
+    brew: {}
+    dnf: {}
 ```
 
 ### .dotr.yaml
