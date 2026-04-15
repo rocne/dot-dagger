@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/dag"
-	"github.com/rocne/dot-dagger/internal/dotryaml"
 	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/initgen"
@@ -100,14 +99,14 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
 	}
 
-	reg, priority, err := loadPackageContext(cfg)
+	reg, err := loadPackageContext(cfg)
 	if err != nil {
 		return err
 	}
 
 	reqs := packages.CollectRequests(nodes.Nodes)
 	for _, req := range reqs {
-		if err := handlePackage(cmd, cfg, req, reg, priority); err != nil {
+		if err := handlePackage(cmd, cfg, req, reg); err != nil {
 			return err
 		}
 	}
@@ -178,7 +177,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active, %s\n", ui.Header("scripts:"), len(ordered), ui.OK("DAG OK"))
 
-	reg, priority, err := loadPackageContext(cfg)
+	reg, err := loadPackageContext(cfg)
 	if err != nil {
 		return err
 	}
@@ -186,7 +185,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	var pkgMissing int
 	for _, req := range reqs {
 		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
-		installable, _ := packages.Installable(req.Package, reg, priority, exec.LookPath)
+		installable, _ := packages.Installable(req.Package, reg, exec.LookPath)
 		if !installed && !installable && req.Hard {
 			fmt.Fprintf(cmd.OutOrStdout(), "  %s @require: %s (from %s)\n",
 				ui.HardMissing("MISSING"), req.Package, req.NodePath)
@@ -278,19 +277,11 @@ func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error)
 	return fileset.Build(walked, resolved, nil)
 }
 
-func loadPackageContext(cfg *config) (*packages.Registry, []string, error) {
-	reg, err := packages.LoadFile(filepath.Join(cfg.files, "packages.yaml"))
-	if err != nil {
-		return nil, nil, err
-	}
-	dotrcfg, err := dotryaml.LoadFile(filepath.Join(cfg.files, ".dotr.yaml"))
-	if err != nil {
-		return nil, nil, err
-	}
-	return reg, dotrcfg.Dote.PackageManagers.Priority, nil
+func loadPackageContext(cfg *config) (*packages.Registry, error) {
+	return packages.LoadFile(filepath.Join(cfg.files, "packages.yaml"))
 }
 
-func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest, reg *packages.Registry, priority []string) error {
+func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest, reg *packages.Registry) error {
 	installed, err := packages.Installed(req.Package, reg, exec.LookPath)
 	if err != nil {
 		return err
@@ -302,7 +293,7 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 		return nil
 	}
 
-	installable, err := packages.Installable(req.Package, reg, priority, exec.LookPath)
+	installable, err := packages.Installable(req.Package, reg, exec.LookPath)
 	if err != nil {
 		return err
 	}
@@ -318,7 +309,7 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 		return nil
 	}
 
-	mgr, installCmd, err := resolveInstallCmd(req.Package, reg, priority)
+	mgr, installCmd, err := resolveInstallCmd(req.Package, reg)
 	if err != nil {
 		return err
 	}
@@ -340,12 +331,12 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 	return nil
 }
 
-func resolveInstallCmd(pkg string, reg *packages.Registry, priority []string) (string, string, error) {
-	for _, mgr := range priority {
-		entry, ok := reg.Packages[pkg]
-		if !ok {
-			continue
-		}
+func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, error) {
+	entry, ok := reg.Packages[pkg]
+	if !ok {
+		return "", "", fmt.Errorf("dotr: package %q not in registry", pkg)
+	}
+	for _, mgr := range packages.ManagerOrder(pkg, reg) {
 		if _, hasEntry := entry.Managers[mgr]; !hasEntry {
 			continue
 		}

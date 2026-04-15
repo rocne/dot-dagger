@@ -18,14 +18,9 @@ type DotR struct {
 	Dotl DotlSection `yaml:"dotl"`
 }
 
-// DoteSection holds dote-owned config: env overrides and package manager priority.
+// DoteSection holds dote-owned config: env overrides for this directory subtree.
+// (Package manager priority moved to packages.yaml under package_managers.priority.)
 type DoteSection struct {
-	PackageManagers PackageManagersConfig `yaml:"package_managers"`
-}
-
-// PackageManagersConfig declares the ordered preference for package managers.
-type PackageManagersConfig struct {
-	Priority []string `yaml:"priority"`
 }
 
 // DotdSection holds dotd-owned config: directory-level when, cascading defaults,

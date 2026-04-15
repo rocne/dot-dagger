@@ -7,9 +7,6 @@ import (
 
 func TestLoad(t *testing.T) {
 	input := `
-dote:
-  package_managers:
-    priority: [brew, apt]
 dotd:
   when: "os=macos"
   defaults:
@@ -20,9 +17,6 @@ dotl:
 	d, err := Load(strings.NewReader(input))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
-	}
-	if d.Dote.PackageManagers.Priority[0] != "brew" {
-		t.Errorf("priority[0] = %q, want brew", d.Dote.PackageManagers.Priority[0])
 	}
 	if d.Dotd.When != "os=macos" {
 		t.Errorf("dotd.when = %q, want os=macos", d.Dotd.When)

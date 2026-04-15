@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/rocne/dot-dagger/internal/dotryaml"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -74,7 +73,7 @@ func newRootCmd() *cobra.Command {
 }
 
 func runInstall(cmd *cobra.Command, cfg *config) error {
-	nodes, reg, priority, err := loadContext(cfg)
+	nodes, reg, err := loadContext(cfg)
 	if err != nil {
 		return err
 	}
@@ -92,7 +91,7 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 			continue
 		}
 
-		installable, err := packages.Installable(req.Package, reg, priority, exec.LookPath)
+		installable, err := packages.Installable(req.Package, reg, exec.LookPath)
 		if err != nil {
 			return err
 		}
@@ -108,7 +107,7 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 			continue
 		}
 
-		mgr, installCmd, err := resolveInstallCmd(req.Package, reg, priority)
+		mgr, installCmd, err := resolveInstallCmd(req.Package, reg)
 		if err != nil {
 			return err
 		}
@@ -132,7 +131,7 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 }
 
 func runCheck(cmd *cobra.Command, cfg *config) error {
-	nodes, reg, priority, err := loadContext(cfg)
+	nodes, reg, err := loadContext(cfg)
 	if err != nil {
 		return err
 	}
@@ -150,7 +149,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		}
 
 		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
-		installable, _ := packages.Installable(req.Package, reg, priority, exec.LookPath)
+		installable, _ := packages.Installable(req.Package, reg, exec.LookPath)
 
 		var status string
 		switch {
@@ -170,7 +169,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 }
 
 func runList(cmd *cobra.Command, cfg *config) error {
-	nodes, _, _, err := loadContext(cfg)
+	nodes, _, err := loadContext(cfg)
 	if err != nil {
 		return err
 	}
@@ -193,33 +192,27 @@ func runList(cmd *cobra.Command, cfg *config) error {
 
 // --- helpers ---
 
-func loadContext(cfg *config) (*fileset.Set, *packages.Registry, []string, error) {
+func loadContext(cfg *config) (*fileset.Set, *packages.Registry, error) {
 	walked, err := walk.Walk(cfg.files)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("walk %s: %w", cfg.files, err)
+		return nil, nil, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
 	nodes := fileset.BuildUnfiltered(walked)
 
 	reg, err := packages.LoadFile(filepath.Join(cfg.files, "packages.yaml"))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	dotrcfg, err := dotryaml.LoadFile(filepath.Join(cfg.files, ".dotr.yaml"))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	priority := dotrcfg.Dote.PackageManagers.Priority
-
-	return nodes, reg, priority, nil
+	return nodes, reg, nil
 }
 
-func resolveInstallCmd(pkg string, reg *packages.Registry, priority []string) (string, string, error) {
-	for _, mgr := range priority {
-		entry, ok := reg.Packages[pkg]
-		if !ok {
-			continue
-		}
+func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, error) {
+	entry, ok := reg.Packages[pkg]
+	if !ok {
+		return "", "", fmt.Errorf("dotp: package %q not in registry", pkg)
+	}
+	for _, mgr := range packages.ManagerOrder(pkg, reg) {
 		if _, hasEntry := entry.Managers[mgr]; !hasEntry {
 			continue
 		}

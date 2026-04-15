@@ -11,6 +11,7 @@ import (
 
 const sampleYAML = `
 package_managers:
+  priority: [brew, apt]
   brew:
     install: brew install {package}
     uninstall: brew uninstall {package}
@@ -40,6 +41,11 @@ packages:
     brew:
       install: brew tap someorg/sometool && brew install some-tool
     apt: {}
+
+  yum-preferred:
+    prefer: [yum, apt]
+    yum: {}
+    apt: {}
 `
 
 func loadSample(t *testing.T) *Registry {
@@ -55,19 +61,29 @@ func loadSample(t *testing.T) *Registry {
 
 func TestLoadParseManagers(t *testing.T) {
 	reg := loadSample(t)
-	if len(reg.PackageManagers) != 2 {
-		t.Errorf("PackageManagers len = %d, want 2", len(reg.PackageManagers))
+	if len(reg.PackageManagers.Defs) != 2 {
+		t.Errorf("PackageManagers.Defs len = %d, want 2", len(reg.PackageManagers.Defs))
 	}
-	brew := reg.PackageManagers["brew"]
+	brew := reg.PackageManagers.Defs["brew"]
 	if brew.Install != "brew install {package}" {
 		t.Errorf("brew.Install = %q", brew.Install)
 	}
 }
 
+func TestLoadParsePriority(t *testing.T) {
+	reg := loadSample(t)
+	if len(reg.PackageManagers.Priority) != 2 {
+		t.Fatalf("Priority len = %d, want 2", len(reg.PackageManagers.Priority))
+	}
+	if reg.PackageManagers.Priority[0] != "brew" {
+		t.Errorf("Priority[0] = %q, want brew", reg.PackageManagers.Priority[0])
+	}
+}
+
 func TestLoadParsePackages(t *testing.T) {
 	reg := loadSample(t)
-	if len(reg.Packages) != 4 {
-		t.Errorf("Packages len = %d, want 4", len(reg.Packages))
+	if len(reg.Packages) != 5 {
+		t.Errorf("Packages len = %d, want 5", len(reg.Packages))
 	}
 }
 
@@ -103,6 +119,54 @@ func TestLoadEmptyManagerEntry(t *testing.T) {
 	}
 	if entry.Managers["brew"].Package != "" {
 		t.Error("fzf brew.Package should be empty")
+	}
+}
+
+func TestLoadPreferField(t *testing.T) {
+	reg := loadSample(t)
+	entry := reg.Packages["yum-preferred"]
+	if len(entry.Prefer) != 2 || entry.Prefer[0] != "yum" {
+		t.Errorf("prefer = %v, want [yum apt]", entry.Prefer)
+	}
+}
+
+// --- ManagerOrder ---
+
+func TestManagerOrderPerPackagePrefer(t *testing.T) {
+	reg := loadSample(t)
+	order := ManagerOrder("yum-preferred", reg)
+	if len(order) == 0 || order[0] != "yum" {
+		t.Errorf("ManagerOrder = %v, want yum first", order)
+	}
+}
+
+func TestManagerOrderGlobalPriority(t *testing.T) {
+	reg := loadSample(t)
+	order := ManagerOrder("fzf", reg)
+	if len(order) == 0 || order[0] != "brew" {
+		t.Errorf("ManagerOrder = %v, want brew first (global priority)", order)
+	}
+}
+
+func TestManagerOrderCatalogFallback(t *testing.T) {
+	// Registry with no priority and no per-package prefer.
+	reg, err := Load(strings.NewReader(`
+package_managers:
+  apt:
+    install: apt install -y {package}
+packages:
+  fzf:
+    apt: {}
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	order := ManagerOrder("fzf", reg)
+	if len(order) == 0 {
+		t.Error("expected fallback order, got empty")
+	}
+	if order[0] != "apt" {
+		t.Errorf("ManagerOrder = %v, want [apt]", order)
 	}
 }
 
@@ -176,9 +240,8 @@ func TestInstalledUsesCustomBinary(t *testing.T) {
 
 func TestInstallableTrue(t *testing.T) {
 	reg := loadSample(t)
-	// fzf has brew entry; brew is on PATH.
-	priority := []string{"brew", "apt"}
-	ok, err := Installable("fzf", reg, priority, func(bin string) (string, error) {
+	// fzf has brew entry; global priority=[brew,apt]; brew is on PATH.
+	ok, err := Installable("fzf", reg, func(bin string) (string, error) {
 		if bin == "brew" {
 			return "/usr/local/bin/brew", nil
 		}
@@ -194,9 +257,10 @@ func TestInstallableTrue(t *testing.T) {
 
 func TestInstallableFalseNoManager(t *testing.T) {
 	reg := loadSample(t)
-	// fzf has no cargo entry; cargo is on PATH but doesn't matter.
-	priority := []string{"cargo"}
-	ok, err := Installable("fzf", reg, priority, lookPathFound)
+	// fzf has no cargo entry; cargo on PATH but not in fzf.managers.
+	// Override priority via a registry with cargo as priority.
+	reg.PackageManagers.Priority = []string{"cargo"}
+	ok, err := Installable("fzf", reg, lookPathFound)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -207,8 +271,7 @@ func TestInstallableFalseNoManager(t *testing.T) {
 
 func TestInstallableFalseManagerNotOnPath(t *testing.T) {
 	reg := loadSample(t)
-	priority := []string{"brew", "apt"}
-	ok, err := Installable("fzf", reg, priority, lookPathNotFound)
+	ok, err := Installable("fzf", reg, lookPathNotFound)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -219,12 +282,29 @@ func TestInstallableFalseManagerNotOnPath(t *testing.T) {
 
 func TestInstallableUnknownPackage(t *testing.T) {
 	reg := loadSample(t)
-	ok, err := Installable("ghost-tool", reg, []string{"brew"}, lookPathFound)
+	ok, err := Installable("ghost-tool", reg, lookPathFound)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
 	if ok {
 		t.Error("expected installable = false for unknown package")
+	}
+}
+
+func TestInstallableUsesPerPackagePrefer(t *testing.T) {
+	reg := loadSample(t)
+	// yum-preferred has prefer:[yum,apt]; only yum on PATH.
+	ok, err := Installable("yum-preferred", reg, func(bin string) (string, error) {
+		if bin == "yum" {
+			return "/usr/bin/yum", nil
+		}
+		return "", fmt.Errorf("not found")
+	})
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !ok {
+		t.Error("expected installable = true via per-package prefer")
 	}
 }
 

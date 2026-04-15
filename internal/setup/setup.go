@@ -171,6 +171,13 @@ func packagesYAML(selected []string) string {
 
 	if len(selected) > 0 {
 		sb.WriteString("\npackage_managers:\n")
+		// priority: ordered preference list
+		sb.WriteString("  priority:")
+		for _, name := range selected {
+			fmt.Fprintf(&sb, " %s", name)
+		}
+		sb.WriteString("\n")
+		// per-manager command templates
 		for _, name := range selected {
 			m, ok := catalog[name]
 			if !ok {
