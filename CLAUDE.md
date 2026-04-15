@@ -10,7 +10,6 @@ This project uses trunk-based development:
 
 - `main` — default branch, always stable
 - `feature/<name>` — all feature work branches off `main` and PRs back into it
-- Releases are triggered by pushing a semver tag (e.g. `v0.1.0`) to `main`
 
 ### Branch Naming
 
@@ -18,6 +17,43 @@ This project uses trunk-based development:
 - Claude-authored branches: `feature/claude-<name>`
 
 The `feature/claude-` prefix makes it visually clear the branch was Claude's work.
+
+## Release Process
+
+Each tool releases independently via a tag push. Tags use a hyphen separator (not slash — GitHub Actions tag triggers are unreliable with `/` in tag names).
+
+### Tag format
+
+```
+<tool>-v<semver>
+```
+
+Examples: `dote-v0.1.0`, `dotl-v0.2.1`, `dotr-v1.0.0`
+
+### How to release a tool
+
+```sh
+git tag dotr-v0.2.0
+git push origin dotr-v0.2.0
+```
+
+This triggers `.github/workflows/release-dotr.yml`, which:
+1. Extracts the version (`v0.2.0`) from the tag name
+2. Runs GoReleaser to build linux+darwin × amd64+arm64 archives (`--skip=validate,publish`)
+3. Creates the GitHub release via `gh release create` attached to the tool tag
+
+### Re-triggering a release
+
+If a release fails mid-run, delete and re-push the tag from `main`:
+
+```sh
+git push origin --delete dotr-v0.2.0
+git tag -d dotr-v0.2.0
+git tag dotr-v0.2.0   # ensure main is checked out
+git push origin dotr-v0.2.0
+```
+
+Always tag from `main`. The workflow files must be present at the tagged commit — tagging a commit before the release workflow was merged will silently not trigger.
 
 ## Repository
 

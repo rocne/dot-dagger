@@ -113,7 +113,7 @@ Each tool releases independently. Download from the [releases page](../../releas
 
 ```sh
 # Example: dotr v0.1.0, macOS arm64
-curl -L https://github.com/rocne/dot-dagger/releases/download/dotr%2Fv0.1.0/dotr_v0.1.0_darwin_arm64.tar.gz \
+curl -L https://github.com/rocne/dot-dagger/releases/download/dotr-v0.1.0/dotr_v0.1.0_darwin_arm64.tar.gz \
   | tar xz && sudo mv dotr /usr/local/bin/
 ```
 
