@@ -21,7 +21,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Set version
-        run: echo "VERSION=${GITHUB_REF_NAME#*-}" >> $GITHUB_ENV
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#*-}" >> $GITHUB_ENV
+          echo "FULL_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
       - uses: goreleaser/goreleaser-action@v6
         with:
@@ -31,3 +33,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.VERSION }}
+          FULL_TAG: ${{ env.FULL_TAG }}
