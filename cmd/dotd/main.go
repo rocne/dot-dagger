@@ -17,6 +17,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "dev"
+
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
@@ -39,8 +41,9 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:   "dotd",
-		Short: "Dotfiles script DAG — generates init.sh and applies conf/bin symlinks",
+		Use:     "dotd",
+		Short:   "Dotfiles script DAG — generates init.sh and applies conf/bin symlinks",
+		Version: version,
 	}
 
 	pf := root.PersistentFlags()

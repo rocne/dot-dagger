@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "dev"
+
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
@@ -27,8 +29,9 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:   "dote",
-		Short: "Environment resolution for the dotr suite",
+		Use:     "dote",
+		Short:   "Environment resolution for the dotr suite",
+		Version: version,
 	}
 
 	show := &cobra.Command{

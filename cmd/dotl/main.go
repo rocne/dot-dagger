@@ -13,6 +13,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "dev"
+
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
@@ -32,8 +34,9 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:   "dotl",
-		Short: "Dotfiles linker — symlinks conf/ and bin/ files into the system (unconditional)",
+		Use:     "dotl",
+		Short:   "Dotfiles linker — symlinks conf/ and bin/ files into the system (unconditional)",
+		Version: version,
 	}
 
 	pf := root.PersistentFlags()

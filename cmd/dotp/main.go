@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "dev"
+
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
@@ -32,8 +34,9 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:   "dotp",
-		Short: "Dotfiles package manager — installs packages declared via @require/@request (unconditional)",
+		Use:     "dotp",
+		Short:   "Dotfiles package manager — installs packages declared via @require/@request (unconditional)",
+		Version: version,
 	}
 
 	pf := root.PersistentFlags()

@@ -20,6 +20,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "dev"
+
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
@@ -42,8 +44,9 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:   "dotr",
-		Short: "Dotfiles orchestrator — composes dote, dotd, dotl, and dotp",
+		Use:     "dotr",
+		Short:   "Dotfiles orchestrator — composes dote, dotd, dotl, and dotp",
+		Version: version,
 	}
 
 	pf := root.PersistentFlags()
