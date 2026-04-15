@@ -27,11 +27,11 @@ func Generate(nodes []fileset.Node, binDir string) []byte {
 	if binDir != "" {
 		// Use ${HOME}-relative path when binDir is under home dir.
 		quoted := singleQuote(binDir)
-		b.WriteString(fmt.Sprintf("PATH=%s:\"${PATH}\"\nexport PATH\n\n", quoted))
+		fmt.Fprintf(&b, "PATH=%s:\"${PATH}\"\nexport PATH\n\n", quoted)
 	}
 
 	for _, n := range nodes {
-		b.WriteString(fmt.Sprintf(". %s\n", singleQuote(n.Path)))
+		fmt.Fprintf(&b, ". %s\n", singleQuote(n.Path))
 	}
 
 	return []byte(b.String())
@@ -52,8 +52,8 @@ func WriteFile(path string, content []byte) error {
 	tmpPath := tmp.Name()
 
 	if _, err := tmp.Write(content); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("initgen: write temp: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
@@ -62,7 +62,7 @@ func WriteFile(path string, content []byte) error {
 	}
 
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("initgen: rename to %s: %w", path, err)
 	}
 	return nil
