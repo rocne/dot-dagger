@@ -3,7 +3,7 @@ name: Release dotd
 on:
   push:
     tags:
-      - "dotd/v*"
+      - "dotd-v*"
 
 permissions:
   contents: write
@@ -21,7 +21,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Set version
-        run: echo "VERSION=${GITHUB_REF_NAME#*/}" >> $GITHUB_ENV
+        run: echo "VERSION=${GITHUB_REF_NAME#*-}" >> $GITHUB_ENV
 
       - uses: goreleaser/goreleaser-action@v6
         with:
