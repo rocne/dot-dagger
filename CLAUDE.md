@@ -63,6 +63,10 @@ This is the `dot-dagger` repository — a home for Dagger pipelines and CI/CD co
 
 Commit and push fairly often. Before committing, validate that things are in a good state.
 
+**All changes go to a feature branch and merge via PR — never commit directly to `main`.** Conceptually and temporally related changes belong in the same branch and PR. Batch related work rather than opening many small PRs.
+
+When a PR already exists for the current branch, update it rather than opening a new one. Always check `gh pr list` first to confirm the PR hasn't already been merged before pushing more commits to that branch.
+
 ### Validation steps
 
 - _(More steps will be added as the project grows — e.g. running tests once they exist)_
