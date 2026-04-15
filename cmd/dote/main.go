@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/env"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -81,7 +82,7 @@ func printEnv(cmd *cobra.Command, m map[string]string) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, m[k])
+		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", ui.Key(k), m[k])
 	}
 }
 
