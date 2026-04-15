@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rocne/dot-dagger/internal/packages"
 )
 
 // Options configures the scaffold operation.
@@ -18,6 +20,9 @@ type Options struct {
 	DetectedOS     string
 	DetectedDistro string
 	DetectedShell  string
+	// SelectedManagers is the list of package manager names to pre-fill in packages.yaml.
+	// If nil, packages.yaml is generated with no manager entries (comment-only).
+	SelectedManagers []string
 }
 
 // ActionKind describes what kind of thing was created.
@@ -69,7 +74,7 @@ func Scaffold(opts Options) (*Result, error) {
 	}{
 		{opts.EnvFilePath, envYAML(opts)},
 		{filepath.Join(opts.DotfilesDir, ".dotr.yaml"), dotrYAML()},
-		{filepath.Join(opts.DotfilesDir, "packages.yaml"), packagesYAML()},
+		{filepath.Join(opts.DotfilesDir, "packages.yaml"), packagesYAML(opts.SelectedManagers)},
 	}
 	for _, f := range files {
 		act, err := ensureFile(f.path, f.content)
@@ -143,35 +148,62 @@ dote:
 `
 }
 
-func packagesYAML() string {
-	return `# Package registry — maps logical package names to package manager entries.
-# Used by @require (hard gate) and @request (soft ask) annotations.
-#
-# package_managers: defines default install/uninstall commands.
-#   {package} is substituted with the package name at runtime.
-#
-# packages: each key is the logical name used in @require/@request.
-#   binary:   executable checked by installed() — defaults to the logical name.
-#   managers: list which managers can install this package.
-#     empty entry  = use manager defaults, pass logical name as package arg.
-#     package:     = override the name passed to this manager's CLI.
-#
-# Example:
-# package_managers:
-#   dnf:
-#     install: "dnf install -y {package}"
-#     uninstall: "dnf remove -y {package}"
-#   brew:
-#     install: "brew install {package}"
-#     uninstall: "brew uninstall {package}"
-#
-# packages:
-#   ripgrep:
-#     binary: rg        # 'rg' is the executable; install arg is still 'ripgrep'
-#     managers:
-#       dnf:            # empty = use dnf defaults, passes 'ripgrep' to dnf
-#       brew:           # empty = use brew defaults, passes 'ripgrep' to brew
-#       yum:
-#         package: rg   # yum uses a different package name
-`
+func packagesYAML(selected []string) string {
+	var sb strings.Builder
+
+	sb.WriteString("# Package registry — maps logical package names to package manager entries.\n")
+	sb.WriteString("# Used by @require (hard gate) and @request (soft ask) annotations.\n")
+	sb.WriteString("#\n")
+	sb.WriteString("# package_managers: default install/uninstall/update command templates.\n")
+	sb.WriteString("#   {package} is substituted with the package name at runtime.\n")
+	sb.WriteString("#\n")
+	sb.WriteString("# packages: each key is the logical name used in @require/@request.\n")
+	sb.WriteString("#   binary:   executable checked by installed() — defaults to the logical name.\n")
+	sb.WriteString("#   managers: which managers can install this package.\n")
+	sb.WriteString("#     empty entry = use manager defaults, pass logical name as package arg.\n")
+	sb.WriteString("#     package:    = override the name passed to this manager's CLI.\n")
+
+	// Build a name→def lookup from the catalog.
+	catalog := make(map[string]packages.KnownManager, len(packages.Catalog))
+	for _, m := range packages.Catalog {
+		catalog[m.Name] = m
+	}
+
+	if len(selected) > 0 {
+		sb.WriteString("\npackage_managers:\n")
+		for _, name := range selected {
+			m, ok := catalog[name]
+			if !ok {
+				continue
+			}
+			fmt.Fprintf(&sb, "  %s:\n", name)
+			fmt.Fprintf(&sb, "    install: %q\n", m.Def.Install)
+			fmt.Fprintf(&sb, "    uninstall: %q\n", m.Def.Uninstall)
+			fmt.Fprintf(&sb, "    update: %q\n", m.Def.Update)
+		}
+	} else {
+		sb.WriteString("#\n# package_managers:\n")
+		sb.WriteString("#   dnf:\n")
+		sb.WriteString("#     install: \"sudo dnf install -y {package}\"\n")
+		sb.WriteString("#     uninstall: \"sudo dnf remove -y {package}\"\n")
+		sb.WriteString("#     update: \"sudo dnf upgrade -y {package}\"\n")
+	}
+
+	sb.WriteString("\n# packages:\n")
+	sb.WriteString("#   ripgrep:\n")
+	sb.WriteString("#     binary: rg        # 'rg' is the executable; install arg is still 'ripgrep'\n")
+	sb.WriteString("#     managers:\n")
+	if len(selected) > 0 {
+		for _, name := range selected {
+			fmt.Fprintf(&sb, "#       %s:\n", name)
+		}
+		sb.WriteString("#       yum:\n")
+		sb.WriteString("#         package: rg   # override name passed to this manager\n")
+	} else {
+		sb.WriteString("#       dnf:            # empty = use dnf defaults\n")
+		sb.WriteString("#       yum:\n")
+		sb.WriteString("#         package: rg   # override name passed to this manager\n")
+	}
+
+	return sb.String()
 }

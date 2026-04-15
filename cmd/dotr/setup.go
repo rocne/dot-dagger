@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/x/term"
 	"github.com/rocne/dot-dagger/internal/env"
+	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -55,7 +56,40 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 	envFile := rootCfg.envFile
 	initFile := defaultInitFile()
 
-	if !nonInteractive {
+	// Detect installed package managers for pre-selection.
+	installedMgrs := packages.DetectInstalled()
+	installedSet := make(map[string]bool, len(installedMgrs))
+	for _, m := range installedMgrs {
+		installedSet[m] = true
+	}
+
+	// Build multi-select options: installed managers first, rest below.
+	var mgrOptions []huh.Option[string]
+	for _, m := range packages.Catalog {
+		label := m.Name
+		if installedSet[m.Name] {
+			label = m.Name + "  (" + m.Description + ", installed)"
+		} else {
+			label = m.Name + "  (" + m.Description + ")"
+		}
+		mgrOptions = append(mgrOptions, huh.NewOption(label, m.Name).Selected(installedSet[m.Name]))
+	}
+
+	// Sort: installed first, preserving catalog order within each group.
+	var installedOpts, otherOpts []huh.Option[string]
+	for _, opt := range mgrOptions {
+		if installedSet[opt.Value] {
+			installedOpts = append(installedOpts, opt)
+		} else {
+			otherOpts = append(otherOpts, opt)
+		}
+	}
+	mgrOptions = append(installedOpts, otherOpts...)
+
+	var selectedMgrs []string
+	if nonInteractive {
+		selectedMgrs = installedMgrs
+	} else {
 		if err := huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
@@ -68,6 +102,13 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 					Title("init.sh output").
 					Value(&initFile),
 			),
+			huh.NewGroup(
+				huh.NewMultiSelect[string]().
+					Title("Package managers to pre-fill in packages.yaml").
+					Description("Installed managers are pre-selected. Select any others you want included.").
+					Options(mgrOptions...).
+					Value(&selectedMgrs),
+			),
 		).Run(); err != nil {
 			return fmt.Errorf("setup: %w", err)
 		}
@@ -78,12 +119,13 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 
 	// Scaffold repo structure and config files.
 	result, err := setup.Scaffold(setup.Options{
-		DotfilesDir:    dotfilesDir,
-		EnvFilePath:    envFile,
-		InitFilePath:   initFile,
-		DetectedOS:     detected["os"],
-		DetectedDistro: detected["distro"],
-		DetectedShell:  detected["shell"],
+		DotfilesDir:      dotfilesDir,
+		EnvFilePath:      envFile,
+		InitFilePath:     initFile,
+		DetectedOS:       detected["os"],
+		DetectedDistro:   detected["distro"],
+		DetectedShell:    detected["shell"],
+		SelectedManagers: selectedMgrs,
 	})
 	if err != nil {
 		return err
