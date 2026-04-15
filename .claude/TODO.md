@@ -18,7 +18,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 ## UX / Polish
 
 - [ ] `dotr setup` — interactive onboarding command. Walks user through creating a dotfiles repo structure, writing `env.yaml`, setting `context`, and running first apply. Needs design before implementation.
-- [ ] Colorization and theming — CLI output should be beautiful. Colored status lines, styled headers, themed output for `check`/`apply`/`list`. Needs a color/theme system (probably via a lightweight terminal library). Applies across all tools.
+- [x] Colorization and theming — done: `internal/ui` package, semantic colors across all tools, colored cobra help output (bold headers, cyan commands/flags).
 
 ## Git / CI Infrastructure
 
