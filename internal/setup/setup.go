@@ -147,11 +147,31 @@ func packagesYAML() string {
 	return `# Package registry — maps logical package names to package manager entries.
 # Used by @require (hard gate) and @request (soft ask) annotations.
 #
+# package_managers: defines default install/uninstall commands.
+#   {package} is substituted with the package name at runtime.
+#
+# packages: each key is the logical name used in @require/@request.
+#   binary:   executable checked by installed() — defaults to the logical name.
+#   managers: list which managers can install this package.
+#     empty entry  = use manager defaults, pass logical name as package arg.
+#     package:     = override the name passed to this manager's CLI.
+#
 # Example:
+# package_managers:
+#   dnf:
+#     install: "dnf install -y {package}"
+#     uninstall: "dnf remove -y {package}"
+#   brew:
+#     install: "brew install {package}"
+#     uninstall: "brew uninstall {package}"
+#
 # packages:
-#   neovim:
+#   ripgrep:
+#     binary: rg        # 'rg' is the executable; install arg is still 'ripgrep'
 #     managers:
-#       brew: { install: "brew install neovim" }
-#       apt:  { install: "apt-get install -y neovim" }
+#       dnf:            # empty = use dnf defaults, passes 'ripgrep' to dnf
+#       brew:           # empty = use brew defaults, passes 'ripgrep' to brew
+#       yum:
+#         package: rg   # yum uses a different package name
 `
 }
