@@ -101,7 +101,7 @@ jobs:
             fi
 
             # Build archives (no publish — gh handles the release)
-            GORELEASER_CURRENT_TAG="$SEMVER" goreleaser release \
+            GORELEASER_CURRENT_TAG="$SEMVER" VERSION="$SEMVER" goreleaser release \
               --config ".goreleaser/${tool}.yaml" \
               --clean \
               --skip=validate,publish
