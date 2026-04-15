@@ -1,0 +1,113 @@
+name: Auto patch release
+
+# Triggers on every push to main (i.e. after every PR merge).
+# Detects which tools changed and bumps their patch version.
+#
+# Change rules:
+#   internal/** changed  →  release ALL tools (shared code)
+#   cmd/<tool>/** changed →  release that tool only
+#
+# Tags are created via `gh release create` (not git push), so this workflow
+# does NOT trigger the per-tool tag-push release workflows. Those remain
+# available for manual releases.
+
+on:
+  push:
+    branches: [main]
+
+# Serialize runs so concurrent PR merges don't race on tag names.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          install-only: true
+
+      - name: Detect changed tools
+        id: detect
+        run: |
+          BEFORE="${{ github.event.before }}"
+          SHA="${{ github.sha }}"
+
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          else
+            CHANGED=$(git diff --name-only "$BEFORE" "$SHA")
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          INTERNAL=$(echo "$CHANGED" | grep -c "^internal/" || true)
+
+          TOOLS=""
+          for tool in dotd dote dotl dotp dotr; do
+            CMD=$(echo "$CHANGED" | grep -c "^cmd/$tool/" || true)
+            if [ "$INTERNAL" -gt 0 ] || [ "$CMD" -gt 0 ]; then
+              TOOLS="$TOOLS $tool"
+            fi
+          done
+
+          TOOLS="${TOOLS# }"
+          echo "tools=$TOOLS" >> "$GITHUB_OUTPUT"
+          if [ -n "$TOOLS" ]; then
+            echo "Releasing: $TOOLS"
+          else
+            echo "No tool code changed — skipping release"
+          fi
+
+      - name: Release changed tools
+        if: steps.detect.outputs.tools != ''
+        run: |
+          for tool in ${{ steps.detect.outputs.tools }}; do
+            # Determine next patch version
+            LATEST=$(git tag --list "${tool}-v*" | sort -V | tail -1)
+            if [ -z "$LATEST" ]; then
+              NEW_TAG="${tool}-v0.1.0"
+            else
+              VERSION="${LATEST#${tool}-v}"
+              MAJOR=$(echo "$VERSION" | cut -d. -f1)
+              MINOR=$(echo "$VERSION" | cut -d. -f2)
+              PATCH=$(echo "$VERSION" | cut -d. -f3)
+              NEW_TAG="${tool}-v${MAJOR}.${MINOR}.$((PATCH + 1))"
+            fi
+
+            SEMVER="${NEW_TAG#${tool}-}"
+            echo "==> $tool: $LATEST → $NEW_TAG"
+
+            # Build archives (no publish — gh handles the release)
+            GORELEASER_CURRENT_TAG="$SEMVER" goreleaser release \
+              --config ".goreleaser/${tool}.yaml" \
+              --clean \
+              --skip=validate,publish
+
+            # Create GitHub release and tag atomically (no git push needed,
+            # so the per-tool tag-push workflows are not triggered)
+            gh release create "$NEW_TAG" \
+              --title "$tool $SEMVER" \
+              --generate-notes \
+              --target "${{ github.sha }}" \
+              dist/*.tar.gz \
+              dist/*_checksums.txt
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
