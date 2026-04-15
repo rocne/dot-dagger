@@ -1,8 +1,17 @@
 # dotr
 
-Dotfiles management that scales across machines without a tangle of shell conditionals.
+A dotfiles management suite for people who use more than one machine.
 
-Most dotfile setups end up looking like this:
+If your setup is a single laptop running one OS and one shell, a handful of symlinks and a `.zshrc` is probably fine. But if you work across a personal Mac, a work Linux box, maybe a remote server — each with different shells, different package managers, different software installed — keeping one set of dotfiles that behaves correctly everywhere gets complicated fast.
+
+The kind of problems dotr is designed for:
+
+- **Multiple operating systems.** Your Mac aliases, Homebrew paths, and `sw_vers` checks don't belong on your Fedora workstation.
+- **Multiple shells.** Your zsh config and your bash config share a lot but not everything. Right now you might copy-paste between them, or write wrappers that detect `$SHELL` and branch.
+- **Work and personal on the same machine.** Work-specific aliases, internal hostnames, VPN configs, and credentials you must not accidentally push to a public repo — coexisting with your personal setup.
+- **Tool availability.** A script that uses `fzf` or `ripgrep` shouldn't silently break on a machine where those aren't installed.
+
+The conventional solution to all of this is runtime conditionals scattered through your shell config:
 
 ```sh
 if [ "$(uname)" = "Darwin" ]; then
@@ -13,11 +22,15 @@ fi
 if [ "$CONTEXT" = "work" ]; then
   source ~/.work-aliases
 fi
+
+if command -v fzf &>/dev/null; then
+  source ~/.fzf-bindings.zsh
+fi
 ```
 
-These checks accumulate. They spread across files, they nest, they get stale, and they make it hard to know what's actually active on any given machine.
+This works. It's also how configs grow into hard-to-read files where it's unclear what's actually active, and where small mistakes like a missing `fi` silently break your shell.
 
-dotr takes a different approach: **annotate files, not shell code**. Each file declares when it should be active. dotr evaluates those conditions once, builds the active set, and hands you a clean `init.sh` to source. No conditionals at runtime — only the files that apply to this machine are included.
+dotr's approach: **annotate files, not shell code**. Each file declares when it should be active. dotr evaluates those conditions once at apply time, builds the active file set for this machine, and writes a clean `init.sh` with no runtime branches.
 
 ```sh
 #!/bin/bash
@@ -28,7 +41,30 @@ alias ls='ls -G'
 export HOMEBREW_PREFIX="/opt/homebrew"
 ```
 
-The same system manages symlinks for config files and installs packages. Everything is driven by the same predicate evaluation.
+The same annotation system drives symlink management and package installation. One mental model, one place to declare intent.
+
+---
+
+## How dotr compares
+
+| | [GNU Stow](https://www.gnu.org/software/stow/) + scripts | [dotbot](https://github.com/anishathalye/dotbot) | [chezmoi](https://www.chezmoi.io/) | dotr |
+|---|---|---|---|---|
+| Symlinks | ✓ | ✓ | ✗ (copies) | ✓ |
+| Per-file conditions | ✗ | ✗ | Templates | Annotations |
+| DAG-ordered init.sh | ✗ | ✗ | ✗ | ✓ |
+| Package management | ✗ | Plugins | ✗ | ✓ (`@require`/`@request`) |
+| Work/personal separation | Manual | Manual | Encryption | `@when context=work` |
+| Multi-shell | Manual | Manual | Templates | `@when shell=zsh` |
+| Central manifest | ✗ | ✓ | ✓ | ✗ (annotations in files) |
+| Shell startup cost | Varies | Varies | Low | Low (conditions evaluated at apply time, not runtime) |
+
+**Stow + scripts** is the baseline — symlinks work great, but conditions and ordering are all manual shell scripting. dotr is what you reach for when the scripts start to sprawl.
+
+**dotbot** adds a structured YAML manifest for symlinks and actions. It's good at idempotent setup but has no concept of per-file conditions — you'd still write shell scripts or plugins for conditional behavior.
+
+**chezmoi** is the most fully-featured alternative. It uses templates and copies files rather than symlinking, supports encryption for secrets, and has a large feature surface. If you need encrypted secrets in your dotfiles repo, chezmoi is probably the right choice. dotr's trade-off is simplicity: symlinks over copies, annotations over templates, no encryption.
+
+The core dotr bet: **conditions belong on files, not in shell code or central manifests**. A file knows whether it applies to macOS. It knows it needs `ripgrep` installed. It knows it should be sourced after the base environment is set up. Keeping that knowledge with the file means you can look at any file and immediately understand when and how it's used — without cross-referencing a central config.
 
 ---
 
