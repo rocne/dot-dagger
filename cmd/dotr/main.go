@@ -64,6 +64,7 @@ func newRootCmd() *cobra.Command {
 	ui.SetupCobraColors(root)
 
 	root.AddCommand(
+		newSetupCmd(cfg),
 		&cobra.Command{
 			Use:   "apply",
 			Short: "Full orchestrated reconciliation: env → fileset → packages → links → init.sh",
@@ -375,5 +376,5 @@ func defaultEnvFile() string {
 
 func defaultInitFile() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "dot-dagger", "init.sh")
+	return filepath.Join(home, ".local", "share", "dot-dagger", "init.sh")
 }
