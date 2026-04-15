@@ -25,12 +25,21 @@ jobs:
           echo "VERSION=${GITHUB_REF_NAME#*-}" >> $GITHUB_ENV
           echo "FULL_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
-      - uses: goreleaser/goreleaser-action@v6
+      - name: Build archives
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --config .goreleaser/dote.yaml --clean --skip=validate
+          args: release --config .goreleaser/dote.yaml --clean --skip=validate,publish
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.VERSION }}
-          FULL_TAG: ${{ env.FULL_TAG }}
+
+      - name: Publish release
+        run: |
+          gh release create "${FULL_TAG}" \
+            --title "dote ${VERSION}" \
+            --generate-notes \
+            dist/*.tar.gz \
+            dist/*_checksums.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
