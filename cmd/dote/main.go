@@ -35,6 +35,8 @@ func newRootCmd() *cobra.Command {
 		Version: version,
 	}
 
+	ui.SetupCobraColors(root)
+
 	show := &cobra.Command{
 		Use:   "show",
 		Short: "Display the resolved environment",

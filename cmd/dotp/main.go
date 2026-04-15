@@ -45,6 +45,8 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print install commands without executing")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
 
+	ui.SetupCobraColors(root)
+
 	root.AddCommand(
 		&cobra.Command{
 			Use:   "install",

@@ -61,6 +61,8 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
 
+	ui.SetupCobraColors(root)
+
 	root.AddCommand(
 		&cobra.Command{
 			Use:   "apply",
