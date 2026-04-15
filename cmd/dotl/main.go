@@ -22,7 +22,7 @@ func main() {
 }
 
 type config struct {
-	dotfiles string
+	files string
 	linkRoot string
 	binDir   string
 	dryRun   bool
@@ -40,7 +40,7 @@ func newRootCmd() *cobra.Command {
 	}
 
 	pf := root.PersistentFlags()
-	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
+	pf.StringVarP(&cfg.files, "files", "f", defaultDotfiles(), "path to dotfiles repo")
 	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
 	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
@@ -83,7 +83,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	links = linker.Check(links, cfg.dotfiles)
+	links = linker.Check(links, cfg.files)
 
 	if cfg.dryRun {
 		for _, l := range links {
@@ -113,7 +113,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	links = linker.Check(links, cfg.dotfiles)
+	links = linker.Check(links, cfg.files)
 
 	var ok, missing, wrong, conflict int
 	for _, l := range links {
@@ -149,7 +149,7 @@ func runRemove(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	links = linker.Check(links, cfg.dotfiles)
+	links = linker.Check(links, cfg.files)
 
 	if cfg.dryRun {
 		for _, l := range links {
@@ -176,16 +176,16 @@ func runRemove(cmd *cobra.Command, cfg *config) error {
 }
 
 func buildFileSet(cfg *config) (*fileset.Set, error) {
-	walked, err := walk.Walk(cfg.dotfiles)
+	walked, err := walk.Walk(cfg.files)
 	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
+		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
 	return fileset.BuildUnfiltered(walked), nil
 }
 
 func planLinks(cfg *config, nodes *fileset.Set) ([]linker.Link, error) {
 	opts := linker.Options{
-		RepoRoot: cfg.dotfiles,
+		RepoRoot: cfg.files,
 		LinkRoot: cfg.linkRoot,
 		BinDir:   cfg.binDir,
 	}

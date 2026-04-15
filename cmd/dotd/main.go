@@ -26,7 +26,7 @@ func main() {
 }
 
 type config struct {
-	dotfiles string
+	files string
 	envFile  string
 	env      []string
 	initFile string
@@ -47,7 +47,7 @@ func newRootCmd() *cobra.Command {
 	}
 
 	pf := root.PersistentFlags()
-	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
+	pf.StringVarP(&cfg.files, "files", "f", defaultDotfiles(), "path to dotfiles repo")
 	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
@@ -151,7 +151,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	}
 
 	opts := linker.Options{
-		RepoRoot: cfg.dotfiles,
+		RepoRoot: cfg.files,
 		LinkRoot: cfg.linkRoot,
 		BinDir:   cfg.binDir,
 	}
@@ -159,7 +159,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return fmt.Errorf("linker plan: %w", err)
 	}
-	links = linker.Check(links, cfg.dotfiles)
+	links = linker.Check(links, cfg.files)
 
 	if cfg.dryRun {
 		for _, l := range links {
@@ -203,7 +203,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "scripts: %d active, DAG OK\n", len(ordered))
 
 	opts := linker.Options{
-		RepoRoot: cfg.dotfiles,
+		RepoRoot: cfg.files,
 		LinkRoot: cfg.linkRoot,
 		BinDir:   cfg.binDir,
 	}
@@ -211,7 +211,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return fmt.Errorf("linker plan: %w", err)
 	}
-	links = linker.Check(links, cfg.dotfiles)
+	links = linker.Check(links, cfg.files)
 
 	var ok, missing, wrong, conflict int
 	for _, l := range links {
@@ -307,9 +307,9 @@ func resolveEnv(cfg *config) (map[string]string, error) {
 }
 
 func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error) {
-	walked, err := walk.Walk(cfg.dotfiles)
+	walked, err := walk.Walk(cfg.files)
 	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
+		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
 	return fileset.Build(walked, resolved, nil)
 }
