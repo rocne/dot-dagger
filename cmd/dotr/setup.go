@@ -66,7 +66,7 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 	// Build multi-select options: installed managers first, rest below.
 	var mgrOptions []huh.Option[string]
 	for _, m := range packages.Catalog {
-		label := m.Name
+		var label string
 		if installedSet[m.Name] {
 			label = m.Name + "  (" + m.Description + ", installed)"
 		} else {
