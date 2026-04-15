@@ -1,8 +1,16 @@
 #!/usr/bin/env sh
 # install.sh — download and install a dotr suite tool
 #
-# Usage:
-#   ./install.sh [tool] [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64]
+# One-liner (private repo — uses gh for auth):
+#   curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+#     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh
+#
+# With args (pass after --):
+#   curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+#     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- dotl --version v0.1.4
+#
+# Local usage:
+#   ./install.sh [tool] [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64] [--dir path]
 #
 # tool     — one of: dotr dotd dote dotl dotp  (default: dotr)
 # --version  specific version to install       (default: latest)
