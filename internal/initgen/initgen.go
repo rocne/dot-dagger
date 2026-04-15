@@ -57,7 +57,7 @@ func WriteFile(path string, content []byte) error {
 		return fmt.Errorf("initgen: write temp: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("initgen: close temp: %w", err)
 	}
 
