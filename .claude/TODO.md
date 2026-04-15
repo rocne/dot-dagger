@@ -17,7 +17,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## UX / Polish
 
-- [ ] `dotr setup` — interactive onboarding command. Walks user through creating a dotfiles repo structure, writing `env.yaml`, setting `context`, and running first apply. Needs design before implementation.
+- [x] `dotr setup` — interactive onboarding command. Scaffolds repo structure, env.yaml, .dotr.yaml, packages.yaml. Shell hook detection + auto-append. `--yes`/`--no-interactive` flags.
 - [x] Colorization and theming — done: `internal/ui` package, semantic colors across all tools, colored cobra help output (bold headers, cyan commands/flags).
 
 ## Git / CI Infrastructure
