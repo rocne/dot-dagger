@@ -15,6 +15,11 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 - [ ] `CONTRIBUTING.md` — defer until project goes public or has external contributors
 
+## UX / Polish
+
+- [ ] `dotr setup` — interactive onboarding command. Walks user through creating a dotfiles repo structure, writing `env.yaml`, setting `context`, and running first apply. Needs design before implementation.
+- [ ] Colorization and theming — CLI output should be beautiful. Colored status lines, styled headers, themed output for `check`/`apply`/`list`. Needs a color/theme system (probably via a lightweight terminal library). Applies across all tools.
+
 ## Git / CI Infrastructure
 
 - [x] GitHub Actions CI workflow (build + test)
