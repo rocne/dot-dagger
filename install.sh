@@ -1,35 +1,80 @@
 #!/usr/bin/env sh
-# install.sh — download and install the latest dotr release
+# install.sh — download and install a dotr suite tool
 #
 # Usage:
-#   ./install.sh
-#   INSTALL_DIR=/usr/local/bin ./install.sh
+#   ./install.sh [tool] [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64]
+#
+# tool     — one of: dotr dotd dote dotl dotp  (default: dotr)
+# --version  specific version to install       (default: latest)
+# --os       override OS detection
+# --arch     override architecture detection
+# --dir      override install directory        (default: ~/.local/bin)
 #
 # Requires: gh CLI (https://cli.github.com), authenticated with `gh auth login`
 #
 set -e
 
 REPO="rocne/dot-dagger"
+VALID_TOOLS="dotr dotd dote dotl dotp"
+
+# --- defaults ---
 TOOL="dotr"
+VERSION=""
+OS=""
+ARCH=""
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
-# --- detect OS ---
-os=$(uname -s)
-case "$os" in
-  Linux)  os="linux"  ;;
-  Darwin) os="darwin" ;;
-  *) printf 'error: unsupported OS: %s\n' "$os" >&2; exit 1 ;;
-esac
+# --- parse args ---
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --version) VERSION="$2"; shift 2 ;;
+    --os)      OS="$2";      shift 2 ;;
+    --arch)    ARCH="$2";    shift 2 ;;
+    --dir)     INSTALL_DIR="$2"; shift 2 ;;
+    --help|-h)
+      sed -n '2,12p' "$0" | sed 's/^# \?//'
+      exit 0
+      ;;
+    --*) printf 'error: unknown flag: %s\n' "$1" >&2; exit 1 ;;
+    *)
+      TOOL="$1"
+      shift
+      ;;
+  esac
+done
 
-# --- detect architecture ---
-arch=$(uname -m)
-case "$arch" in
-  x86_64|amd64)  arch="amd64" ;;
-  arm64|aarch64) arch="arm64" ;;
-  *) printf 'error: unsupported architecture: %s\n' "$arch" >&2; exit 1 ;;
-esac
+# --- validate tool ---
+valid=0
+for t in $VALID_TOOLS; do
+  [ "$TOOL" = "$t" ] && valid=1 && break
+done
+if [ "$valid" = "0" ]; then
+  printf 'error: unknown tool %q. Valid tools: %s\n' "$TOOL" "$VALID_TOOLS" >&2
+  exit 1
+fi
 
-printf 'platform: %s/%s\n' "$os" "$arch"
+# --- detect OS (unless overridden) ---
+if [ -z "$OS" ]; then
+  OS=$(uname -s)
+  case "$OS" in
+    Linux)  OS="linux"  ;;
+    Darwin) OS="darwin" ;;
+    *) printf 'error: unsupported OS: %s (use --os to override)\n' "$OS" >&2; exit 1 ;;
+  esac
+fi
+
+# --- detect arch (unless overridden) ---
+if [ -z "$ARCH" ]; then
+  ARCH=$(uname -m)
+  case "$ARCH" in
+    x86_64|amd64)  ARCH="amd64" ;;
+    arm64|aarch64) ARCH="arm64" ;;
+    *) printf 'error: unsupported architecture: %s (use --arch to override)\n' "$ARCH" >&2; exit 1 ;;
+  esac
+fi
+
+printf 'tool:     %s\n' "$TOOL"
+printf 'platform: %s/%s\n' "$OS" "$ARCH"
 
 # --- require gh ---
 if ! command -v gh >/dev/null 2>&1; then
@@ -38,33 +83,37 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
-# --- find latest dotr release ---
-TAG=$(gh api "repos/$REPO/releases" \
-  --jq '[.[] | select(.tag_name | startswith("dotr-"))][0].tag_name')
+# --- resolve version to tag ---
+if [ -n "$VERSION" ]; then
+  # normalize: strip leading 'v' then re-add, so both 'v0.1.4' and '0.1.4' work
+  VERSION=$(printf '%s' "$VERSION" | sed 's/^v//')
+  TAG="${TOOL}-v${VERSION}"
+else
+  TAG=$(gh api "repos/$REPO/releases" \
+    --jq "[.[] | select(.tag_name | startswith(\"${TOOL}-\"))][0].tag_name")
 
-if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
-  printf 'error: no dotr release found in %s\n' "$REPO" >&2
-  exit 1
+  if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+    printf 'error: no %s release found in %s\n' "$TOOL" "$REPO" >&2
+    exit 1
+  fi
 fi
 
-# tag: dotr-v0.1.4  →  asset prefix: dotr_v0.1.4
-ASSET_PREFIX=$(printf '%s' "$TAG" | sed 's/dotr-/dotr_/')
-ASSET="${ASSET_PREFIX}_${os}_${arch}.tar.gz"
+printf 'release:  %s\n' "$TAG"
 
-printf 'release: %s\n' "$TAG"
-printf 'asset:   %s\n' "$ASSET"
+# tag: dotr-v0.1.4  →  asset: dotr_v0.1.4_linux_amd64.tar.gz
+ASSET_PREFIX=$(printf '%s' "$TAG" | sed "s/${TOOL}-/${TOOL}_/")
+ASSET="${ASSET_PREFIX}_${OS}_${ARCH}.tar.gz"
+printf 'asset:    %s\n' "$ASSET"
 
-# --- download to temp dir ---
+# --- download ---
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 printf 'downloading...\n'
 gh release download "$TAG" --repo "$REPO" --pattern "$ASSET" --dir "$TMP"
 
-# --- extract ---
+# --- extract and install ---
 tar -xzf "$TMP/$ASSET" -C "$TMP"
-
-# --- install ---
 mkdir -p "$INSTALL_DIR"
 mv "$TMP/$TOOL" "$INSTALL_DIR/$TOOL"
 chmod +x "$INSTALL_DIR/$TOOL"
@@ -72,7 +121,7 @@ chmod +x "$INSTALL_DIR/$TOOL"
 printf 'installed: %s/%s\n' "$INSTALL_DIR" "$TOOL"
 "$INSTALL_DIR/$TOOL" --version
 
-# --- PATH reminder if needed ---
+# --- PATH reminder ---
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
   *)
