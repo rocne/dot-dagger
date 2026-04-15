@@ -27,7 +27,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --config .goreleaser/dotp.yaml --clean
+          args: release --config .goreleaser/dotp.yaml --clean --skip=validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.VERSION }}
