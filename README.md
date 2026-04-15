@@ -10,6 +10,7 @@ The kind of problems dotr is designed for:
 - **Multiple shells.** Your zsh config and your bash config share a lot but not everything. Right now you might copy-paste between them, or write wrappers that detect `$SHELL` and branch.
 - **Work and personal on the same machine.** Work-specific aliases, internal hostnames, VPN configs, and credentials you must not accidentally push to a public repo — coexisting with your personal setup.
 - **Tool availability.** A script that uses `fzf` or `ripgrep` shouldn't silently break on a machine where those aren't installed.
+- **Package manager fragmentation.** Your personal Mac uses Homebrew. Your work Linux box uses `apt` and you can't replace it. A remote server has `dnf`. dotr's package registry maps one logical package name to the right install command per manager — `@require ripgrep` works the same everywhere, using whatever manager is available on that machine.
 
 The conventional solution to all of this is runtime conditionals scattered through your shell config:
 
