@@ -149,7 +149,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 			return err
 		}
 		if cfg.verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s (%d scripts)\n", cfg.initFile, len(ordered))
+			fmt.Fprintf(cmd.OutOrStdout(), "%s wrote %s (%d scripts)\n", ui.Header("init.sh:"), cfg.initFile, len(ordered))
 		}
 	}
 
@@ -166,7 +166,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 
 	if cfg.dryRun {
 		for _, l := range links {
-			fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s → %s (state: %s)\n", l.Src, l.Dst, l.State)
+			fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s %s %s\n", l.Src, ui.Arrow("→"), l.Dst)
 		}
 		return nil
 	}
@@ -175,7 +175,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	if cfg.verbose {
-		fmt.Fprintf(cmd.OutOrStdout(), "applied %d symlinks\n", len(links))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d symlinks\n", ui.OK("applied"), len(links))
 	}
 	return nil
 }
