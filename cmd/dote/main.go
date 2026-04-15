@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/env"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -33,6 +34,8 @@ func newRootCmd() *cobra.Command {
 		Short:   "Environment resolution for the dotr suite",
 		Version: version,
 	}
+
+	ui.SetupCobraColors(root)
 
 	show := &cobra.Command{
 		Use:   "show",
@@ -81,7 +84,7 @@ func printEnv(cmd *cobra.Command, m map[string]string) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, m[k])
+		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", ui.Key(k), m[k])
 	}
 }
 

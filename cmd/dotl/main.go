@@ -9,6 +9,7 @@ import (
 
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/linker"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/rocne/dot-dagger/internal/walk"
 	"github.com/spf13/cobra"
 )
@@ -46,6 +47,8 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
+
+	ui.SetupCobraColors(root)
 
 	root.AddCommand(
 		&cobra.Command{
@@ -88,7 +91,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	if cfg.dryRun {
 		for _, l := range links {
 			if l.State != linker.StateOK {
-				fmt.Fprintf(cmd.OutOrStdout(), "symlink %s → %s\n", l.Src, l.Dst)
+				fmt.Fprintf(cmd.OutOrStdout(), "symlink %s %s %s\n", l.Src, ui.Arrow("→"), l.Dst)
 			}
 		}
 		return nil
@@ -98,7 +101,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	if cfg.verbose {
-		fmt.Fprintf(cmd.OutOrStdout(), "applied %d symlinks\n", len(links))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d symlinks\n", ui.OK("applied"), len(links))
 	}
 	return nil
 }
@@ -121,21 +124,21 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		case linker.StateOK:
 			ok++
 			if cfg.verbose {
-				fmt.Fprintf(cmd.OutOrStdout(), "  ok       %s\n", l.Dst)
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.OK("ok"), l.Dst)
 			}
 		case linker.StateMissing:
 			missing++
-			fmt.Fprintf(cmd.OutOrStdout(), "  missing  %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
 		case linker.StateWrongTarget:
 			wrong++
-			fmt.Fprintf(cmd.OutOrStdout(), "  wrong    %s → %s\n", l.Dst, l.Src)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s %s %s\n", ui.Wrong("wrong"), l.Dst, ui.Arrow("→"), l.Src)
 		case linker.StateConflict:
 			conflict++
-			fmt.Fprintf(cmd.OutOrStdout(), "  conflict %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Conflict("conflict"), l.Dst)
 		}
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%d ok, %d missing, %d wrong-target, %d conflict\n",
-		ok, missing, wrong, conflict)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d wrong-target, %d conflict\n",
+		ui.Header("symlinks:"), ok, missing, wrong, conflict)
 	return nil
 }
 
@@ -154,7 +157,7 @@ func runRemove(cmd *cobra.Command, cfg *config) error {
 	if cfg.dryRun {
 		for _, l := range links {
 			if l.Owned {
-				fmt.Fprintf(cmd.OutOrStdout(), "remove %s\n", l.Dst)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Wrong("remove"), l.Dst)
 			}
 		}
 		return nil
@@ -170,7 +173,7 @@ func runRemove(cmd *cobra.Command, cfg *config) error {
 				removed++
 			}
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "removed %d symlinks\n", removed)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d symlinks\n", ui.Missing("removed"), removed)
 	}
 	return nil
 }

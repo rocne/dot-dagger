@@ -13,6 +13,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/initgen"
 	"github.com/rocne/dot-dagger/internal/linker"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/rocne/dot-dagger/internal/walk"
 	"github.com/spf13/cobra"
 )
@@ -114,6 +115,8 @@ func newRootCmd() *cobra.Command {
 		},
 	)
 
+	ui.SetupCobraColors(root)
+
 	root.AddCommand(apply, check, install, envParent)
 	return root
 }
@@ -184,9 +187,9 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	}
 
 	if cfg.verbose {
-		fmt.Fprintln(cmd.OutOrStdout(), "=== environment ===")
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", ui.Header("=== environment ==="))
 		for _, k := range sortedKeys(resolved) {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %s=%s\n", k, resolved[k])
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s=%s\n", ui.Key(k), resolved[k])
 		}
 	}
 
@@ -200,7 +203,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "scripts: %d active, DAG OK\n", len(ordered))
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active, %s\n", ui.Header("scripts:"), len(ordered), ui.OK("DAG OK"))
 
 	opts := linker.Options{
 		RepoRoot: cfg.files,
@@ -220,17 +223,17 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 			ok++
 		case linker.StateMissing:
 			missing++
-			fmt.Fprintf(cmd.OutOrStdout(), "  missing: %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
 		case linker.StateWrongTarget:
 			wrong++
-			fmt.Fprintf(cmd.OutOrStdout(), "  wrong-target: %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("wrong"), l.Dst)
 		case linker.StateConflict:
 			conflict++
-			fmt.Fprintf(cmd.OutOrStdout(), "  conflict: %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Conflict("conflict"), l.Dst)
 		}
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "symlinks: %d ok, %d missing, %d wrong-target, %d conflict\n",
-		ok, missing, wrong, conflict)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d wrong-target, %d conflict\n",
+		ui.Header("symlinks:"), ok, missing, wrong, conflict)
 	return nil
 }
 
@@ -240,7 +243,7 @@ func runEnvList(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	for _, k := range sortedKeys(resolved) {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
+		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", ui.Key(k), resolved[k])
 	}
 	return nil
 }

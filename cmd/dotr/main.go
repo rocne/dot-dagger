@@ -16,6 +16,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/initgen"
 	"github.com/rocne/dot-dagger/internal/linker"
 	"github.com/rocne/dot-dagger/internal/packages"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/rocne/dot-dagger/internal/walk"
 	"github.com/spf13/cobra"
 )
@@ -60,6 +61,8 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
 
+	ui.SetupCobraColors(root)
+
 	root.AddCommand(
 		&cobra.Command{
 			Use:   "apply",
@@ -85,7 +88,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	if cfg.verbose {
-		fmt.Fprintf(cmd.OutOrStdout(), "env: %d keys resolved\n", len(resolved))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d keys resolved\n", ui.Header("env:"), len(resolved))
 	}
 
 	nodes, err := buildFileSet(cfg, resolved)
@@ -93,7 +96,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	if cfg.verbose {
-		fmt.Fprintf(cmd.OutOrStdout(), "fileset: %d active nodes\n", len(nodes.Nodes))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
 	}
 
 	reg, priority, err := loadPackageContext(cfg)
@@ -122,7 +125,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	if cfg.dryRun {
 		for _, l := range links {
 			if l.State != linker.StateOK {
-				fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s → %s\n", l.Src, l.Dst)
+				fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s %s %s\n", l.Src, ui.Arrow("→"), l.Dst)
 			}
 		}
 	} else {
@@ -130,7 +133,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 			return err
 		}
 		if cfg.verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "symlinks: %d applied\n", len(links))
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %d applied\n", ui.Header("symlinks:"), len(links))
 		}
 	}
 
@@ -149,7 +152,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 			return err
 		}
 		if cfg.verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "init.sh: wrote %s (%d scripts)\n", cfg.initFile, len(ordered))
+			fmt.Fprintf(cmd.OutOrStdout(), "%s wrote %s (%d scripts)\n", ui.Header("init.sh:"), cfg.initFile, len(ordered))
 		}
 	}
 	return nil
@@ -165,14 +168,14 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "fileset: %d active nodes\n", len(nodes.Nodes))
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
 
 	scripts := nodes.Scripts()
 	ordered, err := dag.Build(scripts)
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "scripts: %d active, DAG OK\n", len(ordered))
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active, %s\n", ui.Header("scripts:"), len(ordered), ui.OK("DAG OK"))
 
 	reg, priority, err := loadPackageContext(cfg)
 	if err != nil {
@@ -184,14 +187,17 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
 		installable, _ := packages.Installable(req.Package, reg, priority, exec.LookPath)
 		if !installed && !installable && req.Hard {
-			fmt.Fprintf(cmd.OutOrStdout(), "  MISSING @require: %s (from %s)\n", req.Package, req.NodePath)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s @require: %s (from %s)\n",
+				ui.HardMissing("MISSING"), req.Package, req.NodePath)
 			pkgMissing++
 		} else if cfg.verbose {
-			status := "not available"
+			var status string
 			if installed {
-				status = "installed"
+				status = ui.Installed("installed")
 			} else if installable {
-				status = "installable"
+				status = ui.Installable("installable")
+			} else {
+				status = ui.Missing("not available")
 			}
 			kind := "@request"
 			if req.Hard {
@@ -201,9 +207,10 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		}
 	}
 	if pkgMissing > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "packages: %d hard requirements unmet\n", pkgMissing)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Header("packages:"),
+			ui.Conflict(fmt.Sprintf("%d hard requirements unmet", pkgMissing)))
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "packages: %d requirements, all OK\n", len(reqs))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d requirements, %s\n", ui.Header("packages:"), len(reqs), ui.OK("all OK"))
 	}
 
 	opts := linker.Options{
@@ -225,18 +232,18 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		case linker.StateMissing:
 			missing++
 			if cfg.verbose {
-				fmt.Fprintf(cmd.OutOrStdout(), "  missing  %s\n", l.Dst)
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
 			}
 		case linker.StateWrongTarget:
 			wrong++
-			fmt.Fprintf(cmd.OutOrStdout(), "  wrong    %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("wrong"), l.Dst)
 		case linker.StateConflict:
 			conflict++
-			fmt.Fprintf(cmd.OutOrStdout(), "  conflict %s\n", l.Dst)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Conflict("conflict"), l.Dst)
 		}
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "symlinks: %d ok, %d missing, %d wrong-target, %d conflict\n",
-		ok, missing, wrong, conflict)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d wrong-target, %d conflict\n",
+		ui.Header("symlinks:"), ok, missing, wrong, conflict)
 	return nil
 }
 
@@ -289,7 +296,7 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 	}
 	if installed {
 		if cfg.verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "  installed  %s\n", req.Package)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s\n", ui.Installed("installed"), req.Package)
 		}
 		return nil
 	}
@@ -305,7 +312,7 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 				req.NodePath, req.Package)
 		}
 		if cfg.verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "  skip       %s (not installable)\n", req.Package)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s (not installable)\n", ui.Skip("skip"), req.Package)
 		}
 		return nil
 	}
@@ -315,7 +322,7 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "  install    %s via %s: %s\n", req.Package, mgr, installCmd)
+	fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s via %s: %s\n", ui.Install("install"), req.Package, mgr, installCmd)
 	if cfg.dryRun {
 		return nil
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/dotryaml"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/packages"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/rocne/dot-dagger/internal/walk"
 	"github.com/spf13/cobra"
 )
@@ -43,6 +44,8 @@ func newRootCmd() *cobra.Command {
 	pf.StringVarP(&cfg.files, "files", "f", defaultDotfiles(), "path to dotfiles repo")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print install commands without executing")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
+
+	ui.SetupCobraColors(root)
 
 	root.AddCommand(
 		&cobra.Command{
@@ -84,7 +87,7 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 		}
 		if installed {
 			if cfg.verbose {
-				fmt.Fprintf(cmd.OutOrStdout(), "  installed  %s\n", req.Package)
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s\n", ui.Installed("installed"), req.Package)
 			}
 			continue
 		}
@@ -100,7 +103,7 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 					req.NodePath, req.Package)
 			}
 			if cfg.verbose {
-				fmt.Fprintf(cmd.OutOrStdout(), "  skip       %s (not installable)\n", req.Package)
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s (not installable)\n", ui.Skip("skip"), req.Package)
 			}
 			continue
 		}
@@ -110,7 +113,7 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 			return err
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "  install    %s via %s: %s\n", req.Package, mgr, installCmd)
+		fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s via %s: %s\n", ui.Install("install"), req.Package, mgr, installCmd)
 		if cfg.dryRun {
 			continue
 		}
@@ -152,13 +155,13 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		var status string
 		switch {
 		case installed:
-			status = "installed"
+			status = ui.Installed("installed")
 		case installable:
-			status = "installable"
+			status = ui.Installable("installable")
 		case req.Hard:
-			status = "MISSING (hard requirement)"
+			status = ui.HardMissing("MISSING") + " (hard requirement)"
 		default:
-			status = "not available"
+			status = ui.Missing("not available")
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), "  %-10s %-20s %s\n", kind, req.Package, status)
