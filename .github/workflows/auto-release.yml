@@ -94,6 +94,12 @@ jobs:
             SEMVER="${NEW_TAG#${tool}-}"
             echo "==> $tool: $LATEST → $NEW_TAG"
 
+            # Skip if this release was already created (e.g. manual tag race)
+            if gh release view "$NEW_TAG" &>/dev/null; then
+              echo "Release $NEW_TAG already exists — skipping"
+              continue
+            fi
+
             # Build archives (no publish — gh handles the release)
             GORELEASER_CURRENT_TAG="$SEMVER" goreleaser release \
               --config ".goreleaser/${tool}.yaml" \
