@@ -14,7 +14,9 @@ The kind of problems dotr is designed for:
 | **Package manager fragmentation** | Personal Mac uses Homebrew. Work Linux uses `apt` and you can't replace it. Remote server has `dnf`. One package name, right install command per machine. |
 | **Script load order** | `00-base.zsh`, `10-path.zsh`, `20-tools.zsh` — hacking lexical sort into a load order. Breaks the moment you need to insert something, and says nothing about *why* the order matters. |
 
-The conventional solution to all of this is runtime conditionals scattered through your shell config:
+The conventional approaches work, up to a point.
+
+For **conditions**, most setups reach for runtime `if` blocks in shell config:
 
 ```sh
 if [ "$(uname)" = "Darwin" ]; then
@@ -31,7 +33,19 @@ if command -v fzf &>/dev/null; then
 fi
 ```
 
-This works. It's also how configs grow into hard-to-read files where it's unclear what's actually active, and where small mistakes like a missing `fi` silently break your shell.
+For **load order**, the standard move is numbered prefixes and split files:
+
+```
+conf/zsh/
+  00-env.zsh
+  10-path.zsh
+  20-aliases.zsh
+  30-tools.zsh
+  31-fzf.zsh       ← had to squeeze this in between 30 and 40
+  40-prompt.zsh
+```
+
+Both approaches have the same failure mode: they scale until they don't. The `if` blocks accumulate and nest. The numbers drift out of sync with the actual dependencies. You end up with a setup that works on your current machine but is hard to reason about, hard to extend, and brittle to move to a new one.
 
 dotr's approach: **annotate files, not shell code**. Each file declares when it should be active. dotr evaluates those conditions once at apply time, builds the active file set for this machine, and writes a clean `init.sh` with no runtime branches.
 
