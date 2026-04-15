@@ -117,6 +117,7 @@ func ScanHeader(r io.Reader) ([]Annotation, error) {
 	pastShebang := false
 	allowBlank := false // one blank line permitted immediately after shebang
 
+scan:
 	for scanner.Scan() {
 		lineNum++
 		raw := scanner.Text()
@@ -146,7 +147,7 @@ func ScanHeader(r io.Reader) ([]Annotation, error) {
 		case strings.HasPrefix(line, "#"):
 			content = strings.TrimSpace(line[1:])
 		default:
-			break // non-comment line ends header
+			break scan // non-comment line ends header
 		}
 
 		if content == "" || !strings.HasPrefix(content, "@") {

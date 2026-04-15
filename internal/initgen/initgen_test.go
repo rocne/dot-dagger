@@ -56,7 +56,7 @@ func TestGenerateOrderPreserved(t *testing.T) {
 	posA := strings.Index(got, "/a.sh")
 	posB := strings.Index(got, "/b.sh")
 	posC := strings.Index(got, "/c.sh")
-	if !(posA < posB && posB < posC) {
+	if posA >= posB || posB >= posC {
 		t.Errorf("source lines out of order: a=%d b=%d c=%d", posA, posB, posC)
 	}
 }

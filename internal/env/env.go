@@ -122,7 +122,7 @@ func LoadEnvFileFromPath(path string) (*EnvFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("env: open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return LoadEnvFile(f)
 }
 
@@ -140,16 +140,16 @@ func SaveEnvFileToPath(path string, ef *EnvFile) error {
 	enc := yaml.NewEncoder(tmp)
 	enc.SetIndent(2)
 	if err := enc.Encode(ef); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("env: encode env.yaml: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("env: close temp: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("env: write %s: %w", path, err)
 	}
 	return nil

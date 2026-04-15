@@ -105,7 +105,7 @@ func LoadFile(path string) (*Registry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("packages: open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return Load(f)
 }
 
