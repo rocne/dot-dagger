@@ -30,10 +30,6 @@ archives:
       - goos: windows
         format: zip
 
-release:
-  tag: "{{.Env.FULL_TAG}}"
-  name_template: "dotd {{.Version}}"
-
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Tag }}_checksums.txt"
 
