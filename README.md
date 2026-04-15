@@ -6,12 +6,13 @@ If your setup is a single laptop running one OS and one shell, a handful of syml
 
 The kind of problems dotr is designed for:
 
-- **Multiple operating systems.** Your Mac aliases, Homebrew paths, and `sw_vers` checks don't belong on your Fedora workstation.
-- **Multiple shells.** Your zsh config and your bash config share a lot but not everything. Right now you might copy-paste between them, or write wrappers that detect `$SHELL` and branch.
-- **Work and personal on the same machine.** Work-specific aliases, internal hostnames, VPN configs, and credentials you must not accidentally push to a public repo — coexisting with your personal setup.
-- **Tool availability.** A script that uses `fzf` or `ripgrep` shouldn't silently break on a machine where those aren't installed.
-- **Package manager fragmentation.** Your personal Mac uses Homebrew. Your work Linux box uses `apt` and you can't replace it. A remote server has `dnf`. dotr's package registry maps one logical package name to the right install command per manager — `@require ripgrep` works the same everywhere, using whatever manager is available on that machine.
-- **Script source order.** If you've ever wondered why there's no dependency resolution for dotfiles scripts — or been disgusted by `00-base.zsh`, `10-path.zsh`, `20-tools.zsh` as a way of hacking lexical sort into a load order — you're not alone. Numbering breaks down the moment you need to insert something between two existing scripts, and it says nothing about *why* the order matters. dotr lets scripts declare `@after` dependencies on each other; the load order in `init.sh` is resolved automatically from the actual dependency graph.
+| | |
+|---|---|
+| **Multiple OS and shells** | Your Mac aliases and Homebrew paths don't belong on your Fedora box. Your zsh config and bash config share a lot but not everything. |
+| **Work/personal coexistence** | Work-specific aliases, internal hostnames, and credentials that must not land in a public repo — living alongside your personal setup. |
+| **Tool availability** | Scripts that use `fzf` or `ripgrep` shouldn't silently break on machines where those aren't installed. |
+| **Package manager fragmentation** | Personal Mac uses Homebrew. Work Linux uses `apt` and you can't replace it. Remote server has `dnf`. One package name, right install command per machine. |
+| **Script load order** | `00-base.zsh`, `10-path.zsh`, `20-tools.zsh` — hacking lexical sort into a load order. Breaks the moment you need to insert something, and says nothing about *why* the order matters. |
 
 The conventional solution to all of this is runtime conditionals scattered through your shell config:
 
