@@ -32,7 +32,7 @@ func emptyEnvFile(t *testing.T) string {
 func TestCheckEmptyRepo(t *testing.T) {
 	out, err := run(t, "check",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", t.TempDir(),
+		"--files", t.TempDir(),
 	)
 	if err != nil {
 		t.Fatalf("check error = %v", err)
@@ -57,7 +57,7 @@ func TestApplyDryRunEmptyRepo(t *testing.T) {
 
 	out, err := run(t, "apply", "--dry-run",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", t.TempDir(),
+		"--files", t.TempDir(),
 		"--init-file", initFile,
 	)
 	if err != nil {
@@ -93,7 +93,7 @@ func TestApplyDryRunWithScriptAndConf(t *testing.T) {
 
 	out, err := run(t, "apply", "--dry-run",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", dotfiles,
+		"--files", dotfiles,
 		"--link-root", linkRoot,
 		"--init-file", initFile,
 	)
@@ -132,7 +132,7 @@ packages:
 
 	out, err := run(t, "check",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", dotfiles,
+		"--files", dotfiles,
 	)
 	// check should succeed (it reports state, doesn't error on missing requirements).
 	if err != nil {

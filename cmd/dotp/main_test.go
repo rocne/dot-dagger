@@ -20,7 +20,7 @@ func run(t *testing.T, args ...string) (string, error) {
 }
 
 func TestListNoRequirements(t *testing.T) {
-	out, err := run(t, "list", "--dotfiles", t.TempDir())
+	out, err := run(t, "list", "--files", t.TempDir())
 	if err != nil {
 		t.Fatalf("list error = %v", err)
 	}
@@ -30,7 +30,7 @@ func TestListNoRequirements(t *testing.T) {
 }
 
 func TestCheckNoRequirements(t *testing.T) {
-	out, err := run(t, "check", "--dotfiles", t.TempDir())
+	out, err := run(t, "check", "--files", t.TempDir())
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
@@ -50,7 +50,7 @@ func TestListWithRequirements(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "list", "--dotfiles", dotfiles)
+	out, err := run(t, "list", "--files", dotfiles)
 	if err != nil {
 		t.Fatalf("list error = %v", err)
 	}
@@ -74,7 +74,7 @@ func TestListIncludesWhenGatedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "list", "--dotfiles", dotfiles)
+	out, err := run(t, "list", "--files", dotfiles)
 	if err != nil {
 		t.Fatalf("list error = %v", err)
 	}
@@ -85,7 +85,7 @@ func TestListIncludesWhenGatedFiles(t *testing.T) {
 }
 
 func TestInstallDryRunNoRequirements(t *testing.T) {
-	_, err := run(t, "install", "--dry-run", "--dotfiles", t.TempDir())
+	_, err := run(t, "install", "--dry-run", "--files", t.TempDir())
 	if err != nil {
 		t.Fatalf("install --dry-run error = %v", err)
 	}
@@ -113,7 +113,7 @@ packages:
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "check", "--dotfiles", dotfiles)
+	out, err := run(t, "check", "--files", dotfiles)
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}

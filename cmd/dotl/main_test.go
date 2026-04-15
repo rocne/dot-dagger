@@ -20,7 +20,7 @@ func run(t *testing.T, args ...string) (string, error) {
 }
 
 func TestCheckEmptyRepo(t *testing.T) {
-	out, err := run(t, "check", "--dotfiles", t.TempDir())
+	out, err := run(t, "check", "--files", t.TempDir())
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
@@ -41,7 +41,7 @@ func TestCheckReportsSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "check", "--dotfiles", dotfiles, "--link-root", linkRoot)
+	out, err := run(t, "check", "--files", dotfiles, "--link-root", linkRoot)
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
@@ -65,7 +65,7 @@ func TestCheckIncludesWhenGatedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "check", "--dotfiles", dotfiles, "--link-root", linkRoot)
+	out, err := run(t, "check", "--files", dotfiles, "--link-root", linkRoot)
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
@@ -76,7 +76,7 @@ func TestCheckIncludesWhenGatedFiles(t *testing.T) {
 }
 
 func TestApplyDryRunEmptyRepo(t *testing.T) {
-	_, err := run(t, "apply", "--dry-run", "--dotfiles", t.TempDir())
+	_, err := run(t, "apply", "--dry-run", "--files", t.TempDir())
 	if err != nil {
 		t.Fatalf("apply --dry-run error = %v", err)
 	}
@@ -94,7 +94,7 @@ func TestApplyDryRunWithConfFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "apply", "--dry-run", "--dotfiles", dotfiles, "--link-root", linkRoot)
+	out, err := run(t, "apply", "--dry-run", "--files", dotfiles, "--link-root", linkRoot)
 	if err != nil {
 		t.Fatalf("apply --dry-run error = %v", err)
 	}
@@ -121,7 +121,7 @@ func TestRemoveDryRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "remove", "--dry-run", "--dotfiles", dotfiles, "--link-root", linkRoot)
+	out, err := run(t, "remove", "--dry-run", "--files", dotfiles, "--link-root", linkRoot)
 	if err != nil {
 		t.Fatalf("remove --dry-run error = %v", err)
 	}

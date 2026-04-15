@@ -25,7 +25,7 @@ func main() {
 }
 
 type config struct {
-	dotfiles string
+	files string
 	dryRun   bool
 	verbose  bool
 }
@@ -40,7 +40,7 @@ func newRootCmd() *cobra.Command {
 	}
 
 	pf := root.PersistentFlags()
-	pf.StringVar(&cfg.dotfiles, "dotfiles", defaultDotfiles(), "path to dotfiles repo")
+	pf.StringVarP(&cfg.files, "files", "f", defaultDotfiles(), "path to dotfiles repo")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print install commands without executing")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
 
@@ -191,18 +191,18 @@ func runList(cmd *cobra.Command, cfg *config) error {
 // --- helpers ---
 
 func loadContext(cfg *config) (*fileset.Set, *packages.Registry, []string, error) {
-	walked, err := walk.Walk(cfg.dotfiles)
+	walked, err := walk.Walk(cfg.files)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("walk %s: %w", cfg.dotfiles, err)
+		return nil, nil, nil, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
 	nodes := fileset.BuildUnfiltered(walked)
 
-	reg, err := packages.LoadFile(filepath.Join(cfg.dotfiles, "packages.yaml"))
+	reg, err := packages.LoadFile(filepath.Join(cfg.files, "packages.yaml"))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	dotrcfg, err := dotryaml.LoadFile(filepath.Join(cfg.dotfiles, ".dotr.yaml"))
+	dotrcfg, err := dotryaml.LoadFile(filepath.Join(cfg.files, ".dotr.yaml"))
 	if err != nil {
 		return nil, nil, nil, err
 	}

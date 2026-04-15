@@ -43,7 +43,7 @@ func emptyEnvFile(t *testing.T) string {
 func TestEnvListShowsBuiltins(t *testing.T) {
 	out, err := run(t, "env", "list",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("env list error = %v", err)
@@ -66,7 +66,7 @@ func TestEnvListShowsFileKeys(t *testing.T) {
 
 	out, err := run(t, "env", "list",
 		"--env-file", envFile,
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("env list error = %v", err)
@@ -79,7 +79,7 @@ func TestEnvListShowsFileKeys(t *testing.T) {
 func TestEnvListEnvFlagOverride(t *testing.T) {
 	out, err := run(t, "env", "list",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 		"--env", "os=testvalue",
 	)
 	if err != nil {
@@ -95,7 +95,7 @@ func TestEnvListEnvFlagOverride(t *testing.T) {
 func TestEnvGetExistingKey(t *testing.T) {
 	out, err := run(t, "env", "get", "os",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("env get error = %v", err)
@@ -108,7 +108,7 @@ func TestEnvGetExistingKey(t *testing.T) {
 func TestEnvGetMissingKey(t *testing.T) {
 	_, err := run(t, "env", "get", "no-such-key",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 	)
 	if err == nil {
 		t.Error("expected error for missing key, got nil")
@@ -126,7 +126,7 @@ func TestEnvSetWritesKey(t *testing.T) {
 
 	_, err := run(t, "env", "set", "context=work",
 		"--env-file", envFile,
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("env set error = %v", err)
@@ -135,7 +135,7 @@ func TestEnvSetWritesKey(t *testing.T) {
 	// Verify key is readable back.
 	out, err := run(t, "env", "get", "context",
 		"--env-file", envFile,
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("env get after set error = %v", err)
@@ -154,7 +154,7 @@ func TestEnvSetDryRun(t *testing.T) {
 
 	out, err := run(t, "env", "set", "context=work",
 		"--env-file", envFile,
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 		"--dry-run",
 	)
 	if err != nil {
@@ -174,7 +174,7 @@ func TestEnvSetDryRun(t *testing.T) {
 func TestEnvSetInvalidArg(t *testing.T) {
 	_, err := run(t, "env", "set", "no-equals",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 	)
 	if err == nil {
 		t.Error("expected error for missing = in set arg")
@@ -186,7 +186,7 @@ func TestEnvSetInvalidArg(t *testing.T) {
 func TestCheckEmptyRepo(t *testing.T) {
 	out, err := run(t, "check",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("check error = %v", err)
@@ -207,7 +207,7 @@ func TestApplyDryRunEmptyRepo(t *testing.T) {
 
 	out, err := run(t, "apply", "--dry-run",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", emptyDotfiles(t),
+		"--files", emptyDotfiles(t),
 		"--init-file", initFile,
 	)
 	if err != nil {
@@ -236,7 +236,7 @@ func TestApplyDryRunWithScript(t *testing.T) {
 
 	out, err := run(t, "apply", "--dry-run",
 		"--env-file", emptyEnvFile(t),
-		"--dotfiles", dotfiles,
+		"--files", dotfiles,
 		"--init-file", initFile,
 		"--env", "os=linux",
 	)

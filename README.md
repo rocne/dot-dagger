@@ -23,7 +23,7 @@ Each tool also [releases independently](../../releases) as a pre-built binary fo
 
 ```sh
 # 1. Apply everything — symlinks, packages, init.sh
-dotr apply --dotfiles ~/dotfiles
+dotr apply --files ~/dotfiles
 
 # 2. Wire init.sh into your shell rc
 echo 'source ~/.config/dot-dagger/init.sh' >> ~/.zshrc
@@ -60,12 +60,12 @@ dotfiles/
 Runs a full reconciliation pass in one command: resolve environment → evaluate predicates → install packages → apply symlinks → generate `init.sh`.
 
 ```sh
-dotr apply --dotfiles ~/dotfiles          # full reconciliation
-dotr apply --dotfiles ~/dotfiles --dry-run  # print what would happen
-dotr check --dotfiles ~/dotfiles          # validate all stages, no changes
+dotr apply --files ~/dotfiles          # full reconciliation
+dotr apply --files ~/dotfiles --dry-run  # print what would happen
+dotr check --files ~/dotfiles          # validate all stages, no changes
 ```
 
-`dotr apply` is equivalent to running `dote`, `dotd`, `dotl`, and `dotp` in sequence with the same `--dotfiles` argument. Any tool can be used standalone or scripted independently — `dotr` is a convenience, not a gate.
+`dotr apply` is equivalent to running `dote`, `dotd`, `dotl`, and `dotp` in sequence with the same `--files` argument. Any tool can be used standalone or scripted independently — `dotr` is a convenience, not a gate.
 
 ---
 
@@ -105,10 +105,10 @@ Walks `scripts/`, evaluates `@when` predicates, resolves `@after` ordering into 
 **Owns:** `scripts/`
 
 ```sh
-dotd apply --dotfiles ~/dotfiles                       # generate init.sh
-dotd apply --dotfiles ~/dotfiles --dry-run             # print what would be written
-dotd check --dotfiles ~/dotfiles                       # validate DAG, report status
-dotd apply --dotfiles ~/dotfiles --init-file ~/init.sh # custom output path
+dotd apply --files ~/dotfiles                       # generate init.sh
+dotd apply --files ~/dotfiles --dry-run             # print what would be written
+dotd check --files ~/dotfiles                       # validate DAG, report status
+dotd apply --files ~/dotfiles --init-file ~/init.sh # custom output path
 ```
 
 Scripts are sourced in topological order. Files with no `@after` are ordered alphabetically by logical name within each frontier — output is always deterministic.
@@ -122,9 +122,9 @@ Walks `conf/` and `bin/`, plans symlinks into `$HOME` (and `$PATH`), and applies
 **Owns:** `conf/`, `bin/`
 
 ```sh
-dotl apply --dotfiles ~/dotfiles    # plan and apply all symlinks
-dotl check --dotfiles ~/dotfiles    # report state without changes
-dotl remove --dotfiles ~/dotfiles   # remove all owned symlinks
+dotl apply --files ~/dotfiles    # plan and apply all symlinks
+dotl check --files ~/dotfiles    # report state without changes
+dotl remove --files ~/dotfiles   # remove all owned symlinks
 ```
 
 `conf/` files are symlinked relative to `$HOME`. `dot-` prefix stripped from path components:
@@ -149,10 +149,10 @@ Reads `@require` and `@request` annotations across your dotfiles and installs pa
 **Owns:** `packages.yaml`
 
 ```sh
-dotp install --dotfiles ~/dotfiles   # install all declared packages
-dotp check --dotfiles ~/dotfiles     # report status without installing
-dotp list --dotfiles ~/dotfiles      # list all declared packages
-dotp install --dotfiles ~/dotfiles --dry-run  # print what would run
+dotp install --files ~/dotfiles   # install all declared packages
+dotp check --files ~/dotfiles     # report status without installing
+dotp list --files ~/dotfiles      # list all declared packages
+dotp install --files ~/dotfiles --dry-run  # print what would run
 ```
 
 Annotations used in any file in your dotfiles repo:
