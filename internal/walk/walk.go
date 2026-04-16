@@ -145,6 +145,9 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 
 	for _, entry := range entries {
 		name := entry.Name()
+		if name == ecosystem.ConfigFile {
+			continue // config file is metadata, not a managed node
+		}
 		fullPath := filepath.Join(dir, name)
 
 		if entry.IsDir() {
