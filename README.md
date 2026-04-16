@@ -156,8 +156,9 @@ go install ./cmd/dotr ./cmd/dotd ./cmd/dotl ./cmd/dotp ./cmd/dote
 # Apply everything — symlinks, packages, init.sh
 dotr apply -f ~/dotfiles
 
-# Wire init.sh into your shell
-echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.zshrc
+# Wire init.sh into your shell (pick your shell)
+echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.zshrc   # zsh
+echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.bashrc  # bash
 
 # See what would change without touching anything
 dotr apply -f ~/dotfiles --dry-run
@@ -213,6 +214,20 @@ dotr apply -f ~/dotfiles --dry-run   # preview
 dotr check -f ~/dotfiles             # validate all stages
 ```
 
+### dotr setup — onboarding
+
+Interactive setup that scaffolds a dotfiles repo, writes config files, and wires up your shell.
+
+```sh
+dotr setup                  # interactive — walks through each step
+dotr setup --yes            # non-interactive, accept all defaults
+dotr setup -f ~/my-dotfiles # specify a dotfiles directory
+```
+
+Steps through: dotfiles directory path, `env.yaml` location, `init.sh` output path, and which package managers to pre-populate in `packages.yaml`. After scaffolding, it detects your shell config file and offers to append the `source` line automatically.
+
+---
+
 ### dotr adopt — bring a file in
 
 Copies an existing file into your dotfiles repo, inferring the right destination directory from the file's name and properties.
@@ -241,6 +256,31 @@ dotr adopt ~/.bashrc --yes
 | Anything else | Error — use `--to` to specify the destination |
 
 After copying, `adopt` offers to remove the original (in interactive mode). Run `dotr apply` afterwards to create the symlink back to `$HOME`.
+
+### dotr subcommands — condition-filtered stages
+
+`dotr` exposes each stage as a subcommand so you can run a single stage with conditions applied, without running the full pipeline:
+
+| Subcommand | Stage | Equivalent standalone |
+|---|---|---|
+| `dotr env show/get/set` | Environment | `dote show/get/set` |
+| `dotr dag apply/check` | init.sh generation | `dotd apply/check` |
+| `dotr link apply/check/remove` | Symlinks | `dotl apply/check/remove` |
+| `dotr package install/check/list` | Packages | `dotp install/check/list` |
+
+The difference from the standalone tools: `dotr` subcommands evaluate `@when` conditions first, so only files active on this machine are processed. The standalone tools (`dotd`, `dotl`, `dotp`) operate unconditionally — useful for introspection or scripting.
+
+```sh
+dotr env show                       # show resolved environment
+dotr env get os                     # get a single key
+dotr env set context=work           # write to env.yaml
+dotr dag apply --dry-run            # preview init.sh without writing
+dotr dag check --verbose            # show load order
+dotr link check                     # report symlink state
+dotr package check                  # report package status
+```
+
+---
 
 ### dote — environment
 
