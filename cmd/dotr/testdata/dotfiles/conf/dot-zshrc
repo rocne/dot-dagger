@@ -1,0 +1,2 @@
+# zsh config — always active
+source "$HOME/.local/share/dot-dagger/init.sh"

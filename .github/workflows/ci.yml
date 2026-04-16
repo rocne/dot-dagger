@@ -21,3 +21,6 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      - name: Integration test
+        run: go test -tags integration ./cmd/dotr/
