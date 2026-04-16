@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newImportCmd(rootCfg *config) *cobra.Command {
+func newAdoptCmd(rootCfg *config) *cobra.Command {
 	var (
 		to             string
 		yes            bool
@@ -22,12 +22,12 @@ func newImportCmd(rootCfg *config) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "import <file>",
+		Use:   "adopt <file>",
 		Short: "Import a file into the dotfiles repo, inferring the destination directory",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nonInteractive := yes || noInteractive
-			return runImport(cmd, rootCfg, args[0], to, nonInteractive)
+			return runAdopt(cmd, rootCfg, args[0], to, nonInteractive)
 		},
 	}
 	cmd.Flags().StringVar(&to, "to", "", "destination path relative to dotfiles root (overrides inference)")
@@ -36,7 +36,7 @@ func newImportCmd(rootCfg *config) *cobra.Command {
 	return cmd
 }
 
-func runImport(cmd *cobra.Command, cfg *config, src, to string, nonInteractive bool) error {
+func runAdopt(cmd *cobra.Command, cfg *config, src, to string, nonInteractive bool) error {
 	if !nonInteractive && !term.IsTerminal(os.Stdin.Fd()) {
 		nonInteractive = true
 	}

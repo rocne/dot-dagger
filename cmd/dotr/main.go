@@ -65,7 +65,7 @@ func newRootCmd() *cobra.Command {
 
 	root.AddCommand(
 		newSetupCmd(cfg),
-		newImportCmd(cfg),
+		newAdoptCmd(cfg),
 		&cobra.Command{
 			Use:   "apply",
 			Short: "Full orchestrated reconciliation: env → fileset → packages → links → init.sh",
