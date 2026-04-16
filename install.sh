@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# install.sh — download and install a dotr suite tool
+# install.sh — download and install dotd
 #
 # One-liner (private repo — uses gh for auth):
 #   curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
@@ -7,16 +7,15 @@
 #
 # With args (pass after --):
 #   curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-#     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- dotl --version v0.1.4
+#     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.1.4
 #
 # Local usage:
-#   ./install.sh [tool] [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64] [--dir path] [--dry-run]
+#   ./install.sh [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64] [--dir path] [--dry-run]
 #
-# tool       — one of: dotr dotd dote dotl dotp  (default: dotr)
-# --version    specific version to install        (default: latest)
+# --version    specific version to install  (default: latest)
 # --os         override OS detection
 # --arch       override architecture detection
-# --dir        override install directory         (default: ~/.local/bin)
+# --dir        override install directory   (default: ~/.local/bin)
 # --dry-run    print what would be done, then exit without installing
 #
 # Requires: gh CLI (https://cli.github.com), authenticated with `gh auth login`
@@ -24,10 +23,10 @@
 set -e
 
 REPO="rocne/dot-dagger"
-VALID_TOOLS="dotr dotd dote dotl dotp"
+VALID_TOOLS="dotd"
 
 # --- defaults ---
-TOOL="dotr"
+TOOL="dotd"
 VERSION=""
 OS=""
 ARCH=""
@@ -111,7 +110,7 @@ fi
 
 printf 'release:  %s\n' "$TAG"
 
-# tag: dotr-v0.1.4  →  asset: dotr_v0.1.4_linux_amd64.tar.gz
+# tag: dotd-v0.1.4  →  asset: dotd_v0.1.4_linux_amd64.tar.gz
 ASSET_PREFIX=$(printf '%s' "$TAG" | sed "s/${TOOL}-/${TOOL}_/")
 ASSET="${ASSET_PREFIX}_${OS}_${ARCH}.tar.gz"
 CHECKSUMS="${ASSET_PREFIX}_checksums.txt"

@@ -1,13 +1,13 @@
 # Your first machine
 
-This tutorial walks through setting up dotr from scratch — creating a dotfiles repo, adopting your existing config files, and applying everything to a new machine.
+This tutorial walks through setting up dotd from scratch — creating a dotfiles repo, adopting your existing config files, and applying everything to a new machine.
 
 ## 1. Scaffold the repo
 
-Run `dotr setup` to create the directory structure and config files:
+Run `dotd setup` to create the directory structure and config files:
 
 ```sh
-dotr setup
+dotd setup
 ```
 
 It will ask for:
@@ -22,25 +22,25 @@ After scaffolding, it offers to append the `source` line to your shell config fi
 If you prefer to skip all prompts:
 
 ```sh
-dotr setup --yes
+dotd setup --yes
 ```
 
 ## 2. Adopt your existing config files
 
-Use `dotr adopt` to move existing files into the repo. It infers the right destination from the file's name and properties:
+Use `dotd adopt` to move existing files into the repo. It infers the right destination from the file's name and properties:
 
 ```sh
-dotr adopt ~/.zshrc          # → conf/dot-zshrc
-dotr adopt ~/.gitconfig      # → conf/dot-gitconfig
-dotr adopt ~/.bashrc         # → conf/dot-bashrc
+dotd adopt ~/.zshrc          # → conf/dot-zshrc
+dotd adopt ~/.gitconfig      # → conf/dot-gitconfig
+dotd adopt ~/.bashrc         # → conf/dot-bashrc
 ```
 
-Each adoption copies the file into your dotfiles repo and offers to remove the original. After removal, running `dotr apply` creates a symlink from `~/.zshrc` back to `dotfiles/conf/dot-zshrc` — so everything continues to work but is now managed.
+Each adoption copies the file into your dotfiles repo and offers to remove the original. After removal, running `dotd apply` creates a symlink from `~/.zshrc` back to `dotfiles/conf/dot-zshrc` — so everything continues to work but is now managed.
 
 You can override the destination with `--to`:
 
 ```sh
-dotr adopt ~/.gitconfig --to conf/dot-gitconfig-personal
+dotd adopt ~/.gitconfig --to conf/dot-gitconfig-personal
 ```
 
 ## 3. Add annotations
@@ -69,10 +69,10 @@ env:
   context: personal
 ```
 
-Run `dotr env show` to see the full resolved environment:
+Run `dotd env show` to see the full resolved environment:
 
 ```sh
-dotr env show
+dotd env show
 # os=macos
 # shell=zsh
 # distro=sequoia
@@ -82,7 +82,7 @@ dotr env show
 ## 5. Apply
 
 ```sh
-dotr apply -f ~/dotfiles
+dotd apply -f ~/dotfiles
 ```
 
 This runs all four stages:
@@ -95,12 +95,12 @@ This runs all four stages:
 Preview what would change without making any modifications:
 
 ```sh
-dotr apply -f ~/dotfiles --dry-run
+dotd apply -f ~/dotfiles --dry-run
 ```
 
 ## 6. Wire up your shell
 
-If `dotr setup` didn't append the source line automatically, add it yourself:
+If `dotd setup` didn't append the source line automatically, add it yourself:
 
 ```sh
 # zsh
@@ -117,11 +117,11 @@ Reload your shell, and you're done.
 On any new machine:
 
 1. Clone your dotfiles repo
-2. Install dotr (see [Installation](index.md))
-3. Run `dotr apply -f ~/dotfiles`
+2. Install dotd (see [Installation](index.md))
+3. Run `dotd apply -f ~/dotfiles`
 4. Wire up your shell
 
-dotr will evaluate conditions for the new machine — only files where `@when` is true get applied. Scripts written with `@when os=macos` stay quiet on Linux. Packages not available on this machine are skipped if they're `@request`, or produce an error if they're `@require`.
+dotd will evaluate conditions for the new machine — only files where `@when` is true get applied. Scripts written with `@when os=macos` stay quiet on Linux. Packages not available on this machine are skipped if they're `@request`, or produce an error if they're `@require`.
 
 ---
 
@@ -130,4 +130,4 @@ dotr will evaluate conditions for the new machine — only files where `@when` i
 - [Annotations](../concepts/annotations.md) — full explanation of what annotations do and how they work
 - [Conditions](../concepts/conditions.md) — how `@when` expressions are written and evaluated
 - [Load order](../concepts/load-order.md) — how `@after` dependencies control the order in `init.sh`
-- [Reference: dotr](../reference/dotr.md) — all commands and flags
+- [Reference: dotd](../reference/dotd.md) — all commands and flags

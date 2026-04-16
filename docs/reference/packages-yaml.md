@@ -51,7 +51,7 @@ packages:
 ```yaml
 packages:
   ripgrep:
-    binary: rg   # dotp checks for `rg` on PATH, not `ripgrep`
+    binary: rg   # dotd checks for `rg` on PATH, not `ripgrep`
     brew: {}
     apt: {}
     dnf: {}
@@ -92,7 +92,7 @@ packages:
 
 ## Package manager selection
 
-When a package needs to be installed, dotp selects the first manager from the preference list that:
+When a package needs to be installed, dotd selects the first manager from the preference list that:
 
 1. Has an entry in the package's `managers` map
 2. Is available on `$PATH`
@@ -114,4 +114,4 @@ These can be used in `@when` conditions:
 
 ## Detecting installed managers
 
-`dotr setup` detects which package managers are installed on the current machine and pre-populates `packages.yaml` with entries for them.
+`dotd setup` detects which package managers are installed on the current machine and pre-populates `packages.yaml` with entries for them.
