@@ -40,7 +40,7 @@ Statuses: `open` | `in-progress` | `done` | `wont-fix` | `deferred`
 **Fix:** Export a helper in `internal/env` — e.g. `ResolveWithOverrides(envFilePath string, kvOverrides []string) (map[string]string, error)`.
 
 ### A-05 — Default path functions duplicated across all cmd packages
-**Status:** `open`  
+**Status:** `done`  
 **Files:** `cmd/dot{d,e,l,p,r}/main.go` — each defines its own `defaultDotfiles()`, `defaultEnvFile()`, `defaultInitFile()`  
 **Detail:** Identical or nearly identical functions in every cmd package. No single source of truth.  
 **Fix:** Centralise in `internal/ecosystem` (see A-09). Each cmd imports and calls them.
@@ -68,7 +68,7 @@ Statuses: `open` | `in-progress` | `done` | `wont-fix` | `deferred`
 **Fix:** Export constants from `internal/walk`: `DirScripts`, `DirConf`, `DirBin`. Use them everywhere.
 
 ### A-09 — Ecosystem name and default config paths have no single owner
-**Status:** `in-progress`  
+**Status:** `done`  
 **Files:** `cmd/dotd/main.go:339,344`, `cmd/dotr/main.go:369,374`, `cmd/dote/main.go:93` — all hardcode `"dot-dagger"` and construct paths independently  
 **Detail:** String `"dot-dagger"` duplicated as raw literal. No constant. Default path logic (env.yaml, init.sh) scattered. `DOTFILES` env var lookup also duplicated.  
 **Fix:** Create `internal/ecosystem/ecosystem.go` with:

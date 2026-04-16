@@ -89,7 +89,7 @@ The core dotr bet: **conditions belong on files, not in shell code or central ma
 
 **One annotation, one concern.** Each annotation does exactly one thing. `@when` controls inclusion. `@after` controls ordering. `@require` gates on a package. They compose but don't interfere.
 
-**Convention over config.** Put files in `scripts/`, `conf/`, or `bin/` and they just work. Annotations and `.dotr.yaml` are for exceptions, not the common case.
+**Convention over config.** Put files in `scripts/`, `conf/`, or `bin/` and they just work. Annotations and `.dot-dagger.yaml` are for exceptions, not the common case.
 
 **Composable tools.** Every tool works standalone. `dotr` composes them, but you can script individual tools, use only the pieces you need, and understand the system by reading one piece at a time.
 
@@ -175,7 +175,7 @@ dotfiles/
   bin/            ← executables symlinked onto $PATH
   env.yaml        ← your environment context (os, shell, context, etc.)
   packages.yaml   ← package registry
-  .dotr.yaml      ← metadata for files that can't carry annotations
+  .dot-dagger.yaml      ← metadata for files that can't carry annotations
 ```
 
 ### Naming conventions
@@ -237,10 +237,10 @@ dotl check -f ~/dotfiles   # report state (ok / missing / wrong-target / conflic
 dotl remove -f ~/dotfiles  # remove owned symlinks
 ```
 
-Override the symlink root for a subtree via `.dotr.yaml`:
+Override the symlink root for a subtree via `.dot-dagger.yaml`:
 
 ```yaml
-# conf/dot-config/nvim/.dotr.yaml
+# conf/dot-config/nvim/.dot-dagger.yaml
 directory:
   link_root: ~/.config/nvim
 ```
@@ -534,7 +534,7 @@ packages:
     dnf: {}
 ```
 
-### .dotr.yaml
+### .dot-dagger.yaml
 
 Per-directory config for files that can't carry annotations — JSON, XML, binary, and anything else without a supported comment syntax. Can appear in any directory; `defaults` cascades to subdirectories.
 

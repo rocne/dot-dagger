@@ -34,7 +34,7 @@ The two packages with no internal dependencies. Everything else builds on these.
 
 Loads configuration and resolves the runtime environment.
 
-- [ ] `internal/dotryaml` — load and validate `.dotr.yaml`; typed structs per tool section
+- [ ] `internal/daggeryaml` — load and validate `.dot-dagger.yaml`; typed structs per tool section
 - [ ] `internal/env` — built-in detectors (OS, distro, shell); loads `env.yaml`; produces `Env` map; `MissingKeysError`
 - [ ] `cmd/dote` — `dote show`; first working CLI; validates env pipeline end-to-end
 
@@ -46,7 +46,7 @@ Loads configuration and resolves the runtime environment.
 
 The shared context that all downstream stages consume. Must be solid before Phase 4.
 
-- [ ] `internal/walk` — traverse dotfiles directory tree; attach annotations and `.dotr.yaml` data to each node; handle special dirs (`scripts/`, `conf/`, `bin/`)
+- [ ] `internal/walk` — traverse dotfiles directory tree; attach annotations and `.dot-dagger.yaml` data to each node; handle special dirs (`scripts/`, `conf/`, `bin/`)
 - [ ] `internal/fileset` — filter a walked tree by predicate evaluation; produce `fileset.Set` with active nodes partitioned by kind
 
 **Done when:** given a real dotfiles directory, `fileset.Set` correctly contains only the nodes whose `@when` conditions pass; `@when`-less nodes always included.

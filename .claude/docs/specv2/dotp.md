@@ -110,10 +110,10 @@ packages:
 
 ## Package Manager Priority
 
-Declared in the `dote:` section of `.dotr.yaml` at the dotfiles repo root. dotp walks the priority list and uses the first manager that has an entry for the requested package and is present on PATH.
+Declared in the `dote:` section of `.dot-dagger.yaml` at the dotfiles repo root. dotp walks the priority list and uses the first manager that has an entry for the requested package and is present on PATH.
 
 ```yaml
-# .dotr.yaml
+# .dot-dagger.yaml
 dote:
   package_managers:
     priority: [brew, apt, dnf, pacman, pip, cargo]

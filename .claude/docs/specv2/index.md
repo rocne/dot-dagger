@@ -23,7 +23,7 @@ v1 specified a single `dotd` binary. v2 redesigns this as a suite of focused too
 
 | File | Contents |
 |------|----------|
-| [suite.md](suite.md) | Tool suite overview, ownership, composition model, `.dotr.yaml` |
+| [suite.md](suite.md) | Tool suite overview, ownership, composition model, `.dot-dagger.yaml` |
 | [structure.md](structure.md) | Repo/module layout, internal packages, FileSet, I/O boundary, standalone vs orchestrated |
 | [annotation.md](annotation.md) | `dota` — annotation system, predicate extension, custom handlers, unknown annotation behavior |
 | [dote.md](dote.md) | `dote` — environment resolution, `env.yaml`, custom detectors, CLI |
@@ -41,4 +41,4 @@ v1 specified a single `dotd` binary. v2 redesigns this as a suite of focused too
 - **`dotl`** — symlink apply/remove/check; owns `conf/`, `bin/`
 - **`dotp`** — package management; `@require` (hard gate) and `@request` (soft ask); `installed()`/`installable()` predicates
 - **`dotr`** — orchestrator; wires tools together into full shell management
-- **`.dotr.yaml`** — per-directory config for non-annotatable files; sectioned by tool
+- **`.dot-dagger.yaml`** — per-directory config for non-annotatable files; sectioned by tool

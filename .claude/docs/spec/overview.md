@@ -54,7 +54,7 @@ conf/dot-config/tmux/tmux.conf     → ~/.config/tmux/tmux.conf
 conf/dot-config/dot-tmux/tmux.conf → ~/.config/.tmux/tmux.conf
 ```
 
-The `dot-` transformation applies uniformly to every path component — files and directories alike. To opt out for a specific component, use `@retain-prefix` in the file's annotation block, or declare `retain_prefix: true` in `.dotd.yaml`. This applies at any level; there are no special cases for intermediate directories.
+The `dot-` transformation applies uniformly to every path component — files and directories alike. To opt out for a specific component, use `@retain-prefix` in the file's annotation block, or declare `retain_prefix: true` in `.dot-dagger.yaml`. This applies at any level; there are no special cases for intermediate directories.
 
 **Important:** This is distinct from logical name derivation (see [dag.md](dag.md)), where `dot-` is simply stripped entirely. The two transformations serve different purposes:
 

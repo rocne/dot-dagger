@@ -15,7 +15,7 @@ dot-dagger/
 │   │   └── eval.go     # Env, Evaluator (injectable LookPath), Eval()
 │   ├── annotation/     # annotation scanner
 │   │   └── annotation.go  # Annotations, Custom, Scan(io.Reader)
-│   ├── dotdyaml/       # .dotd.yaml loader and validator
+│   ├── daggeryaml/       # .dot-dagger.yaml loader and validator
 │   │   └── dotdyaml.go    # DotD, Load(io.Reader), LoadFile(path)
 │   ├── env/            # environment resolution
 │   │   ├── env.go      # Schema, Resolver, MissingKeysError, Resolve()
@@ -53,13 +53,13 @@ dot-dagger/
 | Decision | Rationale |
 |----------|-----------|
 | Go, single binary | No runtime dependency. Distributable via curl. Fast startup. |
-| Convention over config | `scripts/`, `bin/`, `conf/` directories just work. `.dotd.yaml` only when needed. Convention names configurable for power users. |
+| Convention over config | `scripts/`, `bin/`, `conf/` directories just work. `.dot-dagger.yaml` only when needed. Convention names configurable for power users. |
 | Full dot-path logical names | Always predictable. No skipping of unnamed directories. `@name` for aliasing when paths are too long. |
 | `@name` replaces full logical name | Enables variant files cleanly. Two files share a `@name`, predicates must be mutually exclusive. |
 | `@after` is ordering only | Never affects inclusion. Missing or inactive targets are no-ops, never errors. |
 | Alphabetical default ordering | Deterministic `init.sh` without requiring explicit `@after` on every file. Kahn's algorithm with alphabetical tie-breaking at each frontier step gives a fully deterministic total order. |
 | Directory `when` as shared default | Avoids repeating the same predicate on every non-annotatable file in a directory. Cascades to all subdirectories, not just immediate files. |
-| `.dotd.yaml` purpose is fallback | Primary use is metadata for files that cannot carry annotations. Not a module manifest. |
+| `.dot-dagger.yaml` purpose is fallback | Primary use is metadata for files that cannot carry annotations. Not a module manifest. |
 | Missing required keys prompt or halt | Never silently exclude files due to unset keys. Always surface the issue. |
 | `nosync-` is user responsibility | `nosync-` is stripped at runtime. User must gitignore. `dotd install` and `dotd check` warn and offer to add `nosync-*` to `.gitignore` if missing — never silently. |
 | Symlink destination conflict detection | Separate from logical name conflicts. Two `@symlink` to same path with overlapping predicates is an error. |
@@ -69,10 +69,10 @@ dot-dagger/
 | Two distinct `dot-` transformations | Logical names strip `dot-` entirely (DAG identity). Symlink destinations replace `dot-` with `.` (filesystem convention). Different rules, different functions. |
 | `dot-` transformation applies uniformly | Any path component starting with `dot-` gets its prefix replaced with `.`. Files and directories follow the same rule. `@retain-prefix` opts out for a specific component. |
 | `conf/` renamed from `dots/` | `conf/` more precisely describes the purpose: config files that third-party tools expect at a fixed path. `dots/` implied "dotfiles broadly" which was misleading. |
-| `conf/` symlinks relative to `~` by default | `link_root` in `.dotd.yaml` allows overriding the base path per subtree. Cascades to subdirectories. |
+| `conf/` symlinks relative to `~` by default | `link_root` in `.dot-dagger.yaml` allows overriding the base path per subtree. Cascades to subdirectories. |
 | `@symlink` path is implicit-relative | Absolute if starting with `/` or `~/`, otherwise relative to `link_root`. No new sigil needed — mirrors Unix path conventions. |
 | Special dirs recognised until first encounter | Once inside a special dir, further special dirs inside it are ignored. Prevents confusing nesting without a hard depth cap. Allows `nosync-work/tmux/scripts/` and other deep but legitimate layouts. |
-| `directory` and `defaults` sections in `.dotd.yaml` | Clear separation between properties of the directory node itself and defaults that cascade to contents. |
+| `directory` and `defaults` sections in `.dot-dagger.yaml` | Clear separation between properties of the directory node itself and defaults that cascade to contents. |
 | `files.path` uses true filename, predicates use logical names | Consistent with how annotations work — the filesystem is addressed by real name, the DAG by logical name. |
 | Single shell-agnostic `init.sh` | One source line in any rc file. Shell-specific content handled by predicates. Uses POSIX `.` not bash `source`. |
 | Single-quote shell paths with `'\''` | Universally safe quoting for sh/bash/zsh. `${HOME}` prefix for portability across machines. |

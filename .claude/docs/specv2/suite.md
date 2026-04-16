@@ -65,7 +65,7 @@ In orchestrated mode (`dotr`):
 
 ## Config File
 
-Per-directory metadata for non-annotatable files is stored in `.dotr.yaml`. All tools in the suite read the section relevant to them.
+Per-directory metadata for non-annotatable files is stored in `.dot-dagger.yaml`. All tools in the suite read the section relevant to them.
 
 ```yaml
 dote:
@@ -80,7 +80,7 @@ dotl:
   link_root: ~/.config/nvim
 ```
 
-Named `.dotr.yaml` to acknowledge the suite ecosystem. Each tool reads only its own section.
+Named `.dot-dagger.yaml` to acknowledge the suite ecosystem. Each tool reads only its own section.
 
 ---
 
@@ -95,7 +95,7 @@ Most v1 design decisions apply unchanged, attributed to the tool that now owns t
 | DAG, logical names, annotations | `dotd` (uses `dota`, `dote`) |
 | Symlink strategy, drift detection | `dotl` (uses `dota`, `dote`) |
 | Shell init generation | `dotd` |
-| `.dotd.yaml` config files | renamed to `.dotr.yaml` |
+| Per-directory config files | renamed from `.dotd.yaml` → `.dot-dagger.yaml` (ecosystem-owned, not tool-owned) |
 
 ### Open questions
 

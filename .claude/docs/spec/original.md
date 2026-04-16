@@ -46,7 +46,7 @@ Path components without the `dot-` prefix are used as-is. Replacement applies at
 | Logical names (DAG) | strip `dot-` entirely | `dot-zshrc` → `zshrc` |
 | Symlink destinations | replace `dot-` with `.` | `dot-zshrc` → `.zshrc` |
 
-To opt out of prefix transformation for a specific file, use `@retain-prefix` in the file's annotation block, or declare `retain_prefix: true` in `.dotd.yaml`. The `RetainPrefix` flag applies only to the file's own path component; intermediate directory components are always transformed.
+To opt out of prefix transformation for a specific file, use `@retain-prefix` in the file's annotation block, or declare `retain_prefix: true` in `.dot-dagger.yaml`. The `RetainPrefix` flag applies only to the file's own path component; intermediate directory components are always transformed.
 
 ### The `nosync-` prefix
 
@@ -75,7 +75,7 @@ dots/dot-config/tmux/tmux.conf  → dots.config.tmux.tmux
 nosync-dot-secrets/api.sh       → secrets.api
 ```
 
-The logical name always reflects the full path. No segments are skipped regardless of whether intermediate directories have `.dotd.yaml` files.
+The logical name always reflects the full path. No segments are skipped regardless of whether intermediate directories have `.dot-dagger.yaml` files.
 
 ### `@name` — aliasing
 
@@ -118,7 +118,7 @@ Two active files both declaring `@symlink` to the same destination is a separate
 
 Every file can declare a `when` condition. A file is active if its effective predicate evaluates to true against the current environment.
 
-A directory-level `when` in `.dotd.yaml` applies to all files in that directory and all subdirectories as a shared default. The effective predicate for any file is:
+A directory-level `when` in `.dot-dagger.yaml` applies to all files in that directory and all subdirectories as a shared default. The effective predicate for any file is:
 
 ```
 directory_when AND file_when
@@ -229,11 +229,11 @@ If a handler is not installed or fails, the tool warns but continues by default.
 
 ---
 
-## 6. `.dotd.yaml`
+## 6. `.dot-dagger.yaml`
 
 An optional metadata file that can appear in any directory. Its primary purpose is to provide metadata for files that cannot carry annotations — JSON, binary, XML, and other formats without supported comment syntax.
 
-`.dotd.yaml` has three sections:
+`.dot-dagger.yaml` has three sections:
 
 **`directory`** — properties of the directory node itself. Does not cascade to contents. The `when` field gates traversal of the entire subtree; if false, the directory is not entered at all.
 
@@ -269,9 +269,9 @@ files:
     retain_prefix: true
 ```
 
-All sections are optional. A `.dotd.yaml` with just a `defaults.when` is valid. A directory with no `.dotd.yaml` is also perfectly fine.
+All sections are optional. A `.dot-dagger.yaml` with just a `defaults.when` is valid. A directory with no `.dot-dagger.yaml` is also perfectly fine.
 
-Declaring a predicate in `.dotd.yaml` for a specific file AND as an annotation in that file is an error. All predicate expressions are validated at load time.
+Declaring a predicate in `.dot-dagger.yaml` for a specific file AND as an annotation in that file is an error. All predicate expressions are validated at load time.
 
 ---
 
@@ -401,7 +401,7 @@ dotd <command> [options]
 | `dotd install --apply` | Set up then immediately apply |
 | `dotd apply` | Full reconciliation — evaluate predicates, resolve DAG, symlink, generate `init.sh` |
 | `dotd diff` | Show what apply would change |
-| `dotd check` | Validate predicates, DAG, annotations, `.dotd.yaml` files |
+| `dotd check` | Validate predicates, DAG, annotations, `.dot-dagger.yaml` files |
 | `dotd status` | Full status report |
 | `dotd status config` | Config and annotation validation |
 | `dotd status env` | Environment health |
@@ -415,7 +415,7 @@ dotd <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `dotd module create <n>` | Scaffold a new directory with `scripts/`, `bin/`, `dots/`, and optional `.dotd.yaml` |
+| `dotd module create <n>` | Scaffold a new directory with `scripts/`, `bin/`, `dots/`, and optional `.dot-dagger.yaml` |
 | `dotd module list` | List all directories with their active file counts |
 
 ### `dotd env` subcommands
@@ -491,7 +491,7 @@ dot-dagger/
 │   │   └── eval.go     # Env, Evaluator (injectable LookPath), Eval()
 │   ├── annotation/     # annotation scanner
 │   │   └── annotation.go  # Annotations, Custom, Scan(io.Reader)
-│   ├── dotdyaml/       # .dotd.yaml loader and validator
+│   ├── daggeryaml/       # .dot-dagger.yaml loader and validator
 │   │   └── dotdyaml.go    # DotD, Load(io.Reader), LoadFile(path)
 │   ├── env/            # environment resolution
 │   │   ├── env.go      # Schema, Resolver, MissingKeysError, Resolve()
@@ -529,13 +529,13 @@ dot-dagger/
 | Decision | Rationale |
 |----------|-----------|
 | Go, single binary | No runtime dependency. Distributable via curl. Fast startup. |
-| Convention over config | `scripts/`, `bin/`, `dots/` directories just work. `.dotd.yaml` only when needed. |
+| Convention over config | `scripts/`, `bin/`, `dots/` directories just work. `.dot-dagger.yaml` only when needed. |
 | Full dot-path logical names | Always predictable. No skipping of unnamed directories. `@name` for aliasing when paths are too long. |
 | `@name` replaces full logical name | Enables variant files cleanly. Two files share a `@name`, predicates must be mutually exclusive. |
 | `@after` is ordering only | Never affects inclusion. Missing or inactive targets are no-ops, never errors. |
 | Alphabetical default ordering | Deterministic `init.sh` without requiring explicit `@after` on every file. Kahn's algorithm with alphabetical tie-breaking at each frontier step gives a fully deterministic total order. |
 | Directory `when` as shared default | Avoids repeating the same predicate on every non-annotatable file in a directory. Cascades to all subdirectories, not just immediate files. |
-| `.dotd.yaml` purpose is fallback | Primary use is metadata for files that cannot carry annotations. Not a module manifest. |
+| `.dot-dagger.yaml` purpose is fallback | Primary use is metadata for files that cannot carry annotations. Not a module manifest. |
 | Missing required keys prompt or halt | Never silently exclude files due to unset keys. Always surface the issue. |
 | `nosync-` gitignore enforced at install | Prevents accidental staging of private files before the user has set up gitignore. |
 | Symlink destination conflict detection | Separate from logical name conflicts. Two `@symlink` to same path with overlapping predicates is an error. |
@@ -544,7 +544,7 @@ dot-dagger/
 | `exists()` predicate function | Capability gating without package manager coupling. |
 | Two distinct `dot-` transformations | Logical names strip `dot-` entirely (DAG identity). Symlink destinations replace `dot-` with `.` (filesystem convention). Different rules, different functions. |
 | `dot-` replacement applies at every level | Consistent rule — any path component starting with `dot-` gets its prefix replaced with `.`. `@retain-prefix` opts out per file's last component. |
-| `directory` and `defaults` sections in `.dotd.yaml` | Clear separation between properties of the directory node itself and defaults that cascade to contents. |
+| `directory` and `defaults` sections in `.dot-dagger.yaml` | Clear separation between properties of the directory node itself and defaults that cascade to contents. |
 | `files.path` uses true filename, predicates use logical names | Consistent with how annotations work — the filesystem is addressed by real name, the DAG by logical name. |
 | Single shell-agnostic `init.sh` | One source line in any rc file. Shell-specific content handled by predicates. Uses POSIX `.` not bash `source`. |
 | Single-quote shell paths with `'\''` | Universally safe quoting for sh/bash/zsh. `${HOME}` prefix for portability across machines. |
