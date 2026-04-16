@@ -1,0 +1,13 @@
+package_managers:
+  brew:
+    install: brew install {package}
+    uninstall: brew uninstall {package}
+  apt:
+    install: apt-get install -y {package}
+    uninstall: apt-get remove -y {package}
+
+packages:
+  ripgrep:
+    binary: rg
+    brew: {}
+    apt: {}

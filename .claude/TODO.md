@@ -28,6 +28,8 @@ Items that are known but intentionally deferred. Update this as things get done 
 - [x] GitHub Actions CI workflow (build + test)
 - [x] GitHub Actions lint workflow (`golangci-lint`)
 - [x] PR template (`.github/pull_request_template.md`)
+- [x] Integration tests with real fixture dotfiles repo (`go test -tags integration ./cmd/dotr/`)
+- [ ] Multi-distro integration testing via Docker — spin up Ubuntu/Fedora containers to verify install + apply end-to-end (defer until repo is public)
 
 ## Implementation
 
