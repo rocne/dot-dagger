@@ -1,11 +1,11 @@
-// Command dotd manages shell script sourcing via DAG-ordered init.sh generation.
+// Command dotd manages dotfiles — env resolution, DAG, symlinks, and packages.
 package main
 
 import (
 	"fmt"
 	"os"
-	"sort"
-	"strings"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/rocne/dot-dagger/internal/dag"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -13,6 +13,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/initgen"
 	"github.com/rocne/dot-dagger/internal/linker"
+	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/rocne/dot-dagger/internal/walk"
 	"github.com/spf13/cobra"
@@ -27,7 +28,7 @@ func main() {
 }
 
 type config struct {
-	files string
+	files    string
 	envFile  string
 	env      []string
 	initFile string
@@ -43,7 +44,7 @@ func newRootCmd() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:     ecosystem.ToolD,
-		Short:   "Dotfiles script DAG — generates init.sh and applies conf/bin symlinks",
+		Short:   "Dotfiles manager — env resolution, DAG, symlinks, and packages",
 		Version: version,
 	}
 
@@ -51,96 +52,66 @@ func newRootCmd() *cobra.Command {
 	pf.StringVarP(&cfg.files, "files", "f", defaultDotfiles(), "path to dotfiles repo")
 	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
+	pf.StringVar(&cfg.initFile, "init-file", defaultInitFile(), "path to write init.sh")
+	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
+	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
 
-	apply := &cobra.Command{
-		Use:   "apply",
-		Short: "Full reconciliation — evaluate predicates, resolve DAG, symlink, generate init.sh",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runApply(cmd, cfg)
-		},
-	}
-	apply.Flags().StringVar(&cfg.initFile, "init-file", defaultInitFile(), "path to write init.sh")
-	apply.Flags().StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
-	apply.Flags().StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
-
-	check := &cobra.Command{
-		Use:   "check",
-		Short: "Full status and validation — environment health, filesystem drift, errors",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd, cfg)
-		},
-	}
-	check.Flags().StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
-	check.Flags().StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
-
-	envParent := &cobra.Command{
-		Use:   "env",
-		Short: "Inspect and modify env.yaml",
-	}
-	envParent.AddCommand(
-		&cobra.Command{
-			Use:   "list",
-			Short: "Show all resolved env key-value pairs",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runEnvList(cmd, cfg)
-			},
-		},
-		&cobra.Command{
-			Use:   "get <key>",
-			Short: "Get a specific env key",
-			Args:  cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runEnvGet(cmd, cfg, args[0])
-			},
-		},
-		&cobra.Command{
-			Use:   "set <key=value>",
-			Short: "Set a key in env.yaml",
-			Args:  cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runEnvSet(cmd, cfg, args[0])
-			},
-		},
-	)
-
 	ui.SetupCobraColors(root)
 
-	root.AddCommand(apply, check, envParent)
+	root.AddCommand(
+		newSetupCmd(cfg),
+		newAdoptCmd(cfg),
+		&cobra.Command{
+			Use:   "apply",
+			Short: "Full reconciliation: env → fileset → packages → links → init.sh",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runApply(cmd, cfg)
+			},
+		},
+		&cobra.Command{
+			Use:   "check",
+			Short: "Validate all stages without making changes",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runCheck(cmd, cfg)
+			},
+		},
+		newEnvCmd(cfg),
+		newDAGCmd(cfg),
+		newLinkCmd(cfg),
+		newPackageCmd(cfg),
+	)
 	return root
 }
-
-// --- command implementations ---
 
 func runApply(cmd *cobra.Command, cfg *config) error {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
 	}
+	if cfg.verbose {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d keys resolved\n", ui.Header("env:"), len(resolved))
+	}
 
 	nodes, err := buildFileSet(cfg, resolved)
 	if err != nil {
 		return err
 	}
-
-	scripts := nodes.Scripts()
-	ordered, err := dag.Build(scripts)
-	if err != nil {
-		return fmt.Errorf("dag: %w", err)
+	if cfg.verbose {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
 	}
 
-	content := initgen.Generate(ordered, cfg.binDir)
-	if cfg.dryRun {
-		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s\n", cfg.initFile)
-		fmt.Fprint(cmd.OutOrStdout(), string(content))
-	} else {
-		if err := initgen.WriteFile(cfg.initFile, content); err != nil {
+	reg, err := loadPackageContext(cfg)
+	if err != nil {
+		return err
+	}
+
+	reqs := packages.CollectRequests(nodes.Nodes)
+	for _, req := range reqs {
+		if err := handlePackage(cmd, cfg, req, reg); err != nil {
 			return err
-		}
-		if cfg.verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s wrote %s (%d scripts)\n", ui.Header("init.sh:"), cfg.initFile, len(ordered))
 		}
 	}
 
@@ -157,16 +128,36 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 
 	if cfg.dryRun {
 		for _, l := range links {
-			fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s %s %s\n", l.Src, ui.Arrow("→"), l.Dst)
+			if l.State != linker.StateOK {
+				fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s %s %s\n", l.Src, ui.Arrow("→"), l.Dst)
+			}
 		}
-		return nil
+	} else {
+		if err := linker.Apply(links, cfg.force); err != nil {
+			return err
+		}
+		if cfg.verbose {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %d applied\n", ui.Header("symlinks:"), len(links))
+		}
 	}
 
-	if err := linker.Apply(links, cfg.force); err != nil {
-		return err
+	scripts := nodes.Scripts()
+	ordered, err := dag.Build(scripts)
+	if err != nil {
+		return fmt.Errorf("dag: %w", err)
 	}
-	if cfg.verbose {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %d symlinks\n", ui.OK("applied"), len(links))
+	content := initgen.Generate(ordered, cfg.binDir)
+
+	if cfg.dryRun {
+		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s (%d scripts)\n", cfg.initFile, len(ordered))
+		fmt.Fprint(cmd.OutOrStdout(), string(content))
+	} else {
+		if err := initgen.WriteFile(cfg.initFile, content); err != nil {
+			return err
+		}
+		if cfg.verbose {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s wrote %s (%d scripts)\n", ui.Header("init.sh:"), cfg.initFile, len(ordered))
+		}
 	}
 	return nil
 }
@@ -177,17 +168,11 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 
-	if cfg.verbose {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", ui.Header("=== environment ==="))
-		for _, k := range sortedKeys(resolved) {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %s=%s\n", ui.Key(k), resolved[k])
-		}
-	}
-
 	nodes, err := buildFileSet(cfg, resolved)
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
 
 	scripts := nodes.Scripts()
 	ordered, err := dag.Build(scripts)
@@ -195,6 +180,42 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		return fmt.Errorf("dag: %w", err)
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active, %s\n", ui.Header("scripts:"), len(ordered), ui.OK("DAG OK"))
+
+	reg, err := loadPackageContext(cfg)
+	if err != nil {
+		return err
+	}
+	reqs := packages.CollectRequests(nodes.Nodes)
+	var pkgMissing int
+	for _, req := range reqs {
+		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
+		installable, _ := packages.Installable(req.Package, reg, exec.LookPath)
+		if !installed && !installable && req.Hard {
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s @require: %s (from %s)\n",
+				ui.HardMissing("MISSING"), req.Package, req.NodePath)
+			pkgMissing++
+		} else if cfg.verbose {
+			var status string
+			if installed {
+				status = ui.Installed("installed")
+			} else if installable {
+				status = ui.Installable("installable")
+			} else {
+				status = ui.Missing("not available")
+			}
+			kind := "@request"
+			if req.Hard {
+				kind = "@require"
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-10s %-20s %s\n", kind, req.Package, status)
+		}
+	}
+	if pkgMissing > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Header("packages:"),
+			ui.Conflict(fmt.Sprintf("%d hard requirements unmet", pkgMissing)))
+	} else {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d requirements, %s\n", ui.Header("packages:"), len(reqs), ui.OK("all OK"))
+	}
 
 	opts := linker.Options{
 		RepoRoot: cfg.files,
@@ -214,7 +235,9 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 			ok++
 		case linker.StateMissing:
 			missing++
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
+			if cfg.verbose {
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
+			}
 		case linker.StateWrongTarget:
 			wrong++
 			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("wrong"), l.Dst)
@@ -225,56 +248,6 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d wrong-target, %d conflict\n",
 		ui.Header("symlinks:"), ok, missing, wrong, conflict)
-	return nil
-}
-
-func runEnvList(cmd *cobra.Command, cfg *config) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return err
-	}
-	for _, k := range sortedKeys(resolved) {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", ui.Key(k), resolved[k])
-	}
-	return nil
-}
-
-func runEnvGet(cmd *cobra.Command, cfg *config, key string) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return err
-	}
-	val, ok := resolved[key]
-	if !ok {
-		return fmt.Errorf("key %q not found in resolved environment", key)
-	}
-	fmt.Fprintln(cmd.OutOrStdout(), val)
-	return nil
-}
-
-func runEnvSet(cmd *cobra.Command, cfg *config, kv string) error {
-	parts := strings.SplitN(kv, "=", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("expected key=value, got %q", kv)
-	}
-	key, val := parts[0], parts[1]
-
-	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
-	if err != nil {
-		return err
-	}
-	ef.Env[key] = val
-
-	if cfg.dryRun {
-		fmt.Fprintf(cmd.OutOrStdout(), "would set %s=%s in %s\n", key, val, cfg.envFile)
-		return nil
-	}
-	if err := env.SaveEnvFileToPath(cfg.envFile, ef); err != nil {
-		return err
-	}
-	if cfg.verbose {
-		fmt.Fprintf(cmd.OutOrStdout(), "set %s=%s in %s\n", key, val, cfg.envFile)
-	}
 	return nil
 }
 
@@ -292,13 +265,12 @@ func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error)
 	return fileset.Build(walked, resolved, nil)
 }
 
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+func loadPackageContext(cfg *config) (*packages.Registry, error) {
+	return packages.LoadFile(filepath.Join(cfg.files, "packages.yaml"))
+}
+
+func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest, reg *packages.Registry) error {
+	return packages.InstallOne(cmd.OutOrStdout(), cmd.ErrOrStderr(), req, reg, cfg.dryRun, cfg.verbose, ecosystem.ToolD, exec.LookPath)
 }
 
 func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }

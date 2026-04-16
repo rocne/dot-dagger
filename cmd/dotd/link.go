@@ -11,7 +11,7 @@ import (
 func newLinkCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "link",
-		Short: "Symlink management — predicate-filtered (see dotl for unconditional)",
+		Short: "Symlink management — filtered by active predicates",
 	}
 	cmd.AddCommand(
 		&cobra.Command{

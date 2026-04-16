@@ -23,4 +23,4 @@ jobs:
         run: go test ./...
 
       - name: Integration test
-        run: go test -tags integration ./cmd/dotr/
+        run: go test -tags integration ./cmd/dotd/

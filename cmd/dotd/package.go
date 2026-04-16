@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -12,7 +13,7 @@ import (
 func newPackageCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "package",
-		Short: "Package management — predicate-filtered (see dotp for unconditional)",
+		Short: "Package management — filtered by active predicates",
 	}
 	cmd.AddCommand(
 		&cobra.Command{
@@ -55,7 +56,7 @@ func runPackageInstall(cmd *cobra.Command, cfg *config) error {
 	}
 	reqs := packages.CollectRequests(nodes.Nodes)
 	for _, req := range reqs {
-		if err := handlePackage(cmd, cfg, req, reg); err != nil {
+		if err := packages.InstallOne(cmd.OutOrStdout(), cmd.ErrOrStderr(), req, reg, cfg.dryRun, cfg.verbose, ecosystem.ToolD, exec.LookPath); err != nil {
 			return err
 		}
 	}

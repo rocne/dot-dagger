@@ -1,5 +1,5 @@
-// Package ecosystem holds the canonical name, tool names, and default paths for the dot-dagger suite.
-// All tools import from here — there is exactly one place to change names or paths.
+// Package ecosystem holds the canonical name, tool name, and default paths for dotd.
+// All packages import from here — there is exactly one place to change names or paths.
 package ecosystem
 
 import (
@@ -14,14 +14,8 @@ const Name = "dot-dagger"
 // ConfigFile is the per-directory config filename placed inside dotfiles repos.
 const ConfigFile = "." + Name + ".yaml" // .dot-dagger.yaml
 
-// Tool names — the CLI binary name for each suite member.
-const (
-	ToolR = "dotr" // orchestrator
-	ToolD = "dotd" // DAG / init.sh generation
-	ToolE = "dote" // environment resolution
-	ToolL = "dotl" // symlink management
-	ToolP = "dotp" // package management
-)
+// ToolD is the CLI binary name.
+const ToolD = "dotd"
 
 // xdgConfigHome returns $XDG_CONFIG_HOME if set to an absolute path, else ~/.config.
 func xdgConfigHome() (string, error) {
