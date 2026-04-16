@@ -10,13 +10,14 @@
 #     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- dotl --version v0.1.4
 #
 # Local usage:
-#   ./install.sh [tool] [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64] [--dir path]
+#   ./install.sh [tool] [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64] [--dir path] [--dry-run]
 #
-# tool     — one of: dotr dotd dote dotl dotp  (default: dotr)
-# --version  specific version to install       (default: latest)
-# --os       override OS detection
-# --arch     override architecture detection
-# --dir      override install directory        (default: ~/.local/bin)
+# tool       — one of: dotr dotd dote dotl dotp  (default: dotr)
+# --version    specific version to install        (default: latest)
+# --os         override OS detection
+# --arch       override architecture detection
+# --dir        override install directory         (default: ~/.local/bin)
+# --dry-run    print what would be done, then exit without installing
 #
 # Requires: gh CLI (https://cli.github.com), authenticated with `gh auth login`
 #
@@ -31,16 +32,18 @@ VERSION=""
 OS=""
 ARCH=""
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
+DRY_RUN=0
 
 # --- parse args ---
 while [ $# -gt 0 ]; do
   case "$1" in
-    --version) VERSION="$2"; shift 2 ;;
-    --os)      OS="$2";      shift 2 ;;
-    --arch)    ARCH="$2";    shift 2 ;;
-    --dir)     INSTALL_DIR="$2"; shift 2 ;;
+    --version)  VERSION="$2"; shift 2 ;;
+    --os)       OS="$2";      shift 2 ;;
+    --arch)     ARCH="$2";    shift 2 ;;
+    --dir)      INSTALL_DIR="$2"; shift 2 ;;
+    --dry-run)  DRY_RUN=1; shift ;;
     --help|-h)
-      sed -n '2,12p' "$0" | sed 's/^# \?//'
+      sed -n '2,14p' "$0" | sed 's/^# \?//'
       exit 0
       ;;
     --*) printf 'error: unknown flag: %s\n' "$1" >&2; exit 1 ;;
@@ -111,14 +114,32 @@ printf 'release:  %s\n' "$TAG"
 # tag: dotr-v0.1.4  →  asset: dotr_v0.1.4_linux_amd64.tar.gz
 ASSET_PREFIX=$(printf '%s' "$TAG" | sed "s/${TOOL}-/${TOOL}_/")
 ASSET="${ASSET_PREFIX}_${OS}_${ARCH}.tar.gz"
+CHECKSUMS="${ASSET_PREFIX}_checksums.txt"
 printf 'asset:    %s\n' "$ASSET"
+
+if [ "$DRY_RUN" = "1" ]; then
+  printf 'install:  %s/%s\n' "$INSTALL_DIR" "$TOOL"
+  printf '(dry-run: no changes made)\n'
+  exit 0
+fi
 
 # --- download ---
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 printf 'downloading...\n'
-gh release download "$TAG" --repo "$REPO" --pattern "$ASSET" --dir "$TMP"
+gh release download "$TAG" --repo "$REPO" --pattern "$ASSET" --pattern "$CHECKSUMS" --dir "$TMP"
+
+# --- verify checksum ---
+printf 'verifying checksum...\n'
+if command -v sha256sum >/dev/null 2>&1; then
+  # filter to just this asset's line to avoid failures on missing files
+  grep " ${ASSET}$" "$TMP/$CHECKSUMS" | (cd "$TMP" && sha256sum -c -)
+elif command -v shasum >/dev/null 2>&1; then
+  grep " ${ASSET}$" "$TMP/$CHECKSUMS" | (cd "$TMP" && shasum -a 256 -c -)
+else
+  printf 'warning: no sha256sum or shasum found — skipping checksum verification\n' >&2
+fi
 
 # --- extract and install ---
 tar -xzf "$TMP/$ASSET" -C "$TMP"
