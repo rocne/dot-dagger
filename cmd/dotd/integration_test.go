@@ -44,18 +44,18 @@ func newIenv(t *testing.T) *ienv {
 	}
 }
 
-// run executes a dotr subcommand with the test environment wired up.
+// run executes a dotd subcommand with the test environment wired up.
 // It fails the test immediately on non-zero exit.
 func (e *ienv) run(t *testing.T, args ...string) string {
 	t.Helper()
 	out, err := e.runMayFail(t, args...)
 	if err != nil {
-		t.Fatalf("dotr %s failed: %v\noutput:\n%s", strings.Join(args, " "), err, out)
+		t.Fatalf("dotd %s failed: %v\noutput:\n%s", strings.Join(args, " "), err, out)
 	}
 	return out
 }
 
-// runMayFail executes a dotr subcommand and returns output + error without
+// runMayFail executes a dotd subcommand and returns output + error without
 // failing the test. Use this to test expected failure cases.
 func (e *ienv) runMayFail(t *testing.T, args ...string) (string, error) {
 	t.Helper()
@@ -265,7 +265,7 @@ func TestDryRunNoChanges(t *testing.T) {
 	assertNoPath(t, filepath.Join(e.binDir, "hello"))
 }
 
-// TestCheckAfterApply verifies that `dotr check` exits cleanly after a successful apply.
+// TestCheckAfterApply verifies that `dotd check` exits cleanly after a successful apply.
 func TestCheckAfterApply(t *testing.T) {
 	e := newIenv(t)
 	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
@@ -401,7 +401,7 @@ func TestPackageRequireHardFail(t *testing.T) {
 	}
 }
 
-// TestPackageCheckOutput verifies that `dotr package check` reports the right
+// TestPackageCheckOutput verifies that `dotd package check` reports the right
 // status for each package type.
 func TestPackageCheckOutput(t *testing.T) {
 	e := newIenv(t)

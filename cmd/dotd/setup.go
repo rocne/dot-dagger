@@ -45,7 +45,7 @@ Run without flags for interactive mode (default). Use --no-interactive or
 
 func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 	if !nonInteractive && !term.IsTerminal(os.Stdin.Fd()) {
-		return fmt.Errorf(ecosystem.ToolR+" setup: no TTY detected; run with --no-interactive to accept defaults")
+		return fmt.Errorf(ecosystem.ToolD+" setup: no TTY detected; run with --no-interactive to accept defaults")
 	}
 
 	// Detect environment for pre-populating prompts and env.yaml comments.
@@ -240,7 +240,7 @@ func printNextSteps(cmd *cobra.Command, dotfilesDir, initFile string) {
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", ui.Header("next steps:"))
 	fmt.Fprintf(cmd.OutOrStdout(), "  1. Add dotfiles to %s\n", dotfilesDir)
-	fmt.Fprintf(cmd.OutOrStdout(), "  2. Run: %s check\n", ecosystem.ToolR)
+	fmt.Fprintf(cmd.OutOrStdout(), "  2. Run: %s check\n", ecosystem.ToolD)
 	fmt.Fprintf(cmd.OutOrStdout(), "  3. Reload shell: %s\n", sourceLine)
 }
 

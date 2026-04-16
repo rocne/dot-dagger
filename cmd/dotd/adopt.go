@@ -16,9 +16,9 @@ import (
 
 func newAdoptCmd(rootCfg *config) *cobra.Command {
 	var (
-		to             string
-		yes            bool
-		noInteractive  bool
+		to            string
+		yes           bool
+		noInteractive bool
 	)
 
 	cmd := &cobra.Command{

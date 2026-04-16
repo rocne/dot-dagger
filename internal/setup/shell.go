@@ -76,7 +76,7 @@ func HasSourceLine(rcFile, initPath string) (bool, error) {
 	return false, scanner.Err()
 }
 
-// AppendSourceLine appends the dotr source line for initPath to rcFile.
+// AppendSourceLine appends the dotd source line for initPath to rcFile.
 // Creates rcFile if it does not exist.
 func AppendSourceLine(rcFile, initPath string) error {
 	line, err := SourceLine(initPath)
@@ -88,6 +88,6 @@ func AppendSourceLine(rcFile, initPath string) error {
 		return fmt.Errorf("setup: open %s: %w", rcFile, err)
 	}
 	defer func() { _ = f.Close() }()
-	_, err = fmt.Fprintf(f, "\n# dotr — generated shell init\n%s\n", line)
+	_, err = fmt.Fprintf(f, "\n# dotd — generated shell init\n%s\n", line)
 	return err
 }

@@ -41,12 +41,12 @@ func emptyEnvFile(t *testing.T) string {
 // --- dotd env list ---
 
 func TestEnvListShowsBuiltins(t *testing.T) {
-	out, err := run(t, "env", "list",
+	out, err := run(t, "env", "show",
 		"--env-file", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
-		t.Fatalf("env list error = %v", err)
+		t.Fatalf("env show error = %v", err)
 	}
 	// Built-in detectors always populate os and shell.
 	if !strings.Contains(out, "os=") {
@@ -64,12 +64,12 @@ func TestEnvListShowsFileKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "env", "list",
+	out, err := run(t, "env", "show",
 		"--env-file", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
-		t.Fatalf("env list error = %v", err)
+		t.Fatalf("env show error = %v", err)
 	}
 	if !strings.Contains(out, "context=work") {
 		t.Errorf("output missing context=work: %q", out)
@@ -77,13 +77,13 @@ func TestEnvListShowsFileKeys(t *testing.T) {
 }
 
 func TestEnvListEnvFlagOverride(t *testing.T) {
-	out, err := run(t, "env", "list",
+	out, err := run(t, "env", "show",
 		"--env-file", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 		"--env", "os=testvalue",
 	)
 	if err != nil {
-		t.Fatalf("env list error = %v", err)
+		t.Fatalf("env show error = %v", err)
 	}
 	if !strings.Contains(out, "os=testvalue") {
 		t.Errorf("output missing overridden os=testvalue: %q", out)
