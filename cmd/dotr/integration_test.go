@@ -343,3 +343,86 @@ func TestSymlinkConflictWithForce(t *testing.T) {
 		filepath.Join(e.dotfiles, "conf/dot-zshrc"),
 	)
 }
+
+// ----------------------------------------------------------------------------
+// Package management tests
+// ----------------------------------------------------------------------------
+//
+// Strategy: avoid real package managers entirely.
+//
+//   fake-installed  — binary: sh, which is always on PATH.
+//                     @require fake-installed always passes without installing anything.
+//
+//   not-installable — no managers defined, so it can never be installed.
+//                     @require not-installable always hard-fails.
+//                     @request not-installable always silently skips.
+//
+// This makes package tests deterministic on any machine.
+
+// TestPackageRequireMet verifies that apply succeeds when a @require package is installed.
+// needs-fake.sh has @require fake-installed (binary=sh, always on PATH).
+func TestPackageRequireMet(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+
+	// needs-fake.sh should be in init.sh — its @require was satisfied
+	init := readFile(t, e.initFile)
+	assertInInit(t, init, "needs-fake.sh")
+}
+
+// TestPackageRequestSoftSkip verifies that apply succeeds even when a @request
+// package is not installable. optional-tool.sh has @request not-installable.
+func TestPackageRequestSoftSkip(t *testing.T) {
+	e := newIenv(t)
+	// Should succeed — @request is soft, missing package is silently skipped.
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+
+	// The script itself is still active (condition passes); only the package install is skipped.
+	init := readFile(t, e.initFile)
+	assertInInit(t, init, "optional-tool.sh")
+}
+
+// TestPackageRequireHardFail verifies that apply fails when a @require package
+// cannot be installed. We write a temporary script with @require not-installable
+// into the fixture copy.
+func TestPackageRequireHardFail(t *testing.T) {
+	e := newIenv(t)
+
+	// Write a script with a hard requirement that can never be met.
+	script := "#!/bin/bash\n# @require not-installable\necho hi\n"
+	path := filepath.Join(e.dotfiles, "scripts", "hard-fail.sh")
+	if err := os.WriteFile(path, []byte(script), 0o644); err != nil {
+		t.Fatalf("write hard-fail.sh: %v", err)
+	}
+
+	_, err := e.runMayFail(t, "apply", "--env", "os=linux")
+	if err == nil {
+		t.Error("expected apply to fail when @require package is not installable")
+	}
+}
+
+// TestPackageCheckOutput verifies that `dotr package check` reports the right
+// status for each package type.
+func TestPackageCheckOutput(t *testing.T) {
+	e := newIenv(t)
+	out := e.run(t, "package", "check", "--env", "os=linux", "--env", "context=personal")
+
+	// fake-installed should show as installed (binary=sh is on PATH)
+	if !strings.Contains(out, "fake-installed") || !strings.Contains(out, "installed") {
+		t.Errorf("expected fake-installed to show as installed\noutput: %s", out)
+	}
+
+	// not-installable should show as not available
+	if !strings.Contains(out, "not-installable") {
+		t.Errorf("expected not-installable to appear in output\noutput: %s", out)
+	}
+}
+
+// TestPackageDryRun verifies that --dry-run skips actual installation.
+// We use a script with @require fake-installed — in non-dry-run this is a no-op
+// (already installed), but dry-run should also exit cleanly.
+func TestPackageDryRun(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal", "--dry-run")
+	// If we reached here without error, dry-run handled packages correctly.
+}

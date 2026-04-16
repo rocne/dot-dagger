@@ -7,7 +7,20 @@ package_managers:
     uninstall: apt-get remove -y {package}
 
 packages:
+  # ripgrep — real package, used for @request (soft) tests only
   ripgrep:
     binary: rg
     brew: {}
     apt: {}
+
+  # fake-installed — binary is "sh", which is always on PATH on any Unix machine.
+  # Using this in @require guarantees the requirement is always met without installing anything.
+  fake-installed:
+    binary: sh
+    brew: {}
+    apt: {}
+
+  # not-installable — no managers defined, so it can never be installed.
+  # Using this in @require guarantees a hard failure; in @request, a soft skip.
+  not-installable:
+    binary: definitely-not-a-real-binary-zzz
