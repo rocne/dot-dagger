@@ -6,7 +6,7 @@
 
 Shell scripts frequently depend on each other. Path setup must run before anything that uses the path. Base environment variables must be set before aliases that reference them. Plugin managers must load before their plugins.
 
-Without explicit ordering, dotr falls back to alphabetical order by logical name. That's fine for independent scripts, but breaks down the moment one script needs something another script provides.
+Without explicit ordering, dotd falls back to alphabetical order by logical name. That's fine for independent scripts, but breaks down the moment one script needs something another script provides.
 
 ## Declaring dependencies with @after
 
@@ -45,9 +45,9 @@ A path without a trailing `/` is matched against [logical names](file-identity.m
 
 ## How ordering works
 
-dotr builds a dependency graph from all `@after` declarations across active files, then produces a topological ordering — an ordering where every dependency comes before the file that depends on it.
+dotd builds a dependency graph from all `@after` declarations across active files, then produces a topological ordering — an ordering where every dependency comes before the file that depends on it.
 
-If there's a cycle (A depends on B, B depends on A), `dotr apply` fails with an error listing the cycle.
+If there's a cycle (A depends on B, B depends on A), `dotd apply` fails with an error listing the cycle.
 
 Files with no `@after` are ordered alphabetically by logical name within their position in the graph.
 
@@ -82,8 +82,7 @@ On Linux (where `homebrew.sh` is excluded by `@when os=macos`):
 ## Checking the load order
 
 ```sh
-dotd check --verbose    # show the resolved order
-dotr dag check --verbose
+dotd dag check --verbose
 ```
 
 This prints the numbered load order for the current machine without writing `init.sh`.

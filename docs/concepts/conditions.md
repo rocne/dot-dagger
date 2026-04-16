@@ -9,14 +9,14 @@ A condition is an expression that evaluates to true or false for a given machine
 # @when shell=zsh,bash                    # zsh or bash
 ```
 
-Conditions are evaluated once when you run `dotr apply`, against the environment resolved by `dote`. They are never re-evaluated at shell startup.
+Conditions are evaluated once when you run `dotd apply`. They are never re-evaluated at shell startup.
 
 ## Environment keys
 
-The environment is a flat map of string keys to string values. Most keys are detected automatically from the current machine. Run `dote show` to see the full map:
+The environment is a flat map of string keys to string values. Most keys are detected automatically from the current machine. Run `dotd env show` to see the full map:
 
 ```sh
-dote show
+dotd env show
 # os=macos
 # shell=zsh
 # distro=sequoia
@@ -44,7 +44,7 @@ env:
 Custom keys can also be set temporarily with `--env` without modifying `env.yaml`:
 
 ```sh
-dotr apply --env context=work
+dotd apply --env context=work
 ```
 
 ## Writing conditions
@@ -114,17 +114,17 @@ Functions and comparisons can be mixed freely:
 If a file isn't being included when you expect it to be, check the resolved environment first:
 
 ```sh
-dote show
+dotd env show
 ```
 
 Then try a dry run with verbose output:
 
 ```sh
-dotr apply --dry-run --verbose
+dotd apply --dry-run --verbose
 ```
 
 You can also override a key temporarily to test:
 
 ```sh
-dotr apply --env os=linux --dry-run
+dotd apply --env os=linux --dry-run
 ```

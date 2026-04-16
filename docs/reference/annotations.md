@@ -103,20 +103,20 @@ Directory components above the filename are always stripped regardless of `@reta
 
 ## @require
 
-Declares a hard package dependency. The file is only active if the package is installed or can be installed. If it can be installed, `dotp` installs it automatically. If it can't and isn't already present, `dotp` errors.
+Declares a hard package dependency. The file is only active if the package is installed or can be installed. If it can be installed, `dotd` installs it automatically. If it can't and isn't already present, `dotd` errors.
 
 ```sh
 # @require ripgrep
 # @require fzf
 ```
 
-See [dotp](dotp.md) and [packages.yaml](packages-yaml.md) for how packages are defined and installed.
+See [dotd package](dotd.md#dotd-package) and [packages.yaml](packages-yaml.md) for how packages are defined and installed.
 
 ---
 
 ## @request
 
-Declares a soft package dependency. The file is always active. `dotp` installs the package if it can, silently skips it if not.
+Declares a soft package dependency. The file is always active. `dotd` installs the package if it can, silently skips it if not.
 
 ```sh
 # @request fzf

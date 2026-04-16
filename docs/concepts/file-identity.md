@@ -1,6 +1,6 @@
 # File identity
 
-Every file in your dotfiles repo has a **logical name** — a stable identifier derived from its path. Logical names are used for dependency declarations (`@after`), variant files (`@name`), and anywhere dotr needs to refer to a file independent of its exact location.
+Every file in your dotfiles repo has a **logical name** — a stable identifier derived from its path. Logical names are used for dependency declarations (`@after`), variant files (`@name`), and anywhere dotd needs to refer to a file independent of its exact location.
 
 ## How logical names are derived
 
