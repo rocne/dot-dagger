@@ -20,13 +20,22 @@ const (
 	KeyRetainPrefix = "retain-prefix"
 	KeyRequire      = "require"
 	KeyRequest      = "request"
+
+	// KeyDisable excludes a file from all processing — no DAG, no sourcing, no symlinking.
+	KeyDisable = "disable"
+	// KeyNoSource keeps a file in the DAG for ordering purposes but omits it from init.sh.
+	// Only meaningful for KindScript nodes (or nodes with @source).
+	KeyNoSource = "no-source"
+	// KeySource forces a file into init.sh sourcing regardless of which directory it lives in.
+	KeySource = "source"
 )
 
 // IsCoreKey reports whether key is a built-in annotation key handled directly
 // by the suite rather than through a handler Registry.
 func IsCoreKey(key string) bool {
 	switch key {
-	case KeyWhen, KeyName, KeyAfter, KeySymlink, KeyRetainPrefix:
+	case KeyWhen, KeyName, KeyAfter, KeySymlink, KeyRetainPrefix,
+		KeyDisable, KeyNoSource, KeySource:
 		return true
 	}
 	return false

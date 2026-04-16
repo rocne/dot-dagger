@@ -50,8 +50,25 @@ type Set struct {
 	Env map[string]string
 }
 
-// Scripts returns all nodes with KindScript.
-func (s *Set) Scripts() []Node { return s.byKind(KindScript) }
+// Scripts returns nodes that will be sourced in init.sh.
+// Rules:
+//   - KindScript nodes are included by default.
+//   - @source forces any node into sourcing regardless of Kind.
+//   - @no-source removes a node from sourcing even if it is KindScript.
+func (s *Set) Scripts() []Node {
+	var result []Node
+	for _, n := range s.Nodes {
+		_, hasNoSource := annotation.First(n.Annotations, annotation.KeyNoSource)
+		if hasNoSource {
+			continue
+		}
+		_, hasSource := annotation.First(n.Annotations, annotation.KeySource)
+		if n.Kind == KindScript || hasSource {
+			result = append(result, n)
+		}
+	}
+	return result
+}
 
 // Conf returns all nodes with KindConf.
 func (s *Set) Conf() []Node { return s.byKind(KindConf) }
@@ -78,10 +95,14 @@ type Options struct {
 
 // BuildUnfiltered converts walk nodes to fileset nodes without predicate
 // evaluation — every node is included regardless of @when expressions.
+// @disable is still respected: disabled nodes are never included.
 // Used by standalone tools (dotl, dotp) that operate unconditionally.
 func BuildUnfiltered(nodes []walk.Node) *Set {
 	active := make([]Node, 0, len(nodes))
 	for _, n := range nodes {
+		if _, ok := annotation.First(n.Annotations, annotation.KeyDisable); ok {
+			continue
+		}
 		active = append(active, Node{
 			Path:        n.Path,
 			Kind:        n.Kind,
@@ -108,6 +129,9 @@ func Build(nodes []walk.Node, env map[string]string, opts *Options) (*Set, error
 
 	var active []Node
 	for _, n := range nodes {
+		if _, ok := annotation.First(n.Annotations, annotation.KeyDisable); ok {
+			continue
+		}
 		ok, err := evaluate(ev, n.EffectiveWhen)
 		if err != nil {
 			return nil, fmt.Errorf("fileset: evaluate %s: %w", n.Path, err)
