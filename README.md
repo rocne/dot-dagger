@@ -155,7 +155,7 @@ go install ./cmd/dotr ./cmd/dotd ./cmd/dotl ./cmd/dotp ./cmd/dote
 dotr apply -f ~/dotfiles
 
 # Wire init.sh into your shell
-echo 'source ~/.config/dot-dagger/init.sh' >> ~/.zshrc
+echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.zshrc
 
 # See what would change without touching anything
 dotr apply -f ~/dotfiles --dry-run

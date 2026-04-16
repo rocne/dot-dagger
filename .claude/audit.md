@@ -16,8 +16,8 @@ Statuses: `open` | `in-progress` | `done` | `wont-fix` | `deferred`
 ### A-02 — `dotr` init.sh default path diverges from `dotd`
 **Status:** `done` — noted as part of A-09 ecosystem canonicalization  
 **Files:** `cmd/dotr/main.go:374` vs `cmd/dotd/main.go:344`  
-**Detail:** `dotd` defaults to `~/.config/dot-dagger/init.sh` (correct per spec). `dotr` defaults to `~/.local/share/dot-dagger/init.sh` (wrong). Both write the same file; divergent defaults break interoperability without `--init-file`.  
-**Fix:** Change `dotr defaultInitFile()` to return `~/.config/dot-dagger/init.sh`. Resolved by A-09 (single source of truth for default paths).
+**Detail:** `dotd` defaults to `~/.local/share/dot-dagger/init.sh` (correct per spec). `dotr` defaults to `~/.local/share/dot-dagger/init.sh` (wrong). Both write the same file; divergent defaults break interoperability without `--init-file`.  
+**Fix:** Change `dotr defaultInitFile()` to return `~/.local/share/dot-dagger/init.sh`. Resolved by A-09 (single source of truth for default paths).
 
 ---
 
