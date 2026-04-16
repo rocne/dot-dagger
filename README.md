@@ -205,6 +205,35 @@ dotr apply -f ~/dotfiles --dry-run   # preview
 dotr check -f ~/dotfiles             # validate all stages
 ```
 
+### dotr adopt — bring files in
+
+Copies an existing file into your dotfiles repo, inferring the destination directory from the file's extension and executable bit.
+
+```sh
+dotr adopt ~/.bashrc              # infers conf/dot-bashrc
+dotr adopt ~/bin/my-script        # infers bin/my-script (executable bit)
+dotr adopt ~/setup.sh             # infers scripts/setup.sh (.sh extension)
+dotr adopt ~/.config/foo/bar.toml # infers conf/bar.toml (.toml extension)
+
+# Override the destination explicitly
+dotr adopt ~/.gitconfig --to conf/dot-gitconfig-personal
+
+# Accept inferred destination without prompting
+dotr adopt ~/.bashrc --yes
+```
+
+**Inference rules** (checked in order):
+
+| File characteristic | Destination |
+|--------------------|------------|
+| Executable bit set | `bin/<name>` |
+| `.sh`, `.bash`, `.zsh`, `.fish` extension | `scripts/<name>` |
+| Hidden dotfile (`.bashrc`, `.zshrc`, …) | `conf/dot-<name>` (dot- prefix added for symlink naming) |
+| `.conf`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `conf/<name>` |
+| Anything else | Error — use `--to` |
+
+After copying, `adopt` offers to remove the original (interactive mode only). Run `dotr apply` afterwards to create the symlink back to `$HOME`.
+
 ### dote — environment
 
 Owns `env.yaml`. Resolves the `Env` map used by all predicate evaluation.
@@ -241,7 +270,7 @@ Override the symlink root for a subtree via `.dot-dagger.yaml`:
 
 ```yaml
 # conf/dot-config/nvim/.dot-dagger.yaml
-directory:
+dotl:
   link_root: ~/.config/nvim
 ```
 
@@ -285,6 +314,9 @@ Shell files use `#`. C-style files use `//`. Any file format that supports comme
 | [`@retain-prefix`](#retain-prefix) | `dotl` | Opt out of `dot-` stripping |
 | [`@require`](#require-and-request--packages) | `dotp` | Hard package gate |
 | [`@request`](#require-and-request--packages) | `dotp` | Soft package ask |
+| [`@disable`](#disable-no-source-and-source--sourcing-control) | all tools | Exclude file from all processing |
+| [`@no-source`](#disable-no-source-and-source--sourcing-control) | `dotd` | Keep in DAG but omit from init.sh |
+| [`@source`](#disable-no-source-and-source--sourcing-control) | `dotd` | Force-source regardless of directory |
 
 ---
 
@@ -462,6 +494,63 @@ The file is always active. `dotp` installs `pkg` if it can; silently skips it if
 
 ---
 
+### `@disable`, `@no-source`, and `@source` — sourcing control
+
+These three annotations give you fine-grained control over whether a file participates in processing at all, and specifically whether it gets sourced into `init.sh`.
+
+#### `@disable` — exclude from all processing
+
+Removes the file from every stage: no symlinks, no DAG, no sourcing, no package checks. As if the file doesn't exist.
+
+```sh
+# @disable
+# This file is completely ignored by dotr regardless of which directory it lives in
+```
+
+Useful for keeping a file in your dotfiles repo (for reference, backup, or future use) without having it take effect anywhere.
+
+#### `@no-source` — in DAG, not sourced
+
+Keeps the file in the dependency graph for `@after` ordering purposes, but excludes it from `init.sh`. Only meaningful for files that would otherwise be sourced (i.e. files in `scripts/`, or files with `@source`).
+
+```sh
+# scripts/base.sh
+# (no @no-source — this gets sourced normally)
+
+# scripts/helpers.sh
+# @after scripts/base
+# @no-source
+# helpers.sh is in the DAG so others can depend on it, but it's not sourced directly
+```
+
+Use this when a file defines shared logic that other scripts `@after`, but shouldn't itself be sourced at shell startup.
+
+#### `@source` — force-source from any directory
+
+The inverse of `@no-source`. Forces a file into `init.sh` sourcing even if it isn't in `scripts/`. Works with any file anywhere in your dotfiles repo.
+
+```sh
+# conf/dot-config/shell/extras.sh
+# @source
+# This conf/ file will be sourced in init.sh despite not being in scripts/
+```
+
+Use `@source` when you have a shell script that also needs to be symlinked as a config file, or when your repo layout doesn't fit the `scripts/` convention for a particular file.
+
+#### Summary
+
+| Annotation | In DAG? | Symlinked? | Sourced in init.sh? |
+|-----------|---------|-----------|-------------------|
+| _(none)_ in `scripts/` | Yes | No | Yes |
+| _(none)_ in `conf/` | No | Yes | No |
+| `@no-source` | Yes | As normal | **No** |
+| `@source` | Yes | As normal | **Yes** |
+| `@disable` | **No** | **No** | **No** |
+
+`.dot-dagger.yaml` equivalents: `disable: true`, `no_source: true`, `source: true` in a `files:` entry.
+
+---
+
 ## Configuration files
 
 ### env.yaml
@@ -539,29 +628,40 @@ packages:
 Per-directory config for files that can't carry annotations — JSON, XML, binary, and anything else without a supported comment syntax. Can appear in any directory; `defaults` cascades to subdirectories.
 
 ```yaml
-# Gate traversal of this entire directory
-directory:
+# dotd section: directory-level conditions and per-file overrides
+dotd:
+  # Gate traversal of this entire directory
   when: "os=macos"
-  link_root: ~/.config/nvim   # symlink root override for this subtree
 
-# Applied to every file in this directory (ANDed with file's own @when)
-defaults:
-  when: "context=work"
-
-# Per-file metadata
-files:
-  - path: dot-gitconfig-work
+  # Applied to every file in this directory (ANDed with file's own @when)
+  defaults:
     when: "context=work"
-    symlink: ~/.gitconfig
 
-  - path: dot-gitconfig-personal
-    when: "context=personal"
-    symlink: ~/.gitconfig
+  # Per-file metadata for files that can't carry annotations
+  files:
+    - path: dot-gitconfig-work
+      when: "context=work"
+      symlink: ~/.gitconfig
 
-  - path: settings.json
-    when: "os=macos"
-    symlink: settings.json    # relative to link_root
-    retain_prefix: true
+    - path: dot-gitconfig-personal
+      when: "context=personal"
+      symlink: ~/.gitconfig
+
+    - path: settings.json
+      when: "os=macos"
+      retain_prefix: true
+
+    # Sourcing control equivalents for non-annotatable files
+    - path: some-helper.json
+      disable: true        # equivalent to @disable
+    - path: loader.sh
+      no_source: true      # equivalent to @no-source
+    - path: extras.sh
+      source: true         # equivalent to @source
+
+# dotl section: symlink root override for this subtree
+dotl:
+  link_root: ~/.config/nvim
 ```
 
 ---
