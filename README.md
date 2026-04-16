@@ -311,7 +311,7 @@ Shell files use `#`. C-style files use `//`. Any file format that supports comme
 | [`@after`](#after--dag-ordering) | `dotd` | Declare a sourcing-order dependency |
 | [`@name`](#name--logical-name) | `dotd` | Override the file's logical name |
 | [`@symlink`](#symlink--explicit-destination) | `dotl` | Symlink to an explicit path |
-| [`@retain-prefix`](#retain-prefix) | `dotl` | Opt out of `dot-` stripping |
+| [`@retain-prefix`](#retain-prefix) | `dotl` | Opt out of `dot-` and `nosync-` prefix stripping on the filename |
 | [`@require`](#require-and-request--packages) | `dotp` | Hard package gate |
 | [`@request`](#require-and-request--packages) | `dotp` | Soft package ask |
 | [`@disable`](#disable-no-source-and-source--sourcing-control) | all tools | Exclude file from all processing |
@@ -451,13 +451,18 @@ Absolute paths are used as-is. Relative paths resolve against the effective `lin
 
 ### `@retain-prefix`
 
-By default, `dot-` is stripped from directory names when computing symlink destinations. `@retain-prefix` opts out of this for the **last path component** of the destination.
+By default, both `dot-` and `nosync-` are stripped from every path component when computing logical names and symlink destinations. `@retain-prefix` opts out of this stripping for the **filename** (last path component) — both `dot-` and `nosync-` are kept as-is in the destination name.
 
 ```sh
-# conf/dot-tmux.conf  →  normally symlinked to ~/.tmux.conf
+# conf/dot-tmux.conf       →  normally symlinked to ~/.tmux.conf
+# conf/nosync-private.conf →  normally symlinked to ~/.private.conf
+
 # With @retain-prefix:
-# conf/dot-tmux.conf  →  symlinked to ~/.dot-tmux.conf
+# conf/dot-tmux.conf       →  symlinked to ~/.dot-tmux.conf
+# conf/nosync-private.conf →  symlinked to ~/.nosync-private.conf
 ```
+
+Directory components above the filename are always stripped regardless of `@retain-prefix`.
 
 ---
 
