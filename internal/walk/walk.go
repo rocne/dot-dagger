@@ -256,8 +256,8 @@ func applyFileEntryOverrides(anns []annotation.Annotation, fe *daggeryaml.FileEn
 
 // logicalNameFor computes the logical name of path relative to root.
 // Per-component: strip nosync-, strip dot-. Final component: also strip extension.
-// If retainPrefix is true, the dot- transformation is skipped on the final component
-// (nosync- is still stripped, extension is still stripped).
+// If retainPrefix is true, neither dot- nor nosync- is stripped from the final component
+// (extension is still stripped).
 func logicalNameFor(root, path string, retainPrefix bool) string {
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
@@ -268,7 +268,7 @@ func logicalNameFor(root, path string, retainPrefix bool) string {
 	for i, p := range parts {
 		last := i == len(parts)-1
 		if last && retainPrefix {
-			p = strings.TrimPrefix(p, "nosync-") // strip nosync- but keep dot-
+			// keep dot- and nosync- as-is on the filename
 		} else {
 			p = stripPrefixes(p)
 		}
