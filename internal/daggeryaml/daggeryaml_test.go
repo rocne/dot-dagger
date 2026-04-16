@@ -1,4 +1,4 @@
-package dotryaml
+package daggeryaml
 
 import (
 	"strings"

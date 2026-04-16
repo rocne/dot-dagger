@@ -35,7 +35,7 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     "dotp",
+		Use:     ecosystem.ToolP,
 		Short:   "Dotfiles package manager — installs packages declared via @require/@request (unconditional)",
 		Version: version,
 	}
@@ -99,7 +99,7 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 
 		if !installable {
 			if req.Hard {
-				return fmt.Errorf("dotp: %s: @require %q: not installed and not installable",
+				return fmt.Errorf(ecosystem.ToolP+": %s: @require %q: not installed and not installable",
 					req.NodePath, req.Package)
 			}
 			if cfg.verbose {
@@ -123,7 +123,7 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 		c.Stderr = cmd.ErrOrStderr()
 		if err := c.Run(); err != nil {
 			if req.Hard {
-				return fmt.Errorf("dotp: install %s: %w", req.Package, err)
+				return fmt.Errorf(ecosystem.ToolP+": install %s: %w", req.Package, err)
 			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "warning: install %s: %v\n", req.Package, err)
 		}
@@ -211,7 +211,7 @@ func loadContext(cfg *config) (*fileset.Set, *packages.Registry, error) {
 func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, error) {
 	entry, ok := reg.Packages[pkg]
 	if !ok {
-		return "", "", fmt.Errorf("dotp: package %q not in registry", pkg)
+		return "", "", fmt.Errorf(ecosystem.ToolP+": package %q not in registry", pkg)
 	}
 	for _, mgr := range packages.ManagerOrder(pkg, reg) {
 		if _, hasEntry := entry.Managers[mgr]; !hasEntry {
@@ -226,7 +226,7 @@ func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, erro
 		}
 		return mgr, cmd, nil
 	}
-	return "", "", fmt.Errorf("dotp: no installable manager found for %q", pkg)
+	return "", "", fmt.Errorf(ecosystem.ToolP+": no installable manager found for %q", pkg)
 }
 
 func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }

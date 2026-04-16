@@ -8,11 +8,10 @@ Statuses: `open` | `in-progress` | `done` | `wont-fix` | `deferred`
 
 ## H — Spec Violations
 
-### A-01 — Config file named `.dotr.yaml` everywhere; spec says `.dotd.yaml`
-**Status:** `open`  
-**Files:** `internal/dotryaml/dotryaml.go` (package name, struct `DotR`), `internal/walk/walk.go:100`, `internal/setup/setup.go:76`  
-**Detail:** Spec (`dag.md`, `architecture.md`, `symlinks.md`) consistently uses `.dotd.yaml`. Spec `architecture.md:18` even names the package `dotdyaml`. Code uses `.dotr.yaml` everywhere. Package name `dotryaml` is also wrong.  
-**Fix:** Rename package `dotryaml` → `dotdyaml`, struct `DotR` → `DotD`, file references `.dotr.yaml` → `.dotd.yaml` everywhere.
+### A-01 — Config file named `.dotr.yaml` everywhere; should be ecosystem-named
+**Status:** `done`  
+**Files:** `internal/daggeryaml/daggeryaml.go` (was `dotryaml`), `internal/walk/walk.go`, `internal/setup/setup.go`  
+**Detail:** File is ecosystem config (sections owned by multiple tools), so it belongs to the ecosystem, not any one tool. Spec called it `.dotd.yaml` (also wrong — implies dotd ownership). Renamed to `.dot-dagger.yaml` using `ecosystem.ConfigFile`. Package renamed `dotryaml` → `daggeryaml`, struct `DotR` → `Config`.
 
 ### A-02 — `dotr` init.sh default path diverges from `dotd`
 **Status:** `done` — noted as part of A-09 ecosystem canonicalization  

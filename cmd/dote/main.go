@@ -30,7 +30,7 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     "dote",
+		Use:     ecosystem.ToolE,
 		Short:   "Environment resolution for the dotr suite",
 		Version: version,
 	}

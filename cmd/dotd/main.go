@@ -42,7 +42,7 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     "dotd",
+		Use:     ecosystem.ToolD,
 		Short:   "Dotfiles script DAG — generates init.sh and applies conf/bin symlinks",
 		Version: version,
 	}

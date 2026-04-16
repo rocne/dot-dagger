@@ -45,7 +45,7 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     "dotr",
+		Use:     ecosystem.ToolR,
 		Short:   "Dotfiles orchestrator — composes dote, dotd, dotl, and dotp",
 		Version: version,
 	}
@@ -305,7 +305,7 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 
 	if !installable {
 		if req.Hard {
-			return fmt.Errorf("dotr: %s: @require %q: not installed and not installable",
+			return fmt.Errorf(ecosystem.ToolR+": %s: @require %q: not installed and not installable",
 				req.NodePath, req.Package)
 		}
 		if cfg.verbose {
@@ -329,7 +329,7 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 	c.Stderr = cmd.ErrOrStderr()
 	if err := c.Run(); err != nil {
 		if req.Hard {
-			return fmt.Errorf("dotr: install %s: %w", req.Package, err)
+			return fmt.Errorf(ecosystem.ToolR+": install %s: %w", req.Package, err)
 		}
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: install %s: %v\n", req.Package, err)
 	}
@@ -339,7 +339,7 @@ func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest,
 func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, error) {
 	entry, ok := reg.Packages[pkg]
 	if !ok {
-		return "", "", fmt.Errorf("dotr: package %q not in registry", pkg)
+		return "", "", fmt.Errorf(ecosystem.ToolR+": package %q not in registry", pkg)
 	}
 	for _, mgr := range packages.ManagerOrder(pkg, reg) {
 		if _, hasEntry := entry.Managers[mgr]; !hasEntry {
@@ -354,7 +354,7 @@ func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, erro
 		}
 		return mgr, cmd, nil
 	}
-	return "", "", fmt.Errorf("dotr: no installable manager found for %q", pkg)
+	return "", "", fmt.Errorf(ecosystem.ToolR+": no installable manager found for %q", pkg)
 }
 
 func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }

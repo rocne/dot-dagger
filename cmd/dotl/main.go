@@ -36,7 +36,7 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     "dotl",
+		Use:     ecosystem.ToolL,
 		Short:   "Dotfiles linker — symlinks conf/ and bin/ files into the system (unconditional)",
 		Version: version,
 	}

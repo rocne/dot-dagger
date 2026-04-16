@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/packages"
 )
 
@@ -73,7 +74,7 @@ func Scaffold(opts Options) (*Result, error) {
 		content string
 	}{
 		{opts.EnvFilePath, envYAML(opts)},
-		{filepath.Join(opts.DotfilesDir, ".dotr.yaml"), dotrYAML()},
+		{filepath.Join(opts.DotfilesDir, ecosystem.ConfigFile), daggerYAML()},
 		{filepath.Join(opts.DotfilesDir, "packages.yaml"), packagesYAML(opts.SelectedManagers)},
 	}
 	for _, f := range files {
@@ -114,7 +115,7 @@ func ensureFile(path, content string) (Action, error) {
 
 func envYAML(opts Options) string {
 	var sb strings.Builder
-	sb.WriteString("# dotr environment — keys used in @when predicates.\n")
+	fmt.Fprintf(&sb, "# %s environment — keys used in @when predicates.\n", ecosystem.Name)
 	sb.WriteString("# Built-in keys are auto-detected at runtime. Uncomment to override.\n")
 	if opts.DetectedOS != "" || opts.DetectedDistro != "" || opts.DetectedShell != "" {
 		sb.WriteString("\n")
@@ -131,7 +132,7 @@ func envYAML(opts Options) string {
 	return sb.String()
 }
 
-func dotrYAML() string {
+func daggerYAML() string {
 	return `# Per-directory config for non-annotatable files.
 # Each tool reads only its own section.
 
