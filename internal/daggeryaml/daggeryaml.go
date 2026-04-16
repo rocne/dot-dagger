@@ -46,6 +46,9 @@ type FileEntry struct {
 	Name         string `yaml:"name"`
 	Symlink      string `yaml:"symlink"`
 	RetainPrefix bool   `yaml:"retain_prefix"`
+	Disable      bool   `yaml:"disable"`   // equivalent to @disable
+	NoSource     bool   `yaml:"no_source"` // equivalent to @no-source
+	Source       bool   `yaml:"source"`    // equivalent to @source
 }
 
 // DotlSection holds dotl-owned config: symlink root override.

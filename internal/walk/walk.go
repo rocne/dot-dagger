@@ -70,11 +70,18 @@ type Node struct {
 	LinkRoot string
 }
 
+// Special directory names recognised anywhere in the dotfiles repo.
+const (
+	DirScripts = "scripts"
+	DirConf    = "conf"
+	DirBin     = "bin"
+)
+
 // specialDirNames maps directory base names to their Kind.
 var specialDirNames = map[string]Kind{
-	"scripts": KindScript,
-	"conf":    KindConf,
-	"bin":     KindBin,
+	DirScripts: KindScript,
+	DirConf:    KindConf,
+	DirBin:     KindBin,
 }
 
 // Walk traverses the dotfiles repo at root and returns all file nodes.
@@ -223,6 +230,15 @@ func applyFileEntryOverrides(anns []annotation.Annotation, fe *daggeryaml.FileEn
 	}
 	if fe.RetainPrefix {
 		result = append(result, annotation.Annotation{Key: annotation.KeyRetainPrefix})
+	}
+	if fe.Disable {
+		result = append(result, annotation.Annotation{Key: annotation.KeyDisable})
+	}
+	if fe.NoSource {
+		result = append(result, annotation.Annotation{Key: annotation.KeyNoSource})
+	}
+	if fe.Source {
+		result = append(result, annotation.Annotation{Key: annotation.KeySource})
 	}
 	return result
 }
