@@ -47,7 +47,7 @@ conf/zsh/
 
 Both approaches have the same failure mode: they scale until they don't. The `if` blocks accumulate and nest. The numbers drift out of sync with the actual dependencies. You end up with a setup that works on your current machine but is hard to reason about, hard to extend, and brittle to move to a new one.
 
-dotr's approach: **annotate files, not shell code**. Each file declares when it should be active. dotr evaluates those conditions once at apply time, builds the active file set for this machine, and writes a clean `init.sh` with no runtime branches.
+dotr's approach: **annotate files, not shell code**. Each file declares when it should be active and what it depends on. dotr evaluates those declarations once when you run `apply`, builds the active file set for this machine, and writes a clean `init.sh` with no runtime branches.
 
 ```sh
 #!/bin/bash
@@ -68,7 +68,7 @@ The same annotation system drives symlink management and package installation. O
 |---|---|---|---|---|
 | Symlinks | ✓ | ✓ | ✗ (copies) | ✓ |
 | Per-file conditions | ✗ | ✗ | Templates | Annotations |
-| DAG-ordered init.sh | ✗ | ✗ | ✗ | ✓ |
+| Dependency-ordered init.sh | ✗ | ✗ | ✗ | ✓ |
 | Package management | ✗ | Plugins | ✗ | ✓ (`@require`/`@request`) |
 | Work/personal separation | Manual | Manual | Encryption | `@when context=work` |
 | Multi-shell | Manual | Manual | Templates | `@when shell=zsh` |
@@ -93,7 +93,23 @@ The core dotr bet: **conditions belong on files, not in shell code or central ma
 
 **Composable tools.** Every tool works standalone. `dotr` composes them, but you can script individual tools, use only the pieces you need, and understand the system by reading one piece at a time.
 
-**Predicate evaluation, not runtime conditionals.** The active file set is resolved once at apply time. Your shell rc sources a pre-built `init.sh` with no branches — fast startup, predictable behavior.
+**Apply-time evaluation, not runtime conditionals.** Each file declares a condition — a test that evaluates to true or false for this machine. dotr checks all conditions once when you run `apply`. Your shell sources a pre-built `init.sh` with no branches — fast startup, predictable behavior.
+
+---
+
+## How it works
+
+dotr is made up of four tools that each own one stage of the process:
+
+1. **`dote`** detects your environment — OS, distro, shell — and loads any overrides from `env.yaml`. This produces the resolved environment used for all condition evaluation.
+
+2. **`dotd`** walks `scripts/`, evaluates `@when` conditions against the resolved environment, and resolves `@after` dependencies into a load order. It writes a single `init.sh` that sources only the active scripts in the right order.
+
+3. **`dotl`** walks `conf/` and `bin/`, plans symlinks into `$HOME` and `$PATH`, and applies them. It detects drift — missing, wrong-target, and conflicting symlinks are reported.
+
+4. **`dotp`** reads `@require` and `@request` annotations across your dotfiles and installs packages using whichever manager is available on this machine.
+
+`dotr` runs all four in a single pass. Run `dotr apply` whenever your dotfiles change.
 
 ---
 
@@ -134,28 +150,15 @@ go install ./cmd/dotr ./cmd/dotd ./cmd/dotl ./cmd/dotp ./cmd/dote
 
 ---
 
-## How it works
-
-1. **`dote`** detects your environment — OS, distro, shell — and loads any overrides from `env.yaml`. This produces the `Env` map used for all predicate evaluation.
-
-2. **`dotd`** walks `scripts/`, evaluates `@when` predicates against the `Env` map, and resolves `@after` dependencies into a topological order. It writes a single `init.sh` that sources only the active scripts in the right order.
-
-3. **`dotl`** walks `conf/` and `bin/`, plans symlinks into `$HOME` and `$PATH`, and applies them. It detects drift — missing, wrong-target, and conflicting symlinks are reported.
-
-4. **`dotp`** reads `@require` and `@request` annotations across your dotfiles and installs packages using whichever manager is available on this machine.
-
-`dotr` runs all four in a single pass. Run `dotr apply` whenever your dotfiles change.
-
----
-
 ## Quick start
 
 ```sh
 # Apply everything — symlinks, packages, init.sh
 dotr apply -f ~/dotfiles
 
-# Wire init.sh into your shell
-echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.zshrc
+# Wire init.sh into your shell (pick your shell)
+echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.zshrc   # zsh
+echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.bashrc  # bash
 
 # See what would change without touching anything
 dotr apply -f ~/dotfiles --dry-run
@@ -170,28 +173,32 @@ dotr check -f ~/dotfiles
 
 ```
 dotfiles/
-  scripts/        ← shell scripts sourced into init.sh, in DAG order
-  conf/           ← config files symlinked into $HOME
-  bin/            ← executables symlinked onto $PATH
-  env.yaml        ← your environment context (os, shell, context, etc.)
-  packages.yaml   ← package registry
-  .dot-dagger.yaml      ← metadata for files that can't carry annotations
+  scripts/          ← shell scripts sourced into init.sh, in dependency order
+  conf/             ← config files symlinked into $HOME
+  bin/              ← executables symlinked onto $PATH
+  env.yaml          ← your environment context (os, shell, context, etc.)
+  packages.yaml     ← package registry
+  .dot-dagger.yaml  ← per-directory config for files that can't carry annotations
 ```
+
+Any file in `scripts/`, `conf/`, or `bin/` is picked up automatically. Annotations (comments at the top of a file — see [Annotations](#annotations) below) control conditions, ordering, and package requirements.
 
 ### Naming conventions
 
-**`dot-` prefix** is stripped from directory names in symlink destinations:
+**`dot-` prefix** is stripped when computing symlink destinations, so files named with a `dot-` prefix become hidden files in `$HOME`:
 
 ```
 conf/dot-config/nvim/init.lua  →  ~/.config/nvim/init.lua
 conf/dot-zshrc                 →  ~/.zshrc
 ```
 
-**`nosync-` prefix** is stripped from logical names (useful for machine-specific dirs you don't commit):
+**`nosync-` prefix** is stripped from path components when computing a file's identity. This is useful for machine-specific directories you don't want to commit — they still participate in the process but don't pollute logical names:
 
 ```
-nosync-work/scripts/aliases.sh  →  logical name: work.scripts.aliases
+nosync-work/scripts/aliases.sh  →  identity: work.scripts.aliases
 ```
+
+Both prefixes are explained further in the [Annotations](#annotations) section.
 
 ---
 
@@ -199,26 +206,42 @@ nosync-work/scripts/aliases.sh  →  logical name: work.scripts.aliases
 
 ### dotr — orchestrator
 
+Runs all four tools in sequence: environment → packages → symlinks → init.sh.
+
 ```sh
 dotr apply -f ~/dotfiles             # full reconciliation
 dotr apply -f ~/dotfiles --dry-run   # preview
 dotr check -f ~/dotfiles             # validate all stages
 ```
 
-### dotr adopt — bring files in
+### dotr setup — onboarding
 
-Copies an existing file into your dotfiles repo, inferring the destination directory from the file's extension and executable bit.
+Interactive setup that scaffolds a dotfiles repo, writes config files, and wires up your shell.
+
+```sh
+dotr setup                  # interactive — walks through each step
+dotr setup --yes            # non-interactive, accept all defaults
+dotr setup -f ~/my-dotfiles # specify a dotfiles directory
+```
+
+Steps through: dotfiles directory path, `env.yaml` location, `init.sh` output path, and which package managers to pre-populate in `packages.yaml`. After scaffolding, it detects your shell config file and offers to append the `source` line automatically.
+
+---
+
+### dotr adopt — bring a file in
+
+Copies an existing file into your dotfiles repo, inferring the right destination directory from the file's name and properties.
 
 ```sh
 dotr adopt ~/.bashrc              # infers conf/dot-bashrc
-dotr adopt ~/bin/my-script        # infers bin/my-script (executable bit)
+dotr adopt ~/bin/my-script        # infers bin/my-script (marked executable)
 dotr adopt ~/setup.sh             # infers scripts/setup.sh (.sh extension)
 dotr adopt ~/.config/foo/bar.toml # infers conf/bar.toml (.toml extension)
 
 # Override the destination explicitly
 dotr adopt ~/.gitconfig --to conf/dot-gitconfig-personal
 
-# Accept inferred destination without prompting
+# Accept the inferred destination without prompting
 dotr adopt ~/.bashrc --yes
 ```
 
@@ -226,33 +249,58 @@ dotr adopt ~/.bashrc --yes
 
 | File characteristic | Destination |
 |--------------------|------------|
-| Executable bit set | `bin/<name>` |
+| Marked executable (`chmod +x`) | `bin/<name>` |
 | `.sh`, `.bash`, `.zsh`, `.fish` extension | `scripts/<name>` |
-| Hidden dotfile (`.bashrc`, `.zshrc`, …) | `conf/dot-<name>` (dot- prefix added for symlink naming) |
+| Hidden file (`.bashrc`, `.zshrc`, …) | `conf/dot-<name>` — the `dot-` prefix means it will symlink back as a hidden file |
 | `.conf`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `conf/<name>` |
-| Anything else | Error — use `--to` |
+| Anything else | Error — use `--to` to specify the destination |
 
-After copying, `adopt` offers to remove the original (interactive mode only). Run `dotr apply` afterwards to create the symlink back to `$HOME`.
+After copying, `adopt` offers to remove the original (in interactive mode). Run `dotr apply` afterwards to create the symlink back to `$HOME`.
+
+### dotr subcommands — condition-filtered stages
+
+`dotr` exposes each stage as a subcommand so you can run a single stage with conditions applied, without running the full pipeline:
+
+| Subcommand | Stage | Equivalent standalone |
+|---|---|---|
+| `dotr env show/get/set` | Environment | `dote show/get/set` |
+| `dotr dag apply/check` | init.sh generation | `dotd apply/check` |
+| `dotr link apply/check/remove` | Symlinks | `dotl apply/check/remove` |
+| `dotr package install/check/list` | Packages | `dotp install/check/list` |
+
+The difference from the standalone tools: `dotr` subcommands evaluate `@when` conditions first, so only files active on this machine are processed. The standalone tools (`dotd`, `dotl`, `dotp`) operate unconditionally — useful for introspection or scripting.
+
+```sh
+dotr env show                       # show resolved environment
+dotr env get os                     # get a single key
+dotr env set context=work           # write to env.yaml
+dotr dag apply --dry-run            # preview init.sh without writing
+dotr dag check --verbose            # show load order
+dotr link check                     # report symlink state
+dotr package check                  # report package status
+```
+
+---
 
 ### dote — environment
 
-Owns `env.yaml`. Resolves the `Env` map used by all predicate evaluation.
+Owns `env.yaml`. Resolves the environment map used by all condition evaluation.
 
 ```sh
 dote show                    # print the fully resolved environment
 dote show --env context=work # override a key
 ```
 
-`dote show` is the first thing to reach for when a `@when` predicate isn't behaving as expected.
+`dote show` is the first thing to reach for when a `@when` condition isn't behaving as expected.
 
 ### dotd — init.sh generation
 
-Owns `scripts/`. Evaluates predicates, resolves DAG, writes `init.sh`.
+Owns `scripts/`. Evaluates conditions, resolves load order, writes `init.sh`.
 
 ```sh
 dotd apply -f ~/dotfiles                        # generate init.sh
 dotd apply -f ~/dotfiles --dry-run              # preview
-dotd check -f ~/dotfiles                        # validate DAG
+dotd check -f ~/dotfiles                        # validate
 dotd apply -f ~/dotfiles --init-file ~/init.sh  # custom output path
 ```
 
@@ -289,7 +337,7 @@ dotp install -f ~/dotfiles --dry-run # preview
 
 ## Annotations
 
-Annotations are comments at the top of a file. Scanning begins at the first line (skipping a shebang if present) and stops at the first blank line or non-comment line.
+Annotations are metadata written as comments at the top of a file. They declare conditions, dependencies, package requirements, and other per-file behavior. dotr reads them at apply time — they have no effect at shell startup.
 
 ```sh
 #!/bin/bash
@@ -301,30 +349,48 @@ Annotations are comments at the top of a file. Scanning begins at the first line
 export EDITOR=nvim
 ```
 
-Shell files use `#`. C-style files use `//`. Any file format that supports comments works.
+Scanning begins at the first line. If the first line is a shebang (`#!/bin/bash` — the line that tells the OS which interpreter to use), it is skipped. Scanning then reads contiguous comment lines and stops at the first blank line or non-comment line. Shell files use `#`. C-style files use `//`. Any file format with comments works.
+
+Every file has a **logical name** derived from its path: `nosync-` and `dot-` prefixes are stripped from each path component, the file extension is stripped from the filename, and the remaining components are joined with `.`:
+
+```
+scripts/helpers.sh              →  scripts.helpers
+nosync-work/scripts/work.sh     →  work.scripts.work
+conf/dot-config/nvim/init.lua   →  conf.config.nvim.init
+```
+
+The logical name is used for dependency declarations and to identify variant files. See [`@name`](#name--override-logical-name) for how to override it.
 
 ### Annotation reference
 
 | Annotation | Owned by | Purpose |
 |-----------|---------|---------|
-| [`@when`](#when--inclusion-predicate) | all tools | Gate file inclusion on a predicate |
-| [`@after`](#after--dag-ordering) | `dotd` | Declare a sourcing-order dependency |
-| [`@name`](#name--logical-name) | `dotd` | Override the file's logical name |
+| [`@when`](#when--condition) | all tools | Gate file inclusion on a condition |
+| [`@name`](#name--override-logical-name) | `dotd` | Override the file's logical name |
+| [`@after`](#after--load-order) | `dotd` | Declare a load-order dependency |
 | [`@symlink`](#symlink--explicit-destination) | `dotl` | Symlink to an explicit path |
-| [`@retain-prefix`](#retain-prefix) | `dotl` | Opt out of `dot-` and `nosync-` prefix stripping on the filename |
+| [`@retain-prefix`](#retain-prefix) | `dotl` | Keep `dot-`/`nosync-` prefix on the filename instead of stripping it |
 | [`@require`](#require-and-request--packages) | `dotp` | Hard package gate |
 | [`@request`](#require-and-request--packages) | `dotp` | Soft package ask |
 | [`@disable`](#disable-no-source-and-source--sourcing-control) | all tools | Exclude file from all processing |
-| [`@no-source`](#disable-no-source-and-source--sourcing-control) | `dotd` | Keep in DAG but omit from init.sh |
+| [`@no-source`](#disable-no-source-and-source--sourcing-control) | `dotd` | Keep in load order but omit from init.sh |
 | [`@source`](#disable-no-source-and-source--sourcing-control) | `dotd` | Force-source regardless of directory |
 
 ---
 
-### `@when` — inclusion predicate
+### `@when` — condition
 
-A file with no `@when` is always active. A file with `@when` is active only if the predicate evaluates to true.
+A file with no `@when` is always active. A file with `@when` is only included if the condition is true for this machine.
 
-Multiple `@when` lines are **ANDed** together:
+```sh
+# @when os=macos                         # only on macOS
+# @when os=macos AND context=work        # macOS and work context
+# @when os=macos,linux                   # macOS or Linux (comma = OR shorthand)
+# @when exists(brew)                     # only if brew is on PATH
+# @when os=macos AND (shell=zsh OR shell=bash)
+```
+
+Multiple `@when` lines are ANDed together:
 
 ```sh
 # @when os=macos
@@ -332,38 +398,25 @@ Multiple `@when` lines are **ANDed** together:
 # effective: os=macos AND context=work
 ```
 
-#### Predicate DSL
+#### Conditions reference
 
-```
-predicate  = or_expr
-or_expr    = and_expr (OR and_expr)*
-and_expr   = atom (AND atom)*
-atom       = "(" predicate ")"
-           | call
-           | comparison
-call       = IDENT "(" IDENT ")"
-comparison = KEY "=" VALUE ("," VALUE)*
-```
-
-`AND` binds tighter than `OR`. Use parentheses to override.
-
-**Comparisons:**
+A condition is an expression that evaluates to true or false. The simplest form is a key-value comparison:
 
 ```sh
 # @when os=macos              # exact match
-# @when os=macos,linux        # os is macos OR linux  (comma = same-key OR shorthand)
+# @when os=macos,linux        # os is macos OR linux
 # @when shell=zsh,bash        # shell is zsh OR bash
 ```
 
-**Operators:**
+Conditions can be combined with `AND` and `OR`. `AND` binds more tightly than `OR`; use parentheses to override:
 
 ```sh
-# @when os=macos OR os=linux           # either
-# @when os=macos AND shell=zsh         # both
-# @when os=macos AND (shell=zsh OR shell=bash)   # grouping
+# @when os=macos OR os=linux
+# @when os=macos AND shell=zsh
+# @when os=macos AND (shell=zsh OR shell=bash)
 ```
 
-**Function calls:**
+Conditions can also call built-in functions:
 
 ```sh
 # @when exists(brew)                   # brew is on PATH
@@ -381,9 +434,9 @@ comparison = KEY "=" VALUE ("," VALUE)*
 | `shell` | Yes — from `$SHELL` | `zsh`, `bash`, `fish`, ... |
 | `context` | No — set in `env.yaml` | anything you define (`work`, `personal`, ...) |
 
-Custom keys can be declared in `env.yaml`. Run `dote show` to see the full resolved map.
+Custom keys can be declared in `env.yaml`. Run `dote show` to see the full resolved environment.
 
-#### Built-in predicate functions
+#### Built-in functions
 
 | Function | True when |
 |----------|-----------|
@@ -393,33 +446,11 @@ Custom keys can be declared in `env.yaml`. Run `dote show` to see the full resol
 
 ---
 
-### `@after` — DAG ordering
+### `@name` — override logical name
 
-Controls the order scripts appear in `init.sh`. Only meaningful in `scripts/`.
+Every file has a logical name derived from its path (described above). `@name` replaces the entire derived name.
 
-```sh
-# @after scripts/base/            # all active files under scripts/base/
-# @after scripts/env/             # all active files under scripts/env/
-# @after tmux.scripts.helpers     # one specific file, by logical name
-```
-
-- Path references ending in `/` expand to all active files under that path
-- If no matching files are active, the dependency is silently ignored — never an error
-- Files with no `@after` are ordered alphabetically by logical name within their topological frontier
-
----
-
-### `@name` — logical name
-
-Every file has a **logical name** derived from its path: strip `nosync-` and `dot-` prefixes from each component, strip the file extension from the last component.
-
-```
-scripts/helpers.sh          →  scripts.helpers
-nosync-work/scripts/work.sh →  work.scripts.work
-conf/dot-config/nvim/init.lua →  conf.config.nvim.init
-```
-
-`@name` replaces the entire derived name. Its primary use is **variant files** — two files that represent the same logical unit under mutually exclusive conditions:
+Its main use is **variant files** — two files that represent the same thing under mutually exclusive conditions:
 
 ```sh
 # scripts/aliases-macos.sh
@@ -433,13 +464,30 @@ conf/dot-config/nvim/init.lua →  conf.config.nvim.init
 # @when os=linux
 ```
 
-Two active files with the same logical name is a conflict error. Predicates on variant files must be mutually exclusive.
+Since only one can be active at a time, they share the same logical name without conflict. Two active files with the same logical name is an error — conditions on variant files must be mutually exclusive.
+
+---
+
+### `@after` — load order
+
+Controls the order scripts appear in `init.sh`. Only meaningful in `scripts/`.
+
+```sh
+# @after scripts/base/            # depends on all active files under scripts/base/
+# @after scripts/env/             # depends on all active files under scripts/env/
+# @after scripts.helpers          # depends on one specific file, by logical name
+```
+
+- A path ending in `/` expands to all active files under that path
+- A reference without a trailing `/` is matched against logical names
+- If no matching files are active, the dependency is silently ignored — it's never an error to declare a dependency on something that doesn't exist on this machine
+- Files with no `@after` are ordered alphabetically by logical name within their position in the dependency graph
 
 ---
 
 ### `@symlink` — explicit destination
 
-Symlinks a file to an explicit path. Usually unnecessary — files in `conf/` and `bin/` are symlinked by convention. Use `@symlink` to override the conventional destination or to symlink a file outside those directories.
+Symlinks a file to an explicit path instead of the conventional destination. Usually unnecessary — files in `conf/` and `bin/` are symlinked automatically by convention. Use `@symlink` to override the destination or to symlink a file that lives outside those directories.
 
 ```sh
 # @symlink ~/.gitconfig
@@ -451,7 +499,7 @@ Absolute paths are used as-is. Relative paths resolve against the effective `lin
 
 ### `@retain-prefix`
 
-By default, both `dot-` and `nosync-` are stripped from every path component when computing logical names and symlink destinations. `@retain-prefix` opts out of this stripping for the **filename** (last path component) — both `dot-` and `nosync-` are kept as-is in the destination name.
+By default, both `dot-` and `nosync-` are stripped from every path component when computing logical names and symlink destinations. `@retain-prefix` opts out of this for the **filename** — both prefixes are kept as-is.
 
 ```sh
 # conf/dot-tmux.conf       →  normally symlinked to ~/.tmux.conf
@@ -468,11 +516,11 @@ Directory components above the filename are always stripped regardless of `@reta
 
 ### `@require` and `@request` — packages
 
-Registered by `dotp`. Available in any file across your dotfiles repo.
+These annotations declare that a file depends on an external package. `dotp` reads them across your entire dotfiles repo and installs what's needed.
 
 #### `@require pkg` — hard gate
 
-The file is only active if `pkg` is installed or installable. If it can be installed, `dotp` installs it. If it can't be installed and isn't already present, `dotp` errors loudly.
+The file is only active if `pkg` is installed or can be installed. If it can be installed, `dotp` installs it automatically. If it can't be installed and isn't already present, `dotp` errors loudly.
 
 ```sh
 # @require ripgrep
@@ -488,24 +536,24 @@ The file is always active. `dotp` installs `pkg` if it can; silently skips it if
 # This file is always active; fzf installed if possible
 ```
 
-#### Packages in `@when`
+#### Using package state as a condition
 
-`installed()` and `installable()` are also usable as predicate functions without triggering installation:
+`installed()` and `installable()` can also be used in `@when` without triggering installation:
 
 ```sh
 # @when installed(nvim)
-# Active only if nvim is already installed — dotp won't install it
+# Active only if nvim is already installed — dotp won't try to install it
 ```
 
 ---
 
 ### `@disable`, `@no-source`, and `@source` — sourcing control
 
-These three annotations give you fine-grained control over whether a file participates in processing at all, and specifically whether it gets sourced into `init.sh`.
+By convention, files in `scripts/` are sourced in `init.sh` and files in `conf/` are symlinked. These three annotations let you override that behavior for specific files.
 
 #### `@disable` — exclude from all processing
 
-Removes the file from every stage: no symlinks, no DAG, no sourcing, no package checks. As if the file doesn't exist.
+Removes the file from every stage: no symlinks, no load order, no sourcing, no package checks. Equivalent to the file not existing, as far as dotr is concerned.
 
 ```sh
 # @disable
@@ -514,25 +562,19 @@ Removes the file from every stage: no symlinks, no DAG, no sourcing, no package 
 
 Useful for keeping a file in your dotfiles repo (for reference, backup, or future use) without having it take effect anywhere.
 
-#### `@no-source` — in DAG, not sourced
+#### `@no-source` — in load order, not sourced
 
-Keeps the file in the dependency graph for `@after` ordering purposes, but excludes it from `init.sh`. Only meaningful for files that would otherwise be sourced (i.e. files in `scripts/`, or files with `@source`).
+Keeps the file in the dependency graph so other files can declare `@after` it, but excludes it from `init.sh`. Only meaningful for files that would otherwise be sourced (files in `scripts/`, or files with `@source`).
 
 ```sh
-# scripts/base.sh
-# (no @no-source — this gets sourced normally)
-
 # scripts/helpers.sh
-# @after scripts/base
 # @no-source
-# helpers.sh is in the DAG so others can depend on it, but it's not sourced directly
+# Other scripts can @after scripts.helpers, but helpers.sh itself isn't sourced directly
 ```
-
-Use this when a file defines shared logic that other scripts `@after`, but shouldn't itself be sourced at shell startup.
 
 #### `@source` — force-source from any directory
 
-The inverse of `@no-source`. Forces a file into `init.sh` sourcing even if it isn't in `scripts/`. Works with any file anywhere in your dotfiles repo.
+Forces a file into `init.sh` even if it isn't in `scripts/`. Works with any file anywhere in your dotfiles repo.
 
 ```sh
 # conf/dot-config/shell/extras.sh
@@ -544,15 +586,15 @@ Use `@source` when you have a shell script that also needs to be symlinked as a 
 
 #### Summary
 
-| Annotation | In DAG? | Symlinked? | Sourced in init.sh? |
-|-----------|---------|-----------|-------------------|
+| Annotation | In load order? | Symlinked? | Sourced in init.sh? |
+|-----------|---------------|-----------|-------------------|
 | _(none)_ in `scripts/` | Yes | No | Yes |
 | _(none)_ in `conf/` | No | Yes | No |
 | `@no-source` | Yes | As normal | **No** |
 | `@source` | Yes | As normal | **Yes** |
 | `@disable` | **No** | **No** | **No** |
 
-`.dot-dagger.yaml` equivalents: `disable: true`, `no_source: true`, `source: true` in a `files:` entry.
+`.dot-dagger.yaml` equivalents for files that can't carry annotations: `disable: true`, `no_source: true`, `source: true` in a `files:` entry.
 
 ---
 
@@ -567,7 +609,7 @@ env:
   context: personal   # not auto-detected — must be set explicitly
 ```
 
-Run `dote show` at any time to see the full resolved environment.
+Most environment keys (`os`, `shell`, `distro`) are detected automatically. `context` is the main thing to set here. Run `dote show` at any time to see the full resolved environment.
 
 ### packages.yaml
 
@@ -611,7 +653,7 @@ packages:
       package: somelib
 ```
 
-Package manager priority (which manager wins when multiple are available) is set in `packages.yaml` under `package_managers.priority`. Per-package `prefer` overrides the global order for a specific package:
+When multiple package managers are available, the one to use is determined by the `priority` list. A per-package `prefer` overrides the global order for that package:
 
 ```yaml
 package_managers:
@@ -630,19 +672,21 @@ packages:
 
 ### .dot-dagger.yaml
 
-Per-directory config for files that can't carry annotations — JSON, XML, binary, and anything else without a supported comment syntax. Can appear in any directory; `defaults` cascades to subdirectories.
+Some files can't carry annotations — JSON, XML, compiled binaries, and anything else that doesn't have a comment syntax dotr recognizes. `.dot-dagger.yaml` is a per-directory config file that lets you provide the same metadata for those files.
+
+It can appear in any directory. The `defaults` section cascades down to all files in that directory and its subdirectories.
 
 ```yaml
 # dotd section: directory-level conditions and per-file overrides
 dotd:
-  # Gate traversal of this entire directory
+  # Skip this entire directory unless the condition is true
   when: "os=macos"
 
-  # Applied to every file in this directory (ANDed with file's own @when)
+  # Apply this condition to every file in the directory (ANDed with each file's own @when)
   defaults:
     when: "context=work"
 
-  # Per-file metadata for files that can't carry annotations
+  # Per-file metadata — same fields as the equivalent annotations
   files:
     - path: dot-gitconfig-work
       when: "context=work"
@@ -656,7 +700,7 @@ dotd:
       when: "os=macos"
       retain_prefix: true
 
-    # Sourcing control equivalents for non-annotatable files
+    # Sourcing control equivalents
     - path: some-helper.json
       disable: true        # equivalent to @disable
     - path: loader.sh
@@ -664,7 +708,7 @@ dotd:
     - path: extras.sh
       source: true         # equivalent to @source
 
-# dotl section: symlink root override for this subtree
+# dotl section: symlink root override for this directory and its children
 dotl:
   link_root: ~/.config/nvim
 ```
