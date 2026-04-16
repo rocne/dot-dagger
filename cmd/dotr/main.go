@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/dag"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/initgen"
@@ -356,20 +357,20 @@ func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, erro
 	return "", "", fmt.Errorf("dotr: no installable manager found for %q", pkg)
 }
 
-func defaultDotfiles() string {
-	if d, ok := os.LookupEnv("DOTFILES"); ok {
-		return d
-	}
-	dir, _ := os.Getwd()
-	return dir
-}
+func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }
 
 func defaultEnvFile() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "dot-dagger", "env.yaml")
+	p, err := ecosystem.DefaultEnvFile()
+	if err != nil {
+		panic(err)
+	}
+	return p
 }
 
 func defaultInitFile() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "dot-dagger", "init.sh")
+	p, err := ecosystem.DefaultInitFile()
+	if err != nil {
+		panic(err)
+	}
+	return p
 }

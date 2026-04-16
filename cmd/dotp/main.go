@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -228,10 +229,4 @@ func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, erro
 	return "", "", fmt.Errorf("dotp: no installable manager found for %q", pkg)
 }
 
-func defaultDotfiles() string {
-	if d, ok := os.LookupEnv("DOTFILES"); ok {
-		return d
-	}
-	dir, _ := os.Getwd()
-	return dir
-}
+func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }
