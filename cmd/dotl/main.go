@@ -118,28 +118,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	links = linker.Check(links, cfg.files)
-
-	var ok, missing, wrong, conflict int
-	for _, l := range links {
-		switch l.State {
-		case linker.StateOK:
-			ok++
-			if cfg.verbose {
-				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.OK("ok"), l.Dst)
-			}
-		case linker.StateMissing:
-			missing++
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
-		case linker.StateWrongTarget:
-			wrong++
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s %s %s\n", ui.Wrong("wrong"), l.Dst, ui.Arrow("→"), l.Src)
-		case linker.StateConflict:
-			conflict++
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Conflict("conflict"), l.Dst)
-		}
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d wrong-target, %d conflict\n",
-		ui.Header("symlinks:"), ok, missing, wrong, conflict)
+	linker.PrintCheckSummary(cmd.OutOrStdout(), links, cfg.verbose)
 	return nil
 }
 
@@ -156,11 +135,7 @@ func runRemove(cmd *cobra.Command, cfg *config) error {
 	links = linker.Check(links, cfg.files)
 
 	if cfg.dryRun {
-		for _, l := range links {
-			if l.Owned {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Wrong("remove"), l.Dst)
-			}
-		}
+		linker.PrintRemovePlan(cmd.OutOrStdout(), links)
 		return nil
 	}
 
@@ -168,13 +143,7 @@ func runRemove(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	if cfg.verbose {
-		var removed int
-		for _, l := range links {
-			if l.Owned {
-				removed++
-			}
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %d symlinks\n", ui.Missing("removed"), removed)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d symlinks\n", ui.Missing("removed"), linker.CountOwned(links))
 	}
 	return nil
 }

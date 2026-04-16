@@ -24,20 +24,16 @@ Statuses: `open` | `in-progress` | `done` | `wont-fix` | `deferred`
 ## H — Silent Failures
 
 ### A-03 — `os.UserHomeDir()` errors silently discarded in 4+ places
-**Status:** `open`  
-**Files:** `cmd/dotr/main.go:368,373`, `cmd/dotd/main.go:339,344`, `cmd/dote/main.go:93`, `internal/walk/walk.go` (expandTilde), `internal/setup/shell.go:21,41`  
-**Detail:** Pattern `home, _ := os.UserHomeDir()` everywhere. If home dir resolution fails, paths silently become `/init.sh`, `/.config/...` etc — silent corruption.  
-**Fix:** Propagate the error. Default path functions should return `(string, error)`. Resolved by A-09 (centralized path functions that return errors).
+**Status:** `done`  
+**Detail:** `expandTilde` in walk, `DetectShellConfig`/`SourceLine` in setup/shell, `expandHome` in cmd/dotr/setup — all now propagate errors. Default path functions already centralised by A-09.
 
 ---
 
 ## M — Bad Duplication
 
 ### A-04 — `resolveEnv()` duplicated between `cmd/dotd` and `cmd/dotr`
-**Status:** `open`  
-**Files:** `cmd/dotd/main.go:292`, `cmd/dotr/main.go:256`  
-**Detail:** Identical 18-line functions. Constructs overrides from env.yaml + `--env` flags, calls `env.NewResolver().Resolve()`.  
-**Fix:** Export a helper in `internal/env` — e.g. `ResolveWithOverrides(envFilePath string, kvOverrides []string) (map[string]string, error)`.
+**Status:** `done`  
+**Detail:** `env.ResolveWithOverrides(envFilePath, kvOverrides)` exported. Both cmds now one-liners.
 
 ### A-05 — Default path functions duplicated across all cmd packages
 **Status:** `done`  
@@ -46,26 +42,20 @@ Statuses: `open` | `in-progress` | `done` | `wont-fix` | `deferred`
 **Fix:** Centralise in `internal/ecosystem` (see A-09). Each cmd imports and calls them.
 
 ### A-06 — Symlink state reporting duplicated: `cmd/dotl` vs `cmd/dotr/link.go`
-**Status:** `open`  
-**Files:** `cmd/dotl/main.go:runApply,runCheck,runRemove`, `cmd/dotr/link.go:runLinkApply,runLinkCheck,runLinkRemove`  
-**Detail:** Near-identical logic. Only difference: `dotl` uses unfiltered fileset; `dotr link` uses predicate-filtered. Output formatting, error handling, flag handling all duplicated.  
-**Fix:** Extract `linker.PrintLinkStates(cmd, links)` and similar helpers into `internal/linker` or `internal/ui`. The run* functions call shared helpers and only differ in how they build the fileset.
+**Status:** `done`  
+**Detail:** `linker.PrintCheckSummary`, `linker.PrintRemovePlan`, `linker.CountOwned` extracted. Both cmds now delegate to these.
 
 ### A-07 — Package install loop duplicated: `cmd/dotp` vs `cmd/dotr/main.go`
-**Status:** `open`  
-**Files:** `cmd/dotp/main.go:runInstall`, `cmd/dotr/main.go:handlePackage`  
-**Detail:** Same install/check/skip logic duplicated. Error messages differ slightly (`dotp:` vs `dotr:`).  
-**Fix:** Export `packages.Install(cmd, req, reg, dryRun, verbose)` in `internal/packages`. Both callers delegate to it.
+**Status:** `done`  
+**Detail:** `packages.InstallOne` and `packages.ResolveInstallCmd` extracted. Both cmds now delegate; tool name passed for error messages.
 
 ---
 
 ## M — Magic Values / Ownership
 
 ### A-08 — Directory names `"scripts"`, `"conf"`, `"bin"` are raw strings with no owner
-**Status:** `open`  
-**Files:** `internal/walk/walk.go:73-77` (primary), referenced in `internal/setup/setup.go` scaffold, comments throughout  
-**Detail:** No named constants. Any future rename requires grep-and-replace across packages. Walk package is the right owner.  
-**Fix:** Export constants from `internal/walk`: `DirScripts`, `DirConf`, `DirBin`. Use them everywhere.
+**Status:** `done`  
+**Detail:** `walk.DirScripts`, `walk.DirConf`, `walk.DirBin` exported. Used in walk internals and setup scaffold.
 
 ### A-09 — Ecosystem name and default config paths have no single owner
 **Status:** `done`  
@@ -84,16 +74,12 @@ All cmd packages import and use these. **This is the current work item.**
 ## L — Incomplete / Stale
 
 ### A-10 — `dotd install` is a stub
-**Status:** `open`  
-**Files:** `cmd/dotd/main.go:79-86`  
-**Detail:** Prints "not yet implemented", returns nil. Either implement (wire to `dotr setup` logic) or remove the command.  
-**Fix:** Remove command until it's ready, or redirect: `"use dotr setup instead"`.
+**Status:** `done`  
+**Detail:** Removed. Setup lives in `dotr setup`.
 
 ### A-11 — `internal/annotation/registry.go` is unused dead code
-**Status:** `open`  
-**Files:** `internal/annotation/registry.go`  
-**Detail:** Registry type defined and exported, never instantiated in any cmd or internal package.  
-**Fix:** Remove unless there's a concrete near-term plan for custom annotation handlers.
+**Status:** `done`  
+**Detail:** Deleted. Tests removed from annotation_test.go.
 
 ### A-12 — `config.yaml` spec feature unimplemented
 **Status:** `deferred`  

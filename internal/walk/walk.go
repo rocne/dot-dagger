@@ -3,6 +3,7 @@
 package walk
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,12 +14,15 @@ import (
 )
 
 // expandTilde replaces a leading ~/ with the user's home directory.
-func expandTilde(s string) string {
+func expandTilde(s string) (string, error) {
 	if strings.HasPrefix(s, "~/") {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, s[2:])
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("walk: expand tilde: %w", err)
+		}
+		return filepath.Join(home, s[2:]), nil
 	}
-	return s
+	return s, nil
 }
 
 // Kind identifies which special directory type a file belongs to.
@@ -70,11 +74,18 @@ type Node struct {
 	LinkRoot string
 }
 
+// Special directory names recognised anywhere in the dotfiles repo.
+const (
+	DirScripts = "scripts"
+	DirConf    = "conf"
+	DirBin     = "bin"
+)
+
 // specialDirNames maps directory base names to their Kind.
 var specialDirNames = map[string]Kind{
-	"scripts": KindScript,
-	"conf":    KindConf,
-	"bin":     KindBin,
+	DirScripts: KindScript,
+	DirConf:    KindConf,
+	DirBin:     KindBin,
 }
 
 // Walk traverses the dotfiles repo at root and returns all file nodes.
@@ -113,7 +124,11 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 	// link_root cascade: inner .dot-dagger.yaml overrides outer. Expand ~/ at walk time.
 	effectiveLinkRoot := cascadeLinkRoot
 	if cfg.Dotl.LinkRoot != "" {
-		effectiveLinkRoot = expandTilde(cfg.Dotl.LinkRoot)
+		expanded, err := expandTilde(cfg.Dotl.LinkRoot)
+		if err != nil {
+			return err
+		}
+		effectiveLinkRoot = expanded
 	}
 
 	entries, err := os.ReadDir(dir)
@@ -130,6 +145,9 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 
 	for _, entry := range entries {
 		name := entry.Name()
+		if name == ecosystem.ConfigFile {
+			continue // config file is metadata, not a managed node
+		}
 		fullPath := filepath.Join(dir, name)
 
 		if entry.IsDir() {

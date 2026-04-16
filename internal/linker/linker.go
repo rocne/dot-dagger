@@ -14,12 +14,14 @@ package linker
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/annotation"
 	"github.com/rocne/dot-dagger/internal/fileset"
+	"github.com/rocne/dot-dagger/internal/ui"
 )
 
 // LinkState describes the current state of a symlink destination.
@@ -273,4 +275,50 @@ func stripLinkerPrefixes(s string) string {
 	s = strings.TrimPrefix(s, "nosync-")
 	s = strings.TrimPrefix(s, "dot-")
 	return s
+}
+
+// PrintCheckSummary writes per-link status rows and a summary line to w.
+// If verbose is true, OK links are also shown.
+func PrintCheckSummary(w io.Writer, links []Link, verbose bool) {
+	var ok, missing, wrong, conflict int
+	for _, l := range links {
+		switch l.State {
+		case StateOK:
+			ok++
+			if verbose {
+				fmt.Fprintf(w, "  %-12s %s\n", ui.OK("ok"), l.Dst)
+			}
+		case StateMissing:
+			missing++
+			fmt.Fprintf(w, "  %-12s %s\n", ui.Missing("missing"), l.Dst)
+		case StateWrongTarget:
+			wrong++
+			fmt.Fprintf(w, "  %-12s %s %s %s\n", ui.Wrong("wrong"), l.Dst, ui.Arrow("→"), l.Src)
+		case StateConflict:
+			conflict++
+			fmt.Fprintf(w, "  %-12s %s\n", ui.Conflict("conflict"), l.Dst)
+		}
+	}
+	fmt.Fprintf(w, "%s %d ok, %d missing, %d wrong-target, %d conflict\n",
+		ui.Header("symlinks:"), ok, missing, wrong, conflict)
+}
+
+// PrintRemovePlan writes the dry-run preview of links that would be removed to w.
+func PrintRemovePlan(w io.Writer, links []Link) {
+	for _, l := range links {
+		if l.Owned {
+			fmt.Fprintf(w, "%s %s\n", ui.Wrong("remove"), l.Dst)
+		}
+	}
+}
+
+// CountOwned returns the number of owned links in the slice.
+func CountOwned(links []Link) int {
+	var n int
+	for _, l := range links {
+		if l.Owned {
+			n++
+		}
+	}
+	return n
 }

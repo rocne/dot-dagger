@@ -113,9 +113,16 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 		).Run(); err != nil {
 			return fmt.Errorf("setup: %w", err)
 		}
-		dotfilesDir = expandHome(dotfilesDir)
-		envFile = expandHome(envFile)
-		initFile = expandHome(initFile)
+		var err error
+		if dotfilesDir, err = expandHome(dotfilesDir); err != nil {
+			return err
+		}
+		if envFile, err = expandHome(envFile); err != nil {
+			return err
+		}
+		if initFile, err = expandHome(initFile); err != nil {
+			return err
+		}
 	}
 
 	// Scaffold repo structure and config files.
@@ -158,10 +165,17 @@ func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile st
 	shell := detected["shell"]
 	osName := detected["os"]
 
-	sc, ok := setup.DetectShellConfig(shell, osName)
+	sc, ok, err := setup.DetectShellConfig(shell, osName)
+	if err != nil {
+		return err
+	}
 	if !ok {
+		sourceLine, err := setup.SourceLine(initFile)
+		if err != nil {
+			return err
+		}
 		fmt.Fprintf(cmd.OutOrStdout(), "%s unknown shell %q — add manually:\n  %s\n\n",
-			ui.Header("shell:"), shell, setup.SourceLine(initFile))
+			ui.Header("shell:"), shell, sourceLine)
 		return nil
 	}
 
@@ -174,7 +188,10 @@ func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile st
 			Run(); err != nil {
 			return fmt.Errorf("setup: %w", err)
 		}
-		sc.RCFile = expandHome(rcFile)
+		sc.RCFile, err = expandHome(rcFile)
+		if err != nil {
+			return err
+		}
 	}
 
 	has, err := setup.HasSourceLine(sc.RCFile, initFile)
@@ -186,7 +203,10 @@ func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile st
 		return nil
 	}
 
-	sourceLine := setup.SourceLine(initFile)
+	sourceLine, err := setup.SourceLine(initFile)
+	if err != nil {
+		return err
+	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s add to %s:\n\n  echo '%s' >> %s\n\n",
 		ui.Header("shell:"), sc.RCFile, sourceLine, sc.RCFile)
 
@@ -214,16 +234,23 @@ func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile st
 }
 
 func printNextSteps(cmd *cobra.Command, dotfilesDir, initFile string) {
+	sourceLine, _ := setup.SourceLine(initFile) // failure means home dir unknown; show raw path
+	if sourceLine == "" {
+		sourceLine = initFile
+	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", ui.Header("next steps:"))
 	fmt.Fprintf(cmd.OutOrStdout(), "  1. Add dotfiles to %s\n", dotfilesDir)
 	fmt.Fprintf(cmd.OutOrStdout(), "  2. Run: %s check\n", ecosystem.ToolR)
-	fmt.Fprintf(cmd.OutOrStdout(), "  3. Reload shell: %s\n", setup.SourceLine(initFile))
+	fmt.Fprintf(cmd.OutOrStdout(), "  3. Reload shell: %s\n", sourceLine)
 }
 
-func expandHome(path string) string {
+func expandHome(path string) (string, error) {
 	if strings.HasPrefix(path, "~/") {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, path[2:])
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("expand home: %w", err)
+		}
+		return filepath.Join(home, path[2:]), nil
 	}
-	return path
+	return path, nil
 }

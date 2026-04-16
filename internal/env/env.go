@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -124,6 +125,38 @@ func LoadEnvFileFromPath(path string) (*EnvFile, error) {
 	}
 	defer func() { _ = f.Close() }()
 	return LoadEnvFile(f)
+}
+
+// ResolveWithOverrides loads envFilePath, merges CLI overrides (key=value strings),
+// and runs all built-in detectors. kvOverrides take highest precedence.
+// Returns the resolved map ready for predicate evaluation.
+func ResolveWithOverrides(envFilePath string, kvOverrides []string) (map[string]string, error) {
+	ef, err := LoadEnvFileFromPath(envFilePath)
+	if err != nil {
+		return nil, err
+	}
+	overrides := make(map[string]string, len(ef.Env))
+	for k, v := range ef.Env {
+		overrides[k] = v
+	}
+	for _, kv := range kvOverrides {
+		parts := splitKV(kv)
+		if parts == nil {
+			return nil, fmt.Errorf("env: invalid key=value %q", kv)
+		}
+		overrides[parts[0]] = parts[1]
+	}
+	return NewResolver().Resolve(overrides)
+}
+
+// splitKV splits a "key=value" string into [key, value].
+// Returns nil if the string is not valid key=value.
+func splitKV(s string) []string {
+	idx := strings.IndexByte(s, '=')
+	if idx < 0 {
+		return nil
+	}
+	return []string{s[:idx], s[idx+1:]}
 }
 
 // SaveEnvFileToPath writes ef to path atomically (temp file + rename).
