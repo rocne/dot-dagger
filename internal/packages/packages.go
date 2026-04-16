@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/rocne/dot-dagger/internal/annotation"
 	"github.com/rocne/dot-dagger/internal/fileset"
+	"github.com/rocne/dot-dagger/internal/ui"
 )
 
 // PackageManagerDef defines the command templates for a package manager.
@@ -276,4 +278,81 @@ func packageName(pkg, manager string, reg *Registry) string {
 		}
 	}
 	return pkg
+}
+
+// ResolveInstallCmd returns the manager name and install command for a package.
+// It walks the manager order, skipping managers not on PATH.
+// toolName is used in error messages (e.g. "dotr" or "dotp").
+func ResolveInstallCmd(pkg string, reg *Registry, toolName string) (mgr, cmd string, err error) {
+	entry, ok := reg.Packages[pkg]
+	if !ok {
+		return "", "", fmt.Errorf("%s: package %q not in registry", toolName, pkg)
+	}
+	for _, m := range ManagerOrder(pkg, reg) {
+		if _, hasEntry := entry.Managers[m]; !hasEntry {
+			continue
+		}
+		if _, err := exec.LookPath(m); err != nil {
+			continue
+		}
+		c, err := InstallCmd(pkg, m, reg)
+		if err != nil {
+			return "", "", err
+		}
+		return m, c, nil
+	}
+	return "", "", fmt.Errorf("%s: no installable manager found for %q", toolName, pkg)
+}
+
+// InstallOne checks and installs a single package request.
+// stdout/stderr are used for install command I/O and verbose output.
+// toolName is used in error messages. lookPath is injected for testing.
+func InstallOne(stdout, stderr io.Writer, req PackageRequest, reg *Registry, dryRun, verbose bool, toolName string, lookPath func(string) (string, error)) error {
+	installed, err := Installed(req.Package, reg, lookPath)
+	if err != nil {
+		return err
+	}
+	if installed {
+		if verbose {
+			fmt.Fprintf(stdout, "  %-14s %s\n", ui.Installed("installed"), req.Package)
+		}
+		return nil
+	}
+
+	installable, err := Installable(req.Package, reg, lookPath)
+	if err != nil {
+		return err
+	}
+
+	if !installable {
+		if req.Hard {
+			return fmt.Errorf("%s: %s: @require %q: not installed and not installable",
+				toolName, req.NodePath, req.Package)
+		}
+		if verbose {
+			fmt.Fprintf(stdout, "  %-14s %s (not installable)\n", ui.Skip("skip"), req.Package)
+		}
+		return nil
+	}
+
+	mgr, installCmd, err := ResolveInstallCmd(req.Package, reg, toolName)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(stdout, "  %-14s %s via %s: %s\n", ui.Install("install"), req.Package, mgr, installCmd)
+	if dryRun {
+		return nil
+	}
+
+	c := exec.Command("sh", "-c", installCmd)
+	c.Stdout = stdout
+	c.Stderr = stderr
+	if err := c.Run(); err != nil {
+		if req.Hard {
+			return fmt.Errorf("%s: install %s: %w", toolName, req.Package, err)
+		}
+		fmt.Fprintf(stderr, "warning: install %s: %v\n", req.Package, err)
+	}
+	return nil
 }

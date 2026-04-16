@@ -17,33 +17,39 @@ type ShellConfig struct {
 // DetectShellConfig returns the RC file for the given shell and OS.
 // shell is the basename (bash, zsh, fish). osName is "macos" or "linux".
 // Returns ok=false for unrecognized shells.
-func DetectShellConfig(shell, osName string) (ShellConfig, bool) {
-	home, _ := os.UserHomeDir()
+func DetectShellConfig(shell, osName string) (ShellConfig, bool, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ShellConfig{}, false, fmt.Errorf("setup: home dir: %w", err)
+	}
 	switch shell {
 	case "bash":
 		rc := filepath.Join(home, ".bashrc")
 		if osName == "macos" {
 			rc = filepath.Join(home, ".bash_profile")
 		}
-		return ShellConfig{Shell: "bash", RCFile: rc}, true
+		return ShellConfig{Shell: "bash", RCFile: rc}, true, nil
 	case "zsh":
-		return ShellConfig{Shell: "zsh", RCFile: filepath.Join(home, ".zshrc")}, true
+		return ShellConfig{Shell: "zsh", RCFile: filepath.Join(home, ".zshrc")}, true, nil
 	case "fish":
-		return ShellConfig{Shell: "fish", RCFile: filepath.Join(home, ".config", "fish", "config.fish")}, true
+		return ShellConfig{Shell: "fish", RCFile: filepath.Join(home, ".config", "fish", "config.fish")}, true, nil
 	default:
-		return ShellConfig{}, false
+		return ShellConfig{}, false, nil
 	}
 }
 
 // SourceLine returns the shell source line for initPath expressed as $HOME-relative.
 // Falls back to an absolute path if initPath is not under $HOME.
-func SourceLine(initPath string) string {
-	home, _ := os.UserHomeDir()
+func SourceLine(initPath string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("setup: home dir: %w", err)
+	}
 	rel, err := filepath.Rel(home, initPath)
 	if err != nil || strings.HasPrefix(rel, "..") {
-		return fmt.Sprintf(`source "%s"`, initPath)
+		return fmt.Sprintf(`source "%s"`, initPath), nil
 	}
-	return fmt.Sprintf(`source "$HOME/%s"`, rel)
+	return fmt.Sprintf(`source "$HOME/%s"`, rel), nil
 }
 
 // HasSourceLine reports whether rcFile already contains a source line referencing initPath.
@@ -73,11 +79,15 @@ func HasSourceLine(rcFile, initPath string) (bool, error) {
 // AppendSourceLine appends the dotr source line for initPath to rcFile.
 // Creates rcFile if it does not exist.
 func AppendSourceLine(rcFile, initPath string) error {
+	line, err := SourceLine(initPath)
+	if err != nil {
+		return err
+	}
 	f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("setup: open %s: %w", rcFile, err)
 	}
 	defer func() { _ = f.Close() }()
-	_, err = fmt.Fprintf(f, "\n# dotr — generated shell init\n%s\n", SourceLine(initPath))
+	_, err = fmt.Fprintf(f, "\n# dotr — generated shell init\n%s\n", line)
 	return err
 }

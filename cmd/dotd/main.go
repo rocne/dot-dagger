@@ -76,15 +76,6 @@ func newRootCmd() *cobra.Command {
 	check.Flags().StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
 	check.Flags().StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
 
-	install := &cobra.Command{
-		Use:   "install",
-		Short: "Set up dot-dagger — rc wiring and first-run configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.ErrOrStderr(), "dotd install: not yet implemented")
-			return nil
-		},
-	}
-
 	envParent := &cobra.Command{
 		Use:   "env",
 		Short: "Inspect and modify env.yaml",
@@ -117,7 +108,7 @@ func newRootCmd() *cobra.Command {
 
 	ui.SetupCobraColors(root)
 
-	root.AddCommand(apply, check, install, envParent)
+	root.AddCommand(apply, check, envParent)
 	return root
 }
 
@@ -290,23 +281,7 @@ func runEnvSet(cmd *cobra.Command, cfg *config, kv string) error {
 // --- helpers ---
 
 func resolveEnv(cfg *config) (map[string]string, error) {
-	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
-	if err != nil {
-		return nil, err
-	}
-	overrides := make(map[string]string)
-	for k, v := range ef.Env {
-		overrides[k] = v
-	}
-	for _, kv := range cfg.env {
-		parts := strings.SplitN(kv, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid --env value %q: expected key=value", kv)
-		}
-		overrides[parts[0]] = parts[1]
-	}
-	r := env.NewResolver()
-	return r.Resolve(overrides)
+	return env.ResolveWithOverrides(cfg.envFile, cfg.env)
 }
 
 func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error) {

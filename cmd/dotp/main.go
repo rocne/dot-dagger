@@ -79,53 +79,9 @@ func runInstall(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 
-	reqs := packages.CollectRequests(nodes.Nodes)
-	for _, req := range reqs {
-		installed, err := packages.Installed(req.Package, reg, exec.LookPath)
-		if err != nil {
+	for _, req := range packages.CollectRequests(nodes.Nodes) {
+		if err := packages.InstallOne(cmd.OutOrStdout(), cmd.ErrOrStderr(), req, reg, cfg.dryRun, cfg.verbose, ecosystem.ToolP, exec.LookPath); err != nil {
 			return err
-		}
-		if installed {
-			if cfg.verbose {
-				fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s\n", ui.Installed("installed"), req.Package)
-			}
-			continue
-		}
-
-		installable, err := packages.Installable(req.Package, reg, exec.LookPath)
-		if err != nil {
-			return err
-		}
-
-		if !installable {
-			if req.Hard {
-				return fmt.Errorf(ecosystem.ToolP+": %s: @require %q: not installed and not installable",
-					req.NodePath, req.Package)
-			}
-			if cfg.verbose {
-				fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s (not installable)\n", ui.Skip("skip"), req.Package)
-			}
-			continue
-		}
-
-		mgr, installCmd, err := resolveInstallCmd(req.Package, reg)
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s via %s: %s\n", ui.Install("install"), req.Package, mgr, installCmd)
-		if cfg.dryRun {
-			continue
-		}
-
-		c := exec.Command("sh", "-c", installCmd)
-		c.Stdout = cmd.OutOrStdout()
-		c.Stderr = cmd.ErrOrStderr()
-		if err := c.Run(); err != nil {
-			if req.Hard {
-				return fmt.Errorf(ecosystem.ToolP+": install %s: %w", req.Package, err)
-			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: install %s: %v\n", req.Package, err)
 		}
 	}
 	return nil
@@ -206,27 +162,6 @@ func loadContext(cfg *config) (*fileset.Set, *packages.Registry, error) {
 	}
 
 	return nodes, reg, nil
-}
-
-func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, error) {
-	entry, ok := reg.Packages[pkg]
-	if !ok {
-		return "", "", fmt.Errorf(ecosystem.ToolP+": package %q not in registry", pkg)
-	}
-	for _, mgr := range packages.ManagerOrder(pkg, reg) {
-		if _, hasEntry := entry.Managers[mgr]; !hasEntry {
-			continue
-		}
-		if _, err := exec.LookPath(mgr); err != nil {
-			continue
-		}
-		cmd, err := packages.InstallCmd(pkg, mgr, reg)
-		if err != nil {
-			return "", "", err
-		}
-		return mgr, cmd, nil
-	}
-	return "", "", fmt.Errorf(ecosystem.ToolP+": no installable manager found for %q", pkg)
 }
 
 func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }

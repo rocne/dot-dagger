@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/rocne/dot-dagger/internal/dag"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -255,23 +254,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 // --- helpers ---
 
 func resolveEnv(cfg *config) (map[string]string, error) {
-	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
-	if err != nil {
-		return nil, err
-	}
-	overrides := make(map[string]string)
-	for k, v := range ef.Env {
-		overrides[k] = v
-	}
-	for _, kv := range cfg.env {
-		parts := strings.SplitN(kv, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid --env value %q: expected key=value", kv)
-		}
-		overrides[parts[0]] = parts[1]
-	}
-	r := env.NewResolver()
-	return r.Resolve(overrides)
+	return env.ResolveWithOverrides(cfg.envFile, cfg.env)
 }
 
 func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error) {
@@ -287,74 +270,7 @@ func loadPackageContext(cfg *config) (*packages.Registry, error) {
 }
 
 func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest, reg *packages.Registry) error {
-	installed, err := packages.Installed(req.Package, reg, exec.LookPath)
-	if err != nil {
-		return err
-	}
-	if installed {
-		if cfg.verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s\n", ui.Installed("installed"), req.Package)
-		}
-		return nil
-	}
-
-	installable, err := packages.Installable(req.Package, reg, exec.LookPath)
-	if err != nil {
-		return err
-	}
-
-	if !installable {
-		if req.Hard {
-			return fmt.Errorf(ecosystem.ToolR+": %s: @require %q: not installed and not installable",
-				req.NodePath, req.Package)
-		}
-		if cfg.verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s (not installable)\n", ui.Skip("skip"), req.Package)
-		}
-		return nil
-	}
-
-	mgr, installCmd, err := resolveInstallCmd(req.Package, reg)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), "  %-14s %s via %s: %s\n", ui.Install("install"), req.Package, mgr, installCmd)
-	if cfg.dryRun {
-		return nil
-	}
-
-	c := exec.Command("sh", "-c", installCmd)
-	c.Stdout = cmd.OutOrStdout()
-	c.Stderr = cmd.ErrOrStderr()
-	if err := c.Run(); err != nil {
-		if req.Hard {
-			return fmt.Errorf(ecosystem.ToolR+": install %s: %w", req.Package, err)
-		}
-		fmt.Fprintf(cmd.ErrOrStderr(), "warning: install %s: %v\n", req.Package, err)
-	}
-	return nil
-}
-
-func resolveInstallCmd(pkg string, reg *packages.Registry) (string, string, error) {
-	entry, ok := reg.Packages[pkg]
-	if !ok {
-		return "", "", fmt.Errorf(ecosystem.ToolR+": package %q not in registry", pkg)
-	}
-	for _, mgr := range packages.ManagerOrder(pkg, reg) {
-		if _, hasEntry := entry.Managers[mgr]; !hasEntry {
-			continue
-		}
-		if _, err := exec.LookPath(mgr); err != nil {
-			continue
-		}
-		cmd, err := packages.InstallCmd(pkg, mgr, reg)
-		if err != nil {
-			return "", "", err
-		}
-		return mgr, cmd, nil
-	}
-	return "", "", fmt.Errorf(ecosystem.ToolR+": no installable manager found for %q", pkg)
+	return packages.InstallOne(cmd.OutOrStdout(), cmd.ErrOrStderr(), req, reg, cfg.dryRun, cfg.verbose, ecosystem.ToolR, exec.LookPath)
 }
 
 func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }
