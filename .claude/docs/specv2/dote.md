@@ -43,6 +43,6 @@ Carries forward from v1: missing required keys prompt (TTY) or halt (non-interac
 
 ---
 
-## `.dotr.yaml` integration
+## `.dot-dagger.yaml` integration
 
-`dote` reads the `dote:` section of `.dotr.yaml` for per-directory environment overrides. Details TBD — deferred until implementation begins.
+`dote` reads the `dote:` section of `.dot-dagger.yaml` for per-directory environment overrides. Details TBD — deferred until implementation begins.

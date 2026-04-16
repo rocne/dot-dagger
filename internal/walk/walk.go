@@ -8,7 +8,8 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/annotation"
-	"github.com/rocne/dot-dagger/internal/dotryaml"
+	"github.com/rocne/dot-dagger/internal/daggeryaml"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 )
 
 // expandTilde replaces a leading ~/ with the user's home directory.
@@ -64,7 +65,7 @@ type Node struct {
 	EffectiveWhen string
 
 	// LinkRoot is the symlink destination root for this file, derived from
-	// the nearest ancestor .dotr.yaml with dotl.link_root set.
+	// the nearest ancestor .dot-dagger.yaml with dotl.link_root set.
 	// Empty means use the linker's default (Options.LinkRoot).
 	LinkRoot string
 }
@@ -77,7 +78,7 @@ var specialDirNames = map[string]Kind{
 }
 
 // Walk traverses the dotfiles repo at root and returns all file nodes.
-// It respects .dotr.yaml config at each directory level.
+// It respects .dot-dagger.yaml config at each directory level.
 // Special dirs (scripts/, conf/, bin/) are recognised anywhere unless
 // already inside a special dir — at which point they are treated as regular dirs.
 func Walk(root string) ([]Node, error) {
@@ -93,11 +94,11 @@ func Walk(root string) ([]Node, error) {
 //   - dir:              current directory being walked
 //   - inheritedKind:    kind inherited from a parent special dir (KindOther = not in one)
 //   - inSpecialDir:     true if we are already inside a special dir
-//   - cascadeWhen:      accumulated @when expression from ancestor .dotr.yaml defaults
-//   - cascadeLinkRoot:  link_root from nearest ancestor .dotr.yaml dotl section
+//   - cascadeWhen:      accumulated @when expression from ancestor .dot-dagger.yaml defaults
+//   - cascadeLinkRoot:  link_root from nearest ancestor .dot-dagger.yaml dotl section
 func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhen, cascadeLinkRoot string, nodes *[]Node) error {
-	// Load .dotr.yaml for this directory.
-	cfg, err := dotryaml.LoadFile(filepath.Join(dir, ".dotr.yaml"))
+	// Load .dot-dagger.yaml for this directory.
+	cfg, err := daggeryaml.LoadFile(filepath.Join(dir, ecosystem.ConfigFile))
 	if err != nil {
 		return err
 	}
@@ -109,7 +110,7 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 	// and let fileset filter. But we do combine cascading defaults.
 	dirDefaultWhen := combineWhen(cascadeWhen, cfg.Dotd.Defaults.When)
 
-	// link_root cascade: inner .dotr.yaml overrides outer. Expand ~/ at walk time.
+	// link_root cascade: inner .dot-dagger.yaml overrides outer. Expand ~/ at walk time.
 	effectiveLinkRoot := cascadeLinkRoot
 	if cfg.Dotl.LinkRoot != "" {
 		effectiveLinkRoot = expandTilde(cfg.Dotl.LinkRoot)
@@ -120,8 +121,8 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 		return err
 	}
 
-	// Build per-file override map from .dotr.yaml files section.
-	fileOverrides := make(map[string]*dotryaml.FileEntry)
+	// Build per-file override map from .dot-dagger.yaml files section.
+	fileOverrides := make(map[string]*daggeryaml.FileEntry)
 	for i := range cfg.Dotd.Files {
 		fe := &cfg.Dotd.Files[i]
 		fileOverrides[fe.Path] = fe
@@ -157,7 +158,7 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 			continue
 		}
 
-		// Apply .dotr.yaml file overrides for non-annotatable files.
+		// Apply .dot-dagger.yaml file overrides for non-annotatable files.
 		if override, ok := fileOverrides[name]; ok {
 			anns = applyFileEntryOverrides(anns, override)
 		}
@@ -193,9 +194,9 @@ func readAnnotations(path string) ([]annotation.Annotation, error) {
 	return annotation.ScanHeader(f)
 }
 
-// applyFileEntryOverrides synthesises annotations from a .dotr.yaml FileEntry,
+// applyFileEntryOverrides synthesises annotations from a .dot-dagger.yaml FileEntry,
 // overwriting any conflicting annotations already present.
-func applyFileEntryOverrides(anns []annotation.Annotation, fe *dotryaml.FileEntry) []annotation.Annotation {
+func applyFileEntryOverrides(anns []annotation.Annotation, fe *daggeryaml.FileEntry) []annotation.Annotation {
 	// Remove existing entries for keys we are about to set.
 	keysToSet := map[string]string{}
 	if fe.When != "" {

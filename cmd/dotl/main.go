@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/linker"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -35,7 +36,7 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     "dotl",
+		Use:     ecosystem.ToolL,
 		Short:   "Dotfiles linker — symlinks conf/ and bin/ files into the system (unconditional)",
 		Version: version,
 	}
@@ -195,11 +196,5 @@ func planLinks(cfg *config, nodes *fileset.Set) ([]linker.Link, error) {
 	return linker.Plan(nodes.Nodes, opts)
 }
 
-func defaultDotfiles() string {
-	if d, ok := os.LookupEnv("DOTFILES"); ok {
-		return d
-	}
-	dir, _ := os.Getwd()
-	return dir
-}
+func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }
 

@@ -1,5 +1,7 @@
-// Package dotryaml loads and validates .dotr.yaml per-directory config files.
-package dotryaml
+// Package daggeryaml loads and validates .dot-dagger.yaml per-directory config files.
+// These files are ecosystem config — sections are owned by individual tools but the
+// file belongs to the suite as a whole.
+package daggeryaml
 
 import (
 	"fmt"
@@ -9,17 +11,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// DotR holds the parsed contents of a .dotr.yaml file.
+// Config holds the parsed contents of a .dot-dagger.yaml file.
 // Each section is owned by the corresponding tool.
 // Missing sections are zero-valued, not errors.
-type DotR struct {
+type Config struct {
 	Dote DoteSection `yaml:"dote"`
 	Dotd DotdSection `yaml:"dotd"`
 	Dotl DotlSection `yaml:"dotl"`
 }
 
 // DoteSection holds dote-owned config: env overrides for this directory subtree.
-// (Package manager priority moved to packages.yaml under package_managers.priority.)
 type DoteSection struct {
 }
 
@@ -52,26 +53,26 @@ type DotlSection struct {
 	LinkRoot string `yaml:"link_root"`
 }
 
-// Load parses a .dotr.yaml from r.
-func Load(r io.Reader) (*DotR, error) {
-	var d DotR
+// Load parses a .dot-dagger.yaml from r.
+func Load(r io.Reader) (*Config, error) {
+	var d Config
 	dec := yaml.NewDecoder(r)
 	dec.KnownFields(true)
 	if err := dec.Decode(&d); err != nil && err != io.EOF {
-		return nil, fmt.Errorf("dotryaml: decode: %w", err)
+		return nil, fmt.Errorf("daggeryaml: decode: %w", err)
 	}
 	return &d, nil
 }
 
-// LoadFile reads a .dotr.yaml at path.
-// If the file does not exist, returns a zero-value DotR without error.
-func LoadFile(path string) (*DotR, error) {
+// LoadFile reads a .dot-dagger.yaml at path.
+// If the file does not exist, returns a zero-value Config without error.
+func LoadFile(path string) (*Config, error) {
 	f, err := os.Open(path)
 	if os.IsNotExist(err) {
-		return &DotR{}, nil
+		return &Config{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("dotryaml: open %s: %w", path, err)
+		return nil, fmt.Errorf("daggeryaml: open %s: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
 	return Load(f)

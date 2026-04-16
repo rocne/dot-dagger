@@ -24,9 +24,9 @@ All business logic lives here. Named by concern, not by tool.
 |---------|---------------|
 | `internal/annotation` | Scan file comments for `@key value` pairs; language-agnostic |
 | `internal/predicate` | Parse and evaluate `@when` expressions; AST, lexer, parser, evaluator |
-| `internal/dotryaml` | Load and validate `.dotr.yaml`; per-directory config |
+| `internal/daggeryaml` | Load and validate `.dot-dagger.yaml`; per-directory config |
 | `internal/env` | Resolve environment: load `env.yaml`, run detectors, produce `Env` map |
-| `internal/walk` | Traverse a dotfiles directory tree; read annotations and `.dotr.yaml` per node |
+| `internal/walk` | Traverse a dotfiles directory tree; read annotations and `.dot-dagger.yaml` per node |
 | `internal/fileset` | The shared active-file context; filter a walked tree by predicate |
 | `internal/dag` | Build a DAG from `@after`/`@name` annotations; topological sort |
 | `internal/initgen` | Render and atomically write `init.sh` from a resolved DAG |

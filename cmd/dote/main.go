@@ -4,10 +4,10 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -30,7 +30,7 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     "dote",
+		Use:     ecosystem.ToolE,
 		Short:   "Environment resolution for the dotr suite",
 		Version: version,
 	}
@@ -89,6 +89,9 @@ func printEnv(cmd *cobra.Command, m map[string]string) {
 }
 
 func defaultEnvFile() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "dot-dagger", "env.yaml")
+	p, err := ecosystem.DefaultEnvFile()
+	if err != nil {
+		panic(err)
+	}
+	return p
 }

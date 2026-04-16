@@ -2,10 +2,10 @@
 
 ## 8. Shell Init Integration
 
-dot-dagger generates a single shell-agnostic init file at `~/.config/dot-dagger/init.sh`. The user adds one line to their shell rc file:
+dot-dagger generates a single shell-agnostic init file at `~/.local/share/dot-dagger/init.sh`. The user adds one line to their shell rc file:
 
 ```sh
-. ~/.config/dot-dagger/init.sh
+. ~/.local/share/dot-dagger/init.sh
 ```
 
 The init file uses POSIX `.` (not bash `source`) for compatibility with sh, bash, and zsh. Paths are single-quoted using the `'\''` idiom to handle embedded spaces and special characters correctly.
@@ -30,7 +30,7 @@ Colored emoji output with plain ASCII fallback when the terminal does not suppor
 ✅  Environment resolved  os=macos  shell=zsh  context=personal
 ✅  12 nodes active
 ✅  8 symlinks applied
-✅  init.sh generated  ~/.config/dot-dagger/init.sh
+✅  init.sh generated  ~/.local/share/dot-dagger/init.sh
 ✅  Source line already present in ~/.zshrc
 ✨  Done!
 ```
