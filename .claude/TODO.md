@@ -14,6 +14,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 ## Documentation
 
 - [ ] `CONTRIBUTING.md` — defer until project goes public or has external contributors
+- [ ] Remove `-H "Authorization: Bearer $(gh auth token)"` from install one-liner in README and install.sh comments — only needed while repo is private. Do this when repo goes public.
 
 ## UX / Polish
 

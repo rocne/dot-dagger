@@ -78,6 +78,10 @@ func newRootCmd() *cobra.Command {
 				return runCheck(cmd, cfg)
 			},
 		},
+		newEnvCmd(cfg),
+		newDAGCmd(cfg),
+		newLinkCmd(cfg),
+		newPackageCmd(cfg),
 	)
 	return root
 }
