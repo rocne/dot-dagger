@@ -11,7 +11,7 @@ dotd:
   when: "os=macos"
   defaults:
     when: "os=linux"
-dotl:
+link:
   link_root: ~/.config/nvim
 `
 	d, err := Load(strings.NewReader(input))
@@ -24,8 +24,8 @@ dotl:
 	if d.Dotd.Defaults.When != "os=linux" {
 		t.Errorf("dotd.defaults.when = %q, want os=linux", d.Dotd.Defaults.When)
 	}
-	if d.Dotl.LinkRoot != "~/.config/nvim" {
-		t.Errorf("dotl.link_root = %q, want ~/.config/nvim", d.Dotl.LinkRoot)
+	if d.Link.LinkRoot != "~/.config/nvim" {
+		t.Errorf("link.link_root = %q, want ~/.config/nvim", d.Link.LinkRoot)
 	}
 }
 
@@ -40,7 +40,7 @@ func TestLoadEmpty(t *testing.T) {
 }
 
 func TestLoadFileMissing(t *testing.T) {
-	d, err := LoadFile("/nonexistent/.dotr.yaml")
+	d, err := LoadFile("/nonexistent/.dot-dagger.yaml")
 	if err != nil {
 		t.Fatalf("LoadFile() error = %v for missing file", err)
 	}

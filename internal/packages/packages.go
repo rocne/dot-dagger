@@ -1,5 +1,5 @@
 // Package packages manages the package registry and provides the installed()
-// and installable() predicate functions for the dotp tool.
+// and installable() predicate functions for dotd package management.
 //
 // The registry is loaded from packages.yaml at the dotfiles repo root.
 // Package entries have known fields (binary, check, prefer) plus dynamic per-manager

@@ -135,17 +135,16 @@ func envYAML(opts Options) string {
 
 func daggerYAML() string {
 	return `# Per-directory config for non-annotatable files.
-# Each tool reads only its own section.
 
 dotd:
   # when: "os == linux"
   # defaults:
   #   when: "os == linux"
 
-dotl:
+link:
   # link_root: ~/.config/nvim
 
-dote:
+env:
   # env overrides for this directory subtree
 `
 }

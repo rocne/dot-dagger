@@ -12,16 +12,15 @@ import (
 )
 
 // Config holds the parsed contents of a .dot-dagger.yaml file.
-// Each section is owned by the corresponding tool.
 // Missing sections are zero-valued, not errors.
 type Config struct {
-	Dote DoteSection `yaml:"dote"`
+	Env  EnvSection  `yaml:"env"`
 	Dotd DotdSection `yaml:"dotd"`
-	Dotl DotlSection `yaml:"dotl"`
+	Link LinkSection `yaml:"link"`
 }
 
-// DoteSection holds dote-owned config: env overrides for this directory subtree.
-type DoteSection struct {
+// EnvSection holds env overrides for this directory subtree.
+type EnvSection struct {
 }
 
 // DotdSection holds dotd-owned config: directory-level when, cascading defaults,
@@ -51,8 +50,8 @@ type FileEntry struct {
 	Source       bool   `yaml:"source"`    // equivalent to @source
 }
 
-// DotlSection holds dotl-owned config: symlink root override.
-type DotlSection struct {
+// LinkSection holds symlink config: link root override.
+type LinkSection struct {
 	LinkRoot string `yaml:"link_root"`
 }
 
