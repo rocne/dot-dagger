@@ -274,8 +274,8 @@ func TestWalkRetainPrefix(t *testing.T) {
 
 func TestWalkLinkRootCascade(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		// nvim subdir has a .dot-dagger.yaml with dotl.link_root set.
-		"nvim/.dot-dagger.yaml":         "dotl:\n  link_root: /custom/nvim\n",
+		// nvim subdir has a .dot-dagger.yaml with link.link_root set.
+		"nvim/.dot-dagger.yaml":         "link:\n  link_root: /custom/nvim\n",
 		"nvim/conf/dot-init.lua":   "",
 		// Top-level conf has no link_root override.
 		"conf/dot-zshrc": "",
@@ -307,8 +307,8 @@ func TestWalkLinkRootCascade(t *testing.T) {
 
 func TestWalkLinkRootInnerOverridesOuter(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		".dot-dagger.yaml":              "dotl:\n  link_root: /outer\n",
-		"nvim/.dot-dagger.yaml":         "dotl:\n  link_root: /inner\n",
+		".dot-dagger.yaml":              "link:\n  link_root: /outer\n",
+		"nvim/.dot-dagger.yaml":         "link:\n  link_root: /inner\n",
 		"nvim/conf/dot-init.lua":   "",
 		"conf/dot-zshrc":          "",
 	})

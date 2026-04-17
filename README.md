@@ -493,7 +493,7 @@ dotd:
       when: "context=work"
       symlink: ~/.gitconfig
 
-dotl:
+link:
   link_root: ~/.config/nvim
 ```
 

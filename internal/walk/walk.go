@@ -69,7 +69,7 @@ type Node struct {
 	EffectiveWhen string
 
 	// LinkRoot is the symlink destination root for this file, derived from
-	// the nearest ancestor .dot-dagger.yaml with dotl.link_root set.
+	// the nearest ancestor .dot-dagger.yaml with link.link_root set.
 	// Empty means use the linker's default (Options.LinkRoot).
 	LinkRoot string
 }
@@ -123,8 +123,8 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 
 	// link_root cascade: inner .dot-dagger.yaml overrides outer. Expand ~/ at walk time.
 	effectiveLinkRoot := cascadeLinkRoot
-	if cfg.Dotl.LinkRoot != "" {
-		expanded, err := expandTilde(cfg.Dotl.LinkRoot)
+	if cfg.Link.LinkRoot != "" {
+		expanded, err := expandTilde(cfg.Link.LinkRoot)
 		if err != nil {
 			return err
 		}
