@@ -1,6 +1,4 @@
-// Package daggeryaml loads and validates .dot-dagger.yaml per-directory config files.
-// These files are ecosystem config — sections are owned by individual tools but the
-// file belongs to the suite as a whole.
+// Package daggeryaml loads and validates .dotd.yaml per-directory config files.
 package daggeryaml
 
 import (
@@ -11,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config holds the parsed contents of a .dot-dagger.yaml file.
+// Config holds the parsed contents of a .dotd.yaml file.
 // Missing sections are zero-valued, not errors.
 type Config struct {
 	Env  EnvSection  `yaml:"env"`
@@ -55,7 +53,7 @@ type LinkSection struct {
 	LinkRoot string `yaml:"link_root"`
 }
 
-// Load parses a .dot-dagger.yaml from r.
+// Load parses a .dotd.yaml from r.
 func Load(r io.Reader) (*Config, error) {
 	var d Config
 	dec := yaml.NewDecoder(r)
@@ -66,7 +64,7 @@ func Load(r io.Reader) (*Config, error) {
 	return &d, nil
 }
 
-// LoadFile reads a .dot-dagger.yaml at path.
+// LoadFile reads a .dotd.yaml at path.
 // If the file does not exist, returns a zero-value Config without error.
 func LoadFile(path string) (*Config, error) {
 	f, err := os.Open(path)

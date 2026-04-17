@@ -8,7 +8,7 @@
 |---------|---------|
 | `internal/annotation` | File comment scanner; extracts `@key value` pairs |
 | `internal/predicate` | AST, lexer, parser, evaluator; `Env map[string]string` input |
-| `internal/daggeryaml` | Loads `.dot-dagger.yaml`; sections: `dotd`, `link`, `env` |
+| `internal/daggeryaml` | Loads `.dotd.yaml`; sections: `dotd`, `link`, `env` |
 | `internal/env` | OS/distro/shell detectors; loads `env.yaml`; `MissingKeysError` |
 | `internal/walk` | Traverses dotfiles tree; attaches annotations + config data |
 | `internal/fileset` | Filters walked tree by predicate evaluation |

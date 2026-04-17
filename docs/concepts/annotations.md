@@ -23,7 +23,7 @@ Scanning begins at the first line of the file. If the first line is a **shebang*
 | Shell (`.sh`, `.bash`, `.zsh`, `.fish`) | `#` |
 | C-style (`.c`, `.go`, `.js`, `.ts`, etc.) | `//` |
 | Any file with `#` or `//` comments | Works |
-| JSON, binary, XML, etc. | Use [`.dot-dagger.yaml`](../reference/dot-dagger-yaml.md) |
+| JSON, binary, XML, etc. | Use [`.dotd.yaml`](../reference/dotd-yaml.md) |
 
 ## What annotations exist
 
@@ -42,7 +42,7 @@ Scanning begins at the first line of the file. If the first line is a **shebang*
 
 ## Files without comment syntax
 
-JSON, compiled binaries, XML, and other files that don't support comments can't carry annotations directly. Use `.dot-dagger.yaml` in the same directory to provide equivalent metadata:
+JSON, compiled binaries, XML, and other files that don't support comments can't carry annotations directly. Use `.dotd.yaml` in the same directory to provide equivalent metadata:
 
 ```yaml
 dotd:
@@ -52,7 +52,7 @@ dotd:
       disable: false
 ```
 
-See [`.dot-dagger.yaml` reference](../reference/dot-dagger-yaml.md) for the full format.
+See [`.dotd.yaml` reference](../reference/dotd-yaml.md) for the full format.
 
 ## Convention vs annotation
 

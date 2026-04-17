@@ -1,4 +1,4 @@
-# §3, §5, §6 — Logical Names, Annotations & .dot-dagger.yaml
+# §3, §5, §6 — Logical Names, Annotations & .dotd.yaml
 
 ## 3. Logical Names and the DAG
 
@@ -19,7 +19,7 @@ conf/dot-config/tmux/tmux.conf  → conf.config.tmux.tmux
 nosync-dot-secrets/api.sh       → secrets.api
 ```
 
-The logical name always reflects the full path. No segments are skipped regardless of whether intermediate directories have `.dot-dagger.yaml` files.
+The logical name always reflects the full path. No segments are skipped regardless of whether intermediate directories have `.dotd.yaml` files.
 
 ### `@name` — aliasing
 
@@ -103,11 +103,11 @@ If a handler is not installed or fails, the tool warns but continues by default.
 
 ---
 
-## 6. `.dot-dagger.yaml`
+## 6. `.dotd.yaml`
 
 An optional metadata file that can appear in any directory. Its primary purpose is to provide metadata for files that cannot carry annotations — JSON, binary, XML, and other formats without supported comment syntax.
 
-`.dot-dagger.yaml` has three sections:
+`.dotd.yaml` has three sections:
 
 **`directory`** — properties of the directory node itself. Does not cascade to contents. The `when` field gates traversal of the entire subtree; if false, the directory is not entered at all.
 
@@ -144,6 +144,6 @@ files:
     retain_prefix: true
 ```
 
-All sections are optional. A `.dot-dagger.yaml` with just a `defaults.when` is valid. A directory with no `.dot-dagger.yaml` is also perfectly fine.
+All sections are optional. A `.dotd.yaml` with just a `defaults.when` is valid. A directory with no `.dotd.yaml` is also perfectly fine.
 
-Declaring a predicate in `.dot-dagger.yaml` for a specific file AND as an annotation in that file is an error. All predicate expressions are validated at load time.
+Declaring a predicate in `.dotd.yaml` for a specific file AND as an annotation in that file is an error. All predicate expressions are validated at load time.

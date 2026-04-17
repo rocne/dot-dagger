@@ -40,7 +40,7 @@ func TestLoadEmpty(t *testing.T) {
 }
 
 func TestLoadFileMissing(t *testing.T) {
-	d, err := LoadFile("/nonexistent/.dot-dagger.yaml")
+	d, err := LoadFile("/nonexistent/.dotd.yaml")
 	if err != nil {
 		t.Fatalf("LoadFile() error = %v for missing file", err)
 	}

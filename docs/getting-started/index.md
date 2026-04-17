@@ -75,7 +75,7 @@ dotfiles/
   bin/              ← executables symlinked onto $PATH
   env.yaml          ← your environment context (os, shell, context, etc.)
   packages.yaml     ← package registry
-  .dot-dagger.yaml  ← per-directory config for files that can't carry annotations
+  .dotd.yaml        ← per-directory config for files that can't carry annotations
 ```
 
 Any file in `scripts/`, `conf/`, or `bin/` is picked up automatically. [Annotations](../concepts/annotations.md) — comments at the top of each file — control conditions, load order, and package requirements.

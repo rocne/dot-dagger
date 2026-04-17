@@ -20,7 +20,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## UX / Polish
 
-- [x] `dotd setup` — interactive onboarding command. Scaffolds repo structure, env.yaml, .dot-dagger.yaml, packages.yaml. Shell hook detection + auto-append. `--yes`/`--no-interactive` flags.
+- [x] `dotd setup` — interactive onboarding command. Scaffolds repo structure, env.yaml, .dotd.yaml, packages.yaml. Shell hook detection + auto-append. `--yes`/`--no-interactive` flags.
 - [x] Colorization and theming — done: `internal/ui` package, semantic colors across all tools, colored cobra help output (bold headers, cyan commands/flags).
 
 ## Git / CI Infrastructure
@@ -45,7 +45,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 ## Architecture / Design
 
 - [x] Single binary vs suite — resolved: single `dotd` binary with subcommands.
-- [x] Config file naming — resolved: `.dot-dagger.yaml`, sections: `dotd`, `link`, `env`.
+- [x] Config file naming — resolved: `.dotd.yaml`, sections: `dotd`, `link`, `env`.
 - [x] Unknown annotation/predicate behavior — resolved: warns or errors (configurable), never silently false.
-- [x] Review `link_root` and `@symlink` relative path semantics — resolved: `link_root` cascades from `.dot-dagger.yaml` `link` section; inner overrides outer; empty = fallback to `Options.LinkRoot`. `@symlink` relative paths resolve against effective `link_root`.
+- [x] Review `link_root` and `@symlink` relative path semantics — resolved: `link_root` cascades from `.dotd.yaml` `link` section; inner overrides outer; empty = fallback to `Options.LinkRoot`. `@symlink` relative paths resolve against effective `link_root`.
 - [x] Package install approach — resolved: `dotd package generate` emits a shell script; user runs `dotd package generate | sudo sh`. No subprocess exec from binary.

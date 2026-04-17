@@ -1,8 +1,8 @@
-# .dot-dagger.yaml
+# .dotd.yaml
 
 Per-directory configuration for files that can't carry annotations — JSON, XML, compiled binaries, and anything else without a comment syntax dotd recognizes.
 
-It can appear in any directory in your dotfiles repo. Settings in a `.dot-dagger.yaml` apply to that directory and cascade downward; inner files override outer ones.
+It can appear in any directory in your dotfiles repo. Settings in a `.dotd.yaml` apply to that directory and cascade downward; inner files override outer ones.
 
 ## Format
 
@@ -86,14 +86,14 @@ This means all `conf/` files under this directory will be symlinked relative to 
 
 ```
 conf/dot-config/nvim/
-  .dot-dagger.yaml   ← link.link_root: ~/.config/nvim
-  init.lua           → ~/.config/nvim/init.lua
+  .dotd.yaml   ← link.link_root: ~/.config/nvim
+  init.lua     → ~/.config/nvim/init.lua
   lua/
-    plugins.lua      → ~/.config/nvim/lua/plugins.lua
+    plugins.lua  → ~/.config/nvim/lua/plugins.lua
 ```
 
 ## Cascading
 
-`.dot-dagger.yaml` files cascade: inner directories override outer ones. If `conf/.dot-dagger.yaml` sets `link.link_root: ~/.config` and `conf/nvim/.dot-dagger.yaml` sets `link.link_root: ~/.config/nvim`, the nvim directory uses `~/.config/nvim`.
+`.dotd.yaml` files cascade: inner directories override outer ones. If `conf/.dotd.yaml` sets `link.link_root: ~/.config` and `conf/nvim/.dotd.yaml` sets `link.link_root: ~/.config/nvim`, the nvim directory uses `~/.config/nvim`.
 
 `dotd.defaults.when` cascades by ANDing: if the parent directory has `defaults.when: "os=macos"` and the child has `defaults.when: "context=work"`, files in the child see an effective when of `(os=macos) AND (context=work)`.

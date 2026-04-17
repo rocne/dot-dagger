@@ -2,7 +2,7 @@
 
 Every file can declare a `when` condition. A file is active if its effective predicate evaluates to true against the current environment.
 
-A directory-level `when` in `.dot-dagger.yaml` applies to all files in that directory and all subdirectories as a shared default. The effective predicate for any file is:
+A directory-level `when` in `.dotd.yaml` applies to all files in that directory and all subdirectories as a shared default. The effective predicate for any file is:
 
 ```
 directory_when AND file_when

@@ -27,7 +27,7 @@ Working doc for reviewing and polishing the spec. Issues are addressed one by on
 ### 3. `dotd check` vs `dotd status config` overlap unexplained
 **Location:** cli.md  
 **Severity:** Medium  
-**Issue:** `dotd check` is described as "Validate predicates, DAG, annotations, `.dot-dagger.yaml` files." `dotd status config` is "Config and annotation validation." These appear to overlap. If they differ (e.g. check is offline/static, status config reflects live resolved state), that distinction should be stated. If they're the same, one should be removed or made an alias.  
+**Issue:** `dotd check` is described as "Validate predicates, DAG, annotations, `.dotd.yaml` files." `dotd status config` is "Config and annotation validation." These appear to overlap. If they differ (e.g. check is offline/static, status config reflects live resolved state), that distinction should be stated. If they're the same, one should be removed or made an alias.  
 **Status:** Resolved  
 **Resolution:** Drop `dotd status` and all its subcommands (`dotd status config`, `dotd status env`, `dotd status files`). Replace with a single `dotd check` command that covers everything — state inspection and error detection. Can be expanded into subcommands later if needed.
 
@@ -45,7 +45,7 @@ Working doc for reviewing and polishing the spec. Issues are addressed one by on
 ### 5. `retain_prefix` on directory node semantics unclear
 **Location:** dag.md §6, overview.md §2  
 **Severity:** Medium  
-**Issue:** The `.dot-dagger.yaml` example shows `retain_prefix: true` under `directory:`. But overview.md says: "The `RetainPrefix` flag applies only to the file's own path component; intermediate directory components are always transformed." What does retaining prefix mean for the directory node itself? If it means "don't transform this directory's name in the symlink path," that's a meaningful distinction and needs stating. If it means the same as the file-level flag, it contradicts the "intermediate components are always transformed" rule and shouldn't appear in the example.  
+**Issue:** The `.dotd.yaml` example shows `retain_prefix: true` under `directory:`. But overview.md says: "The `RetainPrefix` flag applies only to the file's own path component; intermediate directory components are always transformed." What does retaining prefix mean for the directory node itself? If it means "don't transform this directory's name in the symlink path," that's a meaningful distinction and needs stating. If it means the same as the file-level flag, it contradicts the "intermediate components are always transformed" rule and shouldn't appear in the example.  
 **Status:** Resolved  
 **Resolution:** `retain_prefix` is uniform — it applies to any path component, file or directory, with no special cases. Remove the sentence "The `RetainPrefix` flag applies only to the file's own path component; intermediate directory components are always transformed" from overview.md. All components follow the same rule: `dot-` is transformed to `.` unless `retain_prefix` is set for that node.
 
@@ -103,4 +103,4 @@ Working doc for reviewing and polishing the spec. Issues are addressed one by on
 **Status:** Resolved  
 **Resolution:** Replace "conventions apply at any depth" with the actual rule: special dirs are recognised anywhere in the tree as long as you haven't already passed through a special dir to get there. `scripts/conf/` and `scripts/scripts/` are ignored — once inside a special dir, no further special dirs are recognised. No hard depth cap. Add a concrete example showing both root-level and topic-grouped layouts (including a `nosync-` case).
 
-Also introduces `link_root` — a `.dot-dagger.yaml` `directory:` field that overrides the base path for symlink destinations in that subtree (default `~`). `@symlink` destinations follow standard path rules: absolute if starting with `/` or `~/`, otherwise implicitly relative to `link_root`. Flag for further review before spec is finalised.
+Also introduces `link_root` — a `.dotd.yaml` `directory:` field that overrides the base path for symlink destinations in that subtree (default `~`). `@symlink` destinations follow standard path rules: absolute if starting with `/` or `~/`, otherwise implicitly relative to `link_root`. Flag for further review before spec is finalised.

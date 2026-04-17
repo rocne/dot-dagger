@@ -90,7 +90,7 @@ The core dotd bet: **conditions belong on files, not in shell code or central ma
 
 **One annotation, one concern.** Each annotation does exactly one thing. `@when` controls inclusion. `@after` controls ordering. `@require` gates on a package. They compose but don't interfere.
 
-**Convention over config.** Put files in `scripts/`, `conf/`, or `bin/` and they just work. Annotations and `.dot-dagger.yaml` are for exceptions, not the common case.
+**Convention over config.** Put files in `scripts/`, `conf/`, or `bin/` and they just work. Annotations and `.dotd.yaml` are for exceptions, not the common case.
 
 **Composable subsystems.** Every subsystem works standalone. `dotd apply` composes them, but you can run individual stages, use only the pieces you need, and understand the system by reading one part at a time.
 
@@ -174,7 +174,7 @@ dotfiles/
   bin/              ← executables symlinked onto $PATH
   env.yaml          ← your environment context (os, shell, context, etc.)
   packages.yaml     ← package registry
-  .dot-dagger.yaml  ← per-directory config for files that can't carry annotations
+  .dotd.yaml  ← per-directory config for files that can't carry annotations
 ```
 
 Any file in `scripts/`, `conf/`, or `bin/` is picked up automatically. Annotations (comments at the top of a file) control conditions, ordering, and package requirements.
@@ -479,7 +479,7 @@ packages:
     apt: {}
 ```
 
-### .dot-dagger.yaml
+### .dotd.yaml
 
 Per-directory config for files that can't carry annotations (JSON, XML, binaries, etc.).
 
