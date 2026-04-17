@@ -82,8 +82,39 @@ func newRootCmd() *cobra.Command {
 		newDAGCmd(cfg),
 		newLinkCmd(cfg),
 		newPackageCmd(cfg),
+		newCompletionCmd(),
 	)
 	return root
+}
+
+func newCompletionCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "completion <shell>",
+		Short: "Generate shell completion script",
+		Long: `Output a shell completion script to source in your shell profile.
+
+  bash:  source <(dotd completion bash)
+  zsh:   source <(dotd completion zsh)
+  fish:  dotd completion fish | source`,
+		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
+		Args:      cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root := cmd.Root()
+			switch args[0] {
+			case "bash":
+				return root.GenBashCompletion(cmd.OutOrStdout())
+			case "zsh":
+				return root.GenZshCompletion(cmd.OutOrStdout())
+			case "fish":
+				return root.GenFishCompletion(cmd.OutOrStdout(), true)
+			case "powershell":
+				return root.GenPowerShellCompletionWithDesc(cmd.OutOrStdout())
+			default:
+				return fmt.Errorf("unsupported shell %q — choose bash, zsh, fish, or powershell", args[0])
+			}
+		},
+	}
+	return cmd
 }
 
 func runApply(cmd *cobra.Command, cfg *config) error {
