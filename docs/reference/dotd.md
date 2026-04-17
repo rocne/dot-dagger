@@ -76,7 +76,7 @@ dotd adopt ~/.zshrc --yes             # accept inferred destination without prom
 | Marked executable (`chmod +x`) | `bin/<name>` |
 | `.sh`, `.bash`, `.zsh`, `.fish` | `scripts/<name>` |
 | Hidden file (`.bashrc`, etc.) | `conf/dot-<name>` |
-| `.conf`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` | `conf/<name>` |
+| `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` | `conf/<name>` |
 | Anything else | Error — use `--to` |
 
 **Flags:**
@@ -109,7 +109,7 @@ dotd env set context=work --dry-run
 | Key | Detection method |
 |---|---|
 | `os` | `runtime.GOOS` — `macos` or `linux` |
-| `distro` | `/etc/os-release` on Linux; `sw_vers` on macOS |
+| `distro` | `ID` from `/etc/os-release` on Linux; `"macos"` on macOS |
 | `shell` | `$SHELL` environment variable |
 
 ---
@@ -160,8 +160,9 @@ dotd link remove --dry-run     # preview removal
 Package management.
 
 ```sh
-dotd package install           # install declared packages
-dotd package install --dry-run # preview
+dotd package generate          # generate shell install script (preview)
+dotd package generate | sudo sh  # install packages
+dotd package generate -o packages-install.sh  # write to file
 dotd package check             # report status without installing
 dotd package list              # list all declared packages
 ```

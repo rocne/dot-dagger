@@ -31,7 +31,7 @@ These are set automatically and don't need to be in `env.yaml` unless you want t
 | Key | Detection method |
 |---|---|
 | `os` | `runtime.GOOS` — `macos` or `linux` |
-| `distro` | `/etc/os-release` on Linux; `sw_vers` on macOS |
+| `distro` | `ID` from `/etc/os-release` on Linux; `"macos"` on macOS |
 | `shell` | `$SHELL` environment variable |
 
 ## Custom keys

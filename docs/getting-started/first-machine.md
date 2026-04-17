@@ -75,7 +75,7 @@ Run `dotd env show` to see the full resolved environment:
 dotd env show
 # os=macos
 # shell=zsh
-# distro=sequoia
+# distro=macos
 # context=personal
 ```
 
