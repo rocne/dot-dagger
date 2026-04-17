@@ -7,12 +7,12 @@
 #
 # With args (pass after --):
 #   curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-#     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.1.4
+#     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
 #
 # Local usage:
 #   ./install.sh [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64] [--dir path] [--dry-run]
 #
-# --version    specific version to install  (default: latest)
+# --version    specific version to install  (default: latest)  e.g. v0.2.0
 # --os         override OS detection
 # --arch       override architecture detection
 # --dir        override install directory   (default: ~/.local/bin)
@@ -97,10 +97,10 @@ fi
 if [ -n "$VERSION" ]; then
   # normalize: strip leading 'v' then re-add, so both 'v0.1.4' and '0.1.4' work
   VERSION=$(printf '%s' "$VERSION" | sed 's/^v//')
-  TAG="${TOOL}-v${VERSION}"
+  TAG="v${VERSION}"
 else
   TAG=$(gh api "repos/$REPO/releases" \
-    --jq "[.[] | select(.tag_name | startswith(\"${TOOL}-\"))][0].tag_name")
+    --jq "[.[] | select(.tag_name | startswith(\"v\"))][0].tag_name")
 
   if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
     printf 'error: no %s release found in %s\n' "$TOOL" "$REPO" >&2
@@ -110,8 +110,8 @@ fi
 
 printf 'release:  %s\n' "$TAG"
 
-# tag: dotd-v0.1.4  →  asset: dotd_v0.1.4_linux_amd64.tar.gz
-ASSET_PREFIX=$(printf '%s' "$TAG" | sed "s/${TOOL}-/${TOOL}_/")
+# tag: v0.2.0  →  asset: dotd_v0.2.0_linux_amd64.tar.gz
+ASSET_PREFIX="${TOOL}_${TAG}"
 ASSET="${ASSET_PREFIX}_${OS}_${ARCH}.tar.gz"
 CHECKSUMS="${ASSET_PREFIX}_checksums.txt"
 printf 'asset:    %s\n' "$ASSET"
