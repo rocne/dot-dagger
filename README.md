@@ -500,6 +500,24 @@ link:
 
 ---
 
+## Development
+
+**Run tests:**
+
+```sh
+go test ./...
+go test -tags integration ./cmd/dotd/
+```
+
+**Serve docs locally:**
+
+```sh
+pip install -r docs/requirements.txt
+mkdocs serve
+```
+
+---
+
 ## License
 
 MIT
