@@ -181,6 +181,102 @@ func TestEnvSetInvalidArg(t *testing.T) {
 	}
 }
 
+// --- dotd env diff ---
+
+func TestEnvDiffNoOverrides(t *testing.T) {
+	out, err := run(t, "env", "diff",
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "no overrides") {
+		t.Errorf("expected 'no overrides' with empty env file: %q", out)
+	}
+}
+
+func TestEnvDiffShowsOverrides(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+	// Override "os" to a value that differs from detected.
+	if err := os.WriteFile(envFile, []byte("env:\n  os: testplatform\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "env", "diff",
+		"--env-file", envFile,
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "os") || !strings.Contains(out, "testplatform") {
+		t.Errorf("expected os override in diff output: %q", out)
+	}
+}
+
+func TestEnvDiffMatchingOverrideNotShown(t *testing.T) {
+	// If env.yaml sets a value that happens to match what's detected, no diff.
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+
+	// Detect real OS value first.
+	osOut, err := run(t, "env", "get", "os",
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env get os: %v", err)
+	}
+	detectedOS := strings.TrimSpace(osOut)
+
+	// Write env.yaml with the same OS value as detected.
+	if err := os.WriteFile(envFile, []byte("env:\n  os: "+detectedOS+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "env", "diff",
+		"--env-file", envFile,
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "no overrides") {
+		t.Errorf("matching override should not appear in diff: %q", out)
+	}
+}
+
+// --- dotd completion ---
+
+func TestCompletionBash(t *testing.T) {
+	out, err := run(t, "completion", "bash")
+	if err != nil {
+		t.Fatalf("completion bash error = %v", err)
+	}
+	if !strings.Contains(out, "bash") {
+		t.Errorf("expected bash completion output: %q", out[:min(len(out), 200)])
+	}
+}
+
+func TestCompletionZsh(t *testing.T) {
+	out, err := run(t, "completion", "zsh")
+	if err != nil {
+		t.Fatalf("completion zsh error = %v", err)
+	}
+	if len(out) == 0 {
+		t.Error("expected non-empty zsh completion output")
+	}
+}
+
+func TestCompletionInvalidShell(t *testing.T) {
+	_, err := run(t, "completion", "nosuchshell")
+	if err == nil {
+		t.Error("expected error for unsupported shell")
+	}
+}
+
 // --- dotd check ---
 
 func TestCheckEmptyRepo(t *testing.T) {

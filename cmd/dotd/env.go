@@ -10,6 +10,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// envDiffEntry records a single key's detected vs effective value.
+type envDiffEntry struct {
+	key      string
+	detected string
+	override string
+}
+
 func newEnvCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "env",
@@ -37,6 +44,13 @@ func newEnvCmd(cfg *config) *cobra.Command {
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runEnvSet(cmd, cfg, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "diff",
+			Short: "Show keys where env.yaml overrides auto-detected values",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runEnvDiff(cmd, cfg)
 			},
 		},
 	)
@@ -69,6 +83,43 @@ func runEnvGet(cmd *cobra.Command, cfg *config, key string) error {
 		return fmt.Errorf("key %q not found in resolved environment", key)
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), val)
+	return nil
+}
+
+func runEnvDiff(cmd *cobra.Command, cfg *config) error {
+	// Load raw env.yaml overrides (no CLI flags — we want file-level overrides only).
+	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
+	if err != nil {
+		return err
+	}
+
+	// Detect without any overrides to get raw detected values.
+	detected, err := env.NewResolver().Resolve(nil)
+	if err != nil {
+		return err
+	}
+
+	// Collect keys where env.yaml diverges from detected.
+	var diffs []envDiffEntry
+	for k, override := range ef.Env {
+		det := detected[k]
+		if det != override {
+			diffs = append(diffs, envDiffEntry{key: k, detected: det, override: override})
+		}
+	}
+	sort.Slice(diffs, func(i, j int) bool { return diffs[i].key < diffs[j].key })
+
+	if len(diffs) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "no overrides — env.yaml matches auto-detected values")
+		return nil
+	}
+	for _, d := range diffs {
+		if d.detected == "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s  (not detected) → %s\n", ui.Key(d.key), d.override)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s  %s → %s\n", ui.Key(d.key), d.detected, d.override)
+		}
+	}
 	return nil
 }
 
