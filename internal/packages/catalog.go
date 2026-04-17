@@ -15,36 +15,36 @@ var Catalog = []KnownManager{
 		Name:        "dnf",
 		Description: "Fedora / RHEL / CentOS",
 		Def: PackageManagerDef{
-			Install:   "sudo dnf install -y {package}",
-			Uninstall: "sudo dnf remove -y {package}",
-			Update:    "sudo dnf upgrade -y {package}",
+			Install:   "dnf install -y {package}",
+			Uninstall: "dnf remove -y {package}",
+			Update:    "dnf upgrade -y {package}",
 		},
 	},
 	{
 		Name:        "yum",
 		Description: "older RHEL / CentOS",
 		Def: PackageManagerDef{
-			Install:   "sudo yum install -y {package}",
-			Uninstall: "sudo yum remove -y {package}",
-			Update:    "sudo yum update -y {package}",
+			Install:   "yum install -y {package}",
+			Uninstall: "yum remove -y {package}",
+			Update:    "yum update -y {package}",
 		},
 	},
 	{
 		Name:        "apt",
 		Description: "Debian / Ubuntu",
 		Def: PackageManagerDef{
-			Install:   "sudo apt-get install -y {package}",
-			Uninstall: "sudo apt-get remove -y {package}",
-			Update:    "sudo apt-get install -y {package}",
+			Install:   "apt-get install -y {package}",
+			Uninstall: "apt-get remove -y {package}",
+			Update:    "apt-get install -y {package}",
 		},
 	},
 	{
 		Name:        "pacman",
 		Description: "Arch Linux",
 		Def: PackageManagerDef{
-			Install:   "sudo pacman -S --noconfirm {package}",
-			Uninstall: "sudo pacman -R --noconfirm {package}",
-			Update:    "sudo pacman -S --noconfirm {package}",
+			Install:   "pacman -S --noconfirm {package}",
+			Uninstall: "pacman -R --noconfirm {package}",
+			Update:    "pacman -S --noconfirm {package}",
 		},
 	},
 	{
@@ -60,18 +60,18 @@ var Catalog = []KnownManager{
 		Name:        "zypper",
 		Description: "openSUSE",
 		Def: PackageManagerDef{
-			Install:   "sudo zypper install -y {package}",
-			Uninstall: "sudo zypper remove -y {package}",
-			Update:    "sudo zypper update -y {package}",
+			Install:   "zypper install -y {package}",
+			Uninstall: "zypper remove -y {package}",
+			Update:    "zypper update -y {package}",
 		},
 	},
 	{
 		Name:        "apk",
 		Description: "Alpine Linux",
 		Def: PackageManagerDef{
-			Install:   "sudo apk add {package}",
-			Uninstall: "sudo apk del {package}",
-			Update:    "sudo apk upgrade {package}",
+			Install:   "apk add {package}",
+			Uninstall: "apk del {package}",
+			Update:    "apk upgrade {package}",
 		},
 	},
 	{

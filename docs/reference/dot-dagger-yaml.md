@@ -1,6 +1,6 @@
 # .dot-dagger.yaml
 
-Per-directory configuration for files that can't carry annotations — JSON, XML, compiled binaries, and anything else without a comment syntax dotr recognizes.
+Per-directory configuration for files that can't carry annotations — JSON, XML, compiled binaries, and anything else without a comment syntax dotd recognizes.
 
 It can appear in any directory in your dotfiles repo. Settings in a `.dot-dagger.yaml` apply to that directory and cascade downward; inner files override outer ones.
 

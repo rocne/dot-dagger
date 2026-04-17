@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 
-	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -16,13 +16,7 @@ func newPackageCmd(cfg *config) *cobra.Command {
 		Short: "Package management — filtered by active predicates",
 	}
 	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "install",
-			Short: "Install all packages declared in active nodes",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runPackageInstall(cmd, cfg)
-			},
-		},
+		newPackageGenerateCmd(cfg),
 		&cobra.Command{
 			Use:   "check",
 			Short: "Report package status without installing",
@@ -41,7 +35,34 @@ func newPackageCmd(cfg *config) *cobra.Command {
 	return cmd
 }
 
-func runPackageInstall(cmd *cobra.Command, cfg *config) error {
+func newPackageGenerateCmd(cfg *config) *cobra.Command {
+	var outputFile string
+	cmd := &cobra.Command{
+		Use:   "generate",
+		Short: "Generate a shell install script for active package requirements",
+		Long: `Generate a shell install script for active package requirements.
+
+Only packages not already installed are included. Package managers and
+commands are resolved from packages.yaml — no built-in defaults are used.
+
+Preview packages to install:
+  dotd package generate
+
+Install packages:
+  dotd package generate | sudo sh
+
+Write install script to file:
+  dotd package generate -o packages-install.sh
+  sudo sh packages-install.sh`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runPackageGenerate(cmd, cfg, outputFile)
+		},
+	}
+	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "write script to file instead of stdout")
+	return cmd
+}
+
+func runPackageGenerate(cmd *cobra.Command, cfg *config, outputFile string) error {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
@@ -55,12 +76,18 @@ func runPackageInstall(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	reqs := packages.CollectRequests(nodes.Nodes)
-	for _, req := range reqs {
-		if err := packages.InstallOne(cmd.OutOrStdout(), cmd.ErrOrStderr(), req, reg, cfg.dryRun, cfg.verbose, ecosystem.ToolD, exec.LookPath); err != nil {
-			return err
+
+	w := cmd.OutOrStdout()
+	if outputFile != "" {
+		f, err := os.Create(outputFile)
+		if err != nil {
+			return fmt.Errorf("package generate: %w", err)
 		}
+		defer func() { _ = f.Close() }()
+		w = f
 	}
-	return nil
+
+	return packages.GenerateScript(w, reqs, reg, exec.LookPath)
 }
 
 func runPackageCheck(cmd *cobra.Command, cfg *config) error {

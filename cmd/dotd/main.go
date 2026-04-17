@@ -103,18 +103,6 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
 	}
 
-	reg, err := loadPackageContext(cfg)
-	if err != nil {
-		return err
-	}
-
-	reqs := packages.CollectRequests(nodes.Nodes)
-	for _, req := range reqs {
-		if err := handlePackage(cmd, cfg, req, reg); err != nil {
-			return err
-		}
-	}
-
 	opts := linker.Options{
 		RepoRoot: cfg.files,
 		LinkRoot: cfg.linkRoot,
@@ -267,10 +255,6 @@ func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error)
 
 func loadPackageContext(cfg *config) (*packages.Registry, error) {
 	return packages.LoadFile(filepath.Join(cfg.files, "packages.yaml"))
-}
-
-func handlePackage(cmd *cobra.Command, cfg *config, req packages.PackageRequest, reg *packages.Registry) error {
-	return packages.InstallOne(cmd.OutOrStdout(), cmd.ErrOrStderr(), req, reg, cfg.dryRun, cfg.verbose, ecosystem.ToolD, exec.LookPath)
 }
 
 func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }

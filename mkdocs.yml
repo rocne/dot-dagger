@@ -1,5 +1,5 @@
-site_name: dotr
-site_description: A dotfiles management suite for people who use more than one machine
+site_name: dotd
+site_description: A dotfiles manager for people who use more than one machine
 site_url: https://rocne.github.io/dot-dagger/
 repo_url: https://github.com/rocne/dot-dagger
 repo_name: rocne/dot-dagger
@@ -60,11 +60,7 @@ nav:
     - Load order: concepts/load-order.md
     - File identity: concepts/file-identity.md
   - Reference:
-    - dotr: reference/dotr.md
-    - dote: reference/dote.md
     - dotd: reference/dotd.md
-    - dotl: reference/dotl.md
-    - dotp: reference/dotp.md
     - Annotations: reference/annotations.md
     - env.yaml: reference/env-yaml.md
     - packages.yaml: reference/packages-yaml.md

@@ -1,6 +1,6 @@
 # Annotations
 
-Annotations are metadata written as comments at the top of a file. They tell dotr when a file should be active, what it depends on, which packages it needs, and how it should be processed.
+Annotations are metadata written as comments at the top of a file. They tell dotd when a file should be active, what it depends on, which packages it needs, and how it should be processed.
 
 ```sh
 #!/bin/bash
@@ -12,7 +12,7 @@ Annotations are metadata written as comments at the top of a file. They tell dot
 alias ls='ls -G'
 ```
 
-Annotations are **read at apply time, not at shell startup**. They have zero effect at runtime — your shell sources a pre-built `init.sh` that contains only the files that were active when `dotr apply` last ran.
+Annotations are **read at apply time, not at shell startup**. They have zero effect at runtime — your shell sources a pre-built `init.sh` that contains only the files that were active when `dotd apply` last ran.
 
 ## How scanning works
 
