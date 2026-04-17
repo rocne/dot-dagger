@@ -382,9 +382,9 @@ func TestPackageRequestSoftSkip(t *testing.T) {
 	assertInInit(t, init, "optional-tool.sh")
 }
 
-// TestPackageRequireHardFail verifies that apply fails when a @require package
-// cannot be installed. We write a temporary script with @require not-installable
-// into the fixture copy.
+// TestPackageRequireHardFail verifies that `dotd package generate` fails when a
+// @require package has no installable manager. apply itself no longer validates
+// packages — that is the responsibility of `dotd package generate`.
 func TestPackageRequireHardFail(t *testing.T) {
 	e := newIenv(t)
 
@@ -395,9 +395,9 @@ func TestPackageRequireHardFail(t *testing.T) {
 		t.Fatalf("write hard-fail.sh: %v", err)
 	}
 
-	_, err := e.runMayFail(t, "apply", "--env", "os=linux")
+	_, err := e.runMayFail(t, "package", "generate", "--env", "os=linux")
 	if err == nil {
-		t.Error("expected apply to fail when @require package is not installable")
+		t.Error("expected package generate to fail when @require package is not installable")
 	}
 }
 
