@@ -67,7 +67,7 @@ Commit and push fairly often. Before committing, validate that things are in a g
 
 **All changes go to a feature branch and merge via PR — never commit directly to `main`.** Conceptually and temporally related changes belong in the same branch and PR. Batch related work rather than opening many small PRs.
 
-When a PR already exists for the current branch, update it rather than opening a new one. Always check `gh pr list` first to confirm the PR hasn't already been merged before pushing more commits to that branch.
+When a PR already exists for the current branch, update it rather than opening a new one. **Before every push, run `gh pr view` to confirm the PR is still open.** If it is merged, create a new branch and PR — never push to a merged branch.
 
 ### Validation steps
 
