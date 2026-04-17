@@ -1,6 +1,7 @@
 package packages
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"testing"
@@ -148,8 +149,8 @@ func TestManagerOrderGlobalPriority(t *testing.T) {
 	}
 }
 
-func TestManagerOrderCatalogFallback(t *testing.T) {
-	// Registry with no priority and no per-package prefer.
+func TestManagerOrderRegistryFallback(t *testing.T) {
+	// Registry with no priority and no per-package prefer — falls back to declaration order.
 	reg, err := Load(strings.NewReader(`
 package_managers:
   apt:
@@ -419,5 +420,94 @@ func TestCollectRequestsEmpty(t *testing.T) {
 	reqs := CollectRequests(nodes)
 	if len(reqs) != 0 {
 		t.Errorf("expected no requests, got %d", len(reqs))
+	}
+}
+
+// --- GenerateScript ---
+
+func TestGenerateScriptEmitsInstallCmd(t *testing.T) {
+	reg := loadSample(t)
+	reqs := []PackageRequest{
+		{Package: "fzf", Hard: true, NodePath: "/a.sh"},
+	}
+	var buf bytes.Buffer
+	err := GenerateScript(&buf, reqs, reg, func(bin string) (string, error) {
+		if bin == "fzf" {
+			return "", fmt.Errorf("not found") // not installed
+		}
+		if bin == "brew" {
+			return "/usr/local/bin/brew", nil // manager on PATH
+		}
+		return "", fmt.Errorf("not found")
+	})
+	if err != nil {
+		t.Fatalf("GenerateScript() error = %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "brew install fzf") {
+		t.Errorf("output missing install cmd, got:\n%s", out)
+	}
+}
+
+func TestGenerateScriptSkipsInstalled(t *testing.T) {
+	reg := loadSample(t)
+	reqs := []PackageRequest{
+		{Package: "fzf", Hard: true, NodePath: "/a.sh"},
+	}
+	var buf bytes.Buffer
+	err := GenerateScript(&buf, reqs, reg, lookPathFound) // fzf "installed"
+	if err != nil {
+		t.Fatalf("GenerateScript() error = %v", err)
+	}
+	if strings.Contains(buf.String(), "install") {
+		t.Errorf("expected no install cmd for already-installed package, got:\n%s", buf.String())
+	}
+}
+
+func TestGenerateScriptDeduplicates(t *testing.T) {
+	reg := loadSample(t)
+	reqs := []PackageRequest{
+		{Package: "fzf", Hard: true, NodePath: "/a.sh"},
+		{Package: "fzf", Hard: false, NodePath: "/b.sh"},
+	}
+	var buf bytes.Buffer
+	err := GenerateScript(&buf, reqs, reg, func(bin string) (string, error) {
+		if bin == "brew" {
+			return "/usr/local/bin/brew", nil
+		}
+		return "", fmt.Errorf("not found")
+	})
+	if err != nil {
+		t.Fatalf("GenerateScript() error = %v", err)
+	}
+	count := strings.Count(buf.String(), "brew install fzf")
+	if count != 1 {
+		t.Errorf("expected 1 install cmd, got %d", count)
+	}
+}
+
+func TestGenerateScriptHardRequireError(t *testing.T) {
+	reg := loadSample(t)
+	reqs := []PackageRequest{
+		{Package: "fzf", Hard: true, NodePath: "/a.sh"},
+	}
+	err := GenerateScript(&bytes.Buffer{}, reqs, reg, lookPathNotFound)
+	if err == nil {
+		t.Error("expected error for uninstallable @require package")
+	}
+}
+
+func TestGenerateScriptSoftRequestSkipped(t *testing.T) {
+	reg := loadSample(t)
+	reqs := []PackageRequest{
+		{Package: "fzf", Hard: false, NodePath: "/a.sh"},
+	}
+	var buf bytes.Buffer
+	err := GenerateScript(&buf, reqs, reg, lookPathNotFound)
+	if err != nil {
+		t.Fatalf("GenerateScript() error = %v (want nil for @request)", err)
+	}
+	if strings.Contains(buf.String(), "install") {
+		t.Errorf("expected no install cmd for uninstallable @request, got:\n%s", buf.String())
 	}
 }
