@@ -29,6 +29,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 - [x] GitHub Actions lint workflow (`golangci-lint`)
 - [x] PR template (`.github/pull_request_template.md`)
 - [x] Integration tests with real fixture dotfiles repo (`go test -tags integration ./cmd/dotd/`)
+- [x] Simplify CI/CD for single binary — release tags `vX.Y.Z` (not `dotd-vX.Y.Z`), `release.yml` (not `release-dotd.yml`), auto-release uses `v*` tag pattern
 - [ ] Multi-distro integration testing via Docker — spin up Ubuntu/Fedora containers to verify install + apply end-to-end (defer until repo is public)
 
 ## Implementation
