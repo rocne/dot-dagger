@@ -20,37 +20,39 @@ The `feature/claude-` prefix makes it visually clear the branch was Claude's wor
 
 ## Release Process
 
-Releases use a tag push. Tags use a hyphen separator (not slash — GitHub Actions tag triggers are unreliable with `/` in tag names).
+Two release paths exist:
+
+- **Auto release** (`.github/workflows/auto-release.yml`) — triggers on every merge to `main` when `internal/**` or `cmd/dotd/**` changes. Auto-bumps the patch version. No manual action needed.
+- **Manual release** (`.github/workflows/release.yml`) — push a tag to trigger a controlled release.
 
 ### Tag format
 
 ```
-dotd-v<semver>
+v<semver>
 ```
 
-Example: `dotd-v0.2.0`
+Example: `v0.2.0`
 
-### How to release
+### How to manually release
 
 ```sh
-git tag dotd-v0.2.0
-git push origin dotd-v0.2.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
-This triggers `.github/workflows/auto-release.yml`, which:
-1. Extracts the version (`v0.2.0`) from the tag name
-2. Runs GoReleaser to build linux+darwin × amd64+arm64 archives (`--skip=validate,publish`)
-3. Creates the GitHub release via `gh release create` attached to the tag
+This triggers `.github/workflows/release.yml`, which:
+1. Runs GoReleaser to build linux+darwin × amd64+arm64 archives (`--skip=validate,publish`)
+2. Creates the GitHub release via `gh release create` attached to the tag
 
 ### Re-triggering a release
 
 If a release fails mid-run, delete and re-push the tag from `main`:
 
 ```sh
-git push origin --delete dotd-v0.2.0
-git tag -d dotd-v0.2.0
-git tag dotd-v0.2.0   # ensure main is checked out
-git push origin dotd-v0.2.0
+git push origin --delete v0.2.0
+git tag -d v0.2.0
+git tag v0.2.0   # ensure main is checked out
+git push origin v0.2.0
 ```
 
 Always tag from `main`. The workflow files must be present at the tagged commit — tagging a commit before the release workflow was merged will silently not trigger.

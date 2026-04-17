@@ -69,7 +69,7 @@ type Node struct {
 	EffectiveWhen string
 
 	// LinkRoot is the symlink destination root for this file, derived from
-	// the nearest ancestor .dot-dagger.yaml with link.link_root set.
+	// the nearest ancestor .dotd.yaml with link.link_root set.
 	// Empty means use the linker's default (Options.LinkRoot).
 	LinkRoot string
 }
@@ -89,7 +89,7 @@ var specialDirNames = map[string]Kind{
 }
 
 // Walk traverses the dotfiles repo at root and returns all file nodes.
-// It respects .dot-dagger.yaml config at each directory level.
+// It respects .dotd.yaml config at each directory level.
 // Special dirs (scripts/, conf/, bin/) are recognised anywhere unless
 // already inside a special dir — at which point they are treated as regular dirs.
 func Walk(root string) ([]Node, error) {
@@ -105,10 +105,10 @@ func Walk(root string) ([]Node, error) {
 //   - dir:              current directory being walked
 //   - inheritedKind:    kind inherited from a parent special dir (KindOther = not in one)
 //   - inSpecialDir:     true if we are already inside a special dir
-//   - cascadeWhen:      accumulated @when expression from ancestor .dot-dagger.yaml defaults
-//   - cascadeLinkRoot:  link_root from nearest ancestor .dot-dagger.yaml dotl section
+//   - cascadeWhen:      accumulated @when expression from ancestor .dotd.yaml defaults
+//   - cascadeLinkRoot:  link_root from nearest ancestor .dotd.yaml dotl section
 func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhen, cascadeLinkRoot string, nodes *[]Node) error {
-	// Load .dot-dagger.yaml for this directory.
+	// Load .dotd.yaml for this directory.
 	cfg, err := daggeryaml.LoadFile(filepath.Join(dir, ecosystem.ConfigFile))
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 	// and let fileset filter. But we do combine cascading defaults.
 	dirDefaultWhen := combineWhen(cascadeWhen, cfg.Dotd.Defaults.When)
 
-	// link_root cascade: inner .dot-dagger.yaml overrides outer. Expand ~/ at walk time.
+	// link_root cascade: inner .dotd.yaml overrides outer. Expand ~/ at walk time.
 	effectiveLinkRoot := cascadeLinkRoot
 	if cfg.Link.LinkRoot != "" {
 		expanded, err := expandTilde(cfg.Link.LinkRoot)
@@ -136,7 +136,7 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 		return err
 	}
 
-	// Build per-file override map from .dot-dagger.yaml files section.
+	// Build per-file override map from .dotd.yaml files section.
 	fileOverrides := make(map[string]*daggeryaml.FileEntry)
 	for i := range cfg.Dotd.Files {
 		fe := &cfg.Dotd.Files[i]
@@ -176,7 +176,7 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 			continue
 		}
 
-		// Apply .dot-dagger.yaml file overrides for non-annotatable files.
+		// Apply .dotd.yaml file overrides for non-annotatable files.
 		if override, ok := fileOverrides[name]; ok {
 			anns = applyFileEntryOverrides(anns, override)
 		}
@@ -212,7 +212,7 @@ func readAnnotations(path string) ([]annotation.Annotation, error) {
 	return annotation.ScanHeader(f)
 }
 
-// applyFileEntryOverrides synthesises annotations from a .dot-dagger.yaml FileEntry,
+// applyFileEntryOverrides synthesises annotations from a .dotd.yaml FileEntry,
 // overwriting any conflicting annotations already present.
 func applyFileEntryOverrides(anns []annotation.Annotation, fe *daggeryaml.FileEntry) []annotation.Annotation {
 	// Remove existing entries for keys we are about to set.

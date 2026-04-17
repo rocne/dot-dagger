@@ -15,14 +15,14 @@ Every `dot-` prefix at every path level is replaced with `.`. Non-`dot-` compone
 
 #### `link_root`
 
-The default symlink destination root is `~`. Any directory's `.dot-dagger.yaml` can override this with a `link_root` field under `directory:`:
+The default symlink destination root is `~`. Any directory's `.dotd.yaml` can override this with a `link_root` field under `directory:`:
 
 ```yaml
 directory:
   link_root: ~/.config/someapp
 ```
 
-All files under that directory that get symlinked will use `link_root` as the base instead of `~`. `link_root` cascades to subdirectories unless overridden by a closer `.dot-dagger.yaml`.
+All files under that directory that get symlinked will use `link_root` as the base instead of `~`. `link_root` cascades to subdirectories unless overridden by a closer `.dotd.yaml`.
 
 ### `bin/` → managed bin dir
 

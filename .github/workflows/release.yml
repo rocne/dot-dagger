@@ -3,7 +3,7 @@ name: Release dotd
 on:
   push:
     tags:
-      - "dotd-v*"
+      - "v*"
 
 permissions:
   contents: write
@@ -22,8 +22,7 @@ jobs:
 
       - name: Set version
         run: |
-          echo "VERSION=${GITHUB_REF_NAME#*-}" >> $GITHUB_ENV
-          echo "FULL_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
       - name: Build archives
         uses: goreleaser/goreleaser-action@v6
@@ -36,7 +35,7 @@ jobs:
 
       - name: Publish release
         run: |
-          gh release create "${FULL_TAG}" \
+          gh release create "${VERSION}" \
             --title "dotd ${VERSION}" \
             --generate-notes \
             dist/*.tar.gz \

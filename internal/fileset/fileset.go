@@ -35,7 +35,7 @@ type Node struct {
 	Annotations []annotation.Annotation
 
 	// LinkRoot is the symlink destination root for this file, derived from
-	// the nearest ancestor .dot-dagger.yaml with link.link_root set.
+	// the nearest ancestor .dotd.yaml with link.link_root set.
 	// Empty means use the linker's default (Options.LinkRoot).
 	LinkRoot string
 }

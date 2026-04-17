@@ -194,7 +194,7 @@ func Remove(links []Link) error {
 
 // destFor returns the symlink destination for a node, or "" if not linkable.
 func destFor(n fileset.Node, opts Options) (string, error) {
-	// Resolve effective link root: per-node value (from .dot-dagger.yaml cascade) takes
+	// Resolve effective link root: per-node value (from .dotd.yaml cascade) takes
 	// precedence over the flat Options.LinkRoot.
 	linkRoot := opts.LinkRoot
 	if n.LinkRoot != "" {

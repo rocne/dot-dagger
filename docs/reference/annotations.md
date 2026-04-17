@@ -2,7 +2,7 @@
 
 Annotations are comments placed at the top of a file. Scanning begins at the first line (skipping a shebang if present) and stops at the first blank line or non-comment line.
 
-Shell files use `#`. C-style files use `//`. Files without supported comment syntax use [`.dot-dagger.yaml`](dot-dagger-yaml.md).
+Shell files use `#`. C-style files use `//`. Files without supported comment syntax use [`.dotd.yaml`](dotd-yaml.md).
 
 ```sh
 #!/bin/bash
@@ -177,9 +177,9 @@ Use `@source` when a shell script also needs to be symlinked as a config file, o
 
 ---
 
-## .dot-dagger.yaml equivalents
+## .dotd.yaml equivalents
 
-For files that can't carry annotations, use `.dot-dagger.yaml` in the same directory:
+For files that can't carry annotations, use `.dotd.yaml` in the same directory:
 
 ```yaml
 dotd:
@@ -195,4 +195,4 @@ dotd:
       symlink: ""
 ```
 
-See [.dot-dagger.yaml reference](dot-dagger-yaml.md) for the full format.
+See [.dotd.yaml reference](dotd-yaml.md) for the full format.
