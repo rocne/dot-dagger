@@ -126,7 +126,7 @@ Install a specific version:
 
 ```sh
 curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.1.4
+  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
 ```
 
 Install to a custom directory:
@@ -496,6 +496,24 @@ dotd:
 
 link:
   link_root: ~/.config/nvim
+```
+
+---
+
+## Development
+
+**Run tests:**
+
+```sh
+go test ./...
+go test -tags integration ./cmd/dotd/
+```
+
+**Serve docs locally:**
+
+```sh
+pip install -r docs/requirements.txt
+mkdocs serve
 ```
 
 ---
