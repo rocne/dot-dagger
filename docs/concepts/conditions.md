@@ -19,7 +19,7 @@ The environment is a flat map of string keys to string values. Most keys are det
 dotd env show
 # os=macos
 # shell=zsh
-# distro=sequoia
+# distro=macos
 # context=personal
 ```
 
@@ -28,7 +28,7 @@ dotd env show
 | Key | How it's detected | Example values |
 |---|---|---|
 | `os` | `runtime.GOOS` | `macos`, `linux` |
-| `distro` | `/etc/os-release` on Linux; `sw_vers` on macOS | `ubuntu`, `fedora`, `sequoia` |
+| `distro` | `ID` from `/etc/os-release` on Linux; `"macos"` on macOS | `ubuntu`, `fedora`, `macos` |
 | `shell` | `$SHELL` environment variable | `zsh`, `bash`, `fish` |
 
 ### Custom keys

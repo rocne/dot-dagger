@@ -246,7 +246,7 @@ dotd adopt ~/.zshrc --yes         # accept inferred destination without promptin
 | Marked executable (`chmod +x`) | `bin/<name>` |
 | `.sh`, `.bash`, `.zsh`, `.fish` extension | `scripts/<name>` |
 | Hidden file (`.bashrc`, `.zshrc`, …) | `conf/dot-<name>` |
-| `.conf`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `conf/<name>` |
+| `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `conf/<name>` |
 | Anything else | Error — use `--to` |
 
 ### dotd env — environment
@@ -283,8 +283,9 @@ dotd link remove               # remove owned symlinks
 ### dotd package — packages
 
 ```sh
-dotd package install           # install declared packages
-dotd package install --dry-run # preview
+dotd package generate          # generate shell install script (preview)
+dotd package generate | sudo sh  # install packages
+dotd package generate -o packages-install.sh  # write to file
 dotd package check             # report status without installing
 dotd package list              # list all declared packages
 ```
@@ -350,7 +351,7 @@ Multiple `@when` lines are ANDed together.
 | Key | Auto-detected | Values |
 |-----|--------------|--------|
 | `os` | Yes | `macos`, `linux` |
-| `distro` | Yes | `ubuntu`, `fedora`, `sequoia`, ... |
+| `distro` | Yes | `ubuntu`, `fedora`, `macos`, ... |
 | `shell` | Yes | `zsh`, `bash`, `fish`, ... |
 | `context` | No — set in `env.yaml` | anything you define |
 
