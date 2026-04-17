@@ -15,7 +15,7 @@ Requires the [GitHub CLI](https://cli.github.com) authenticated with `gh auth lo
 
 ```sh
 curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.1.4
+  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
 ```
 
 **Install to a custom directory:**
