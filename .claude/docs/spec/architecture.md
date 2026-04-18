@@ -6,33 +6,29 @@
 dot-dagger/
 ├── cmd/
 │   └── dotd/
-│       └── main.go
+│       ├── main.go       # root command, global flags, apply/check/completion
+│       ├── link.go       # link apply/check/remove
+│       ├── dag.go        # dag apply/check
+│       ├── env.go        # env show/get/set/diff
+│       ├── package.go    # package check/list/generate
+│       ├── setup.go      # setup
+│       └── adopt.go      # adopt
 ├── internal/
-│   ├── predicate/      # predicate parser and evaluator
-│   │   ├── ast.go      # Expr interface, node types, And(), Keys()
-│   │   ├── lexer.go    # tokenizer
-│   │   ├── parser.go   # recursive descent, Parse()
-│   │   └── eval.go     # Env, Evaluator (injectable LookPath), Eval()
 │   ├── annotation/     # annotation scanner
-│   │   └── annotation.go  # Annotations, Custom, Scan(io.Reader)
-│   ├── daggeryaml/       # .dotd.yaml loader and validator
-│   │   └── dotdyaml.go    # DotD, Load(io.Reader), LoadFile(path)
-│   ├── env/            # environment resolution
-│   │   ├── env.go      # Schema, Resolver, MissingKeysError, Resolve()
-│   │   └── detect.go   # builtin detectors for os, distro, shell
-│   ├── graph/          # DAG builder and resolver
-│   │   ├── node.go     # Node, NodeKind, LogicalNameFor, KindFor
-│   │   ├── walk.go     # directory traversal, annotation merging
-│   │   └── graph.go    # Build(), conflict detection, topo sort
-│   ├── linker/         # symlink management
-│   │   └── linker.go   # DestFor, Linker, Apply, Remove, Status
-│   ├── initgen/        # init.sh generator
-│   │   └── initgen.go  # Generator, Generate, WriteFile (atomic)
-│   ├── state/          # drift detection (planned)
-│   └── cli/            # cobra command implementations (planned)
+│   ├── dag/            # DAG builder, topo sort, conflict detection
+│   ├── daggeryaml/     # .dotd.yaml loader and validator
+│   ├── ecosystem/      # shared tool name constants
+│   ├── env/            # environment resolution and auto-detection
+│   ├── fileset/        # active file set construction from walk + env
+│   ├── initgen/        # init.sh generator (atomic write)
+│   ├── linker/         # symlink management — apply, remove, status
+│   ├── packages/       # package catalog and install script generation
+│   ├── predicate/      # predicate parser and evaluator
+│   ├── setup/          # interactive onboarding logic
+│   ├── ui/             # output formatting and colored cobra help
+│   └── walk/           # directory traversal, annotation merging
 ├── go.mod
 ├── go.sum
-├── SPEC.md
 └── README.md
 ```
 
@@ -98,20 +94,24 @@ Encryption of secrets, Windows support, GUI or TUI, git sync commands, directory
 
 ## 18. Implementation Status
 
-Nothing is implemented yet. All packages are planned.
+All packages implemented and tested.
 
-| Package | Status | Tests |
-|---------|--------|-------|
-| `internal/predicate` | 🔲 Planned | — |
-| `internal/annotation` | 🔲 Planned | — |
-| `internal/dotdyaml` | 🔲 Planned | — |
-| `internal/env` | 🔲 Planned | — |
-| `internal/graph` | 🔲 Planned | — |
-| `internal/linker` | 🔲 Planned | — |
-| `internal/initgen` | 🔲 Planned | — |
-| `internal/state` | 🔲 Planned | — |
-| `internal/cli` | 🔲 Planned | — |
-| `cmd/dotd` | 🔲 Planned | — |
+| Package | Status |
+|---------|--------|
+| `internal/predicate` | ✅ Implemented |
+| `internal/annotation` | ✅ Implemented |
+| `internal/daggeryaml` | ✅ Implemented |
+| `internal/env` | ✅ Implemented |
+| `internal/dag` | ✅ Implemented |
+| `internal/walk` | ✅ Implemented |
+| `internal/fileset` | ✅ Implemented |
+| `internal/linker` | ✅ Implemented |
+| `internal/initgen` | ✅ Implemented |
+| `internal/packages` | ✅ Implemented |
+| `internal/setup` | ✅ Implemented |
+| `internal/ecosystem` | ✅ Implemented |
+| `internal/ui` | ✅ Implemented |
+| `cmd/dotd` | ✅ Implemented |
 
 ---
 
