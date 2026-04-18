@@ -15,7 +15,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 - [ ] `CONTRIBUTING.md` — defer until project goes public or has external contributors
 - [ ] **Go public** — make repo public on GitHub (Settings → General → Change visibility)
-- [ ] Remove `-H "Authorization: Bearer $(gh auth token)"` from install one-liner in README and install.sh comments — only needed while repo is private. Do this when repo goes public.
+- [x] Remove `-H "Authorization: Bearer $(gh auth token)"` from install one-liner in README and install.sh comments — only needed while repo is private. Do this when repo goes public.
 - [ ] **Enable GitHub Pages** — after going public: Settings → Pages → Source: GitHub Actions. Docs workflow (`.github/workflows/docs.yml`) deploys automatically on merge to main.
 
 ## UX / Polish

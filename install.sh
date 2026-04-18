@@ -1,13 +1,11 @@
 #!/usr/bin/env sh
 # install.sh — download and install dotd
 #
-# One-liner (private repo — uses gh for auth):
-#   curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-#     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh
+# One-liner:
+#   curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh
 #
 # With args (pass after --):
-#   curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-#     https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
+#   curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
 #
 # Local usage:
 #   ./install.sh [--version v0.1.4] [--os linux|darwin] [--arch amd64|arm64] [--dir path] [--dry-run]
@@ -18,7 +16,7 @@
 # --dir        override install directory   (default: ~/.local/bin)
 # --dry-run    print what would be done, then exit without installing
 #
-# Requires: gh CLI (https://cli.github.com), authenticated with `gh auth login`
+# Requires: gh CLI (https://cli.github.com)
 #
 set -e
 
