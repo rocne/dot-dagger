@@ -17,24 +17,22 @@ A file with no `when` is implicitly true — active whenever its directory predi
 | Key | Auto-detected? | Method | Examples |
 |-----|---------------|--------|---------|
 | `os` | Yes | `runtime.GOOS`, normalized | `macos`, `linux` |
-| `distro` | Yes | `/etc/os-release` or `sw_vers` | `ubuntu`, `sequoia` |
+| `distro` | Yes | `ID=` from `/etc/os-release`; `macos` on darwin | `ubuntu`, `fedora`, `macos` |
 | `shell` | Yes | `$SHELL`, basename, lowercased | `zsh`, `bash` |
-| `context` | No | Must be set explicitly | `personal`, `work` |
+| `context` | No | Must be set explicitly in `env.yaml` | `personal`, `work` |
 
-`darwin` and `macos` are treated as aliases — `runtime.GOOS` returns `darwin`, which is normalized to `macos` at detection time.
+`darwin` and `macos` are treated as aliases — `runtime.GOOS` returns `darwin`, which is normalized to `macos` for both `os` and `distro` at detection time.
 
-Custom keys are declared in `config.yaml` with optional `detect`, `cmd`, `default`, and `values` fields.
+Additional env keys can be added to `env.yaml` under the `env` section. There is no schema declaration file — any key present in `env.yaml` is available to predicates.
 
 ---
 
 ## Environment resolution precedence
 
-1. `--env key=val` CLI flag
+1. `--env key=val` CLI flag (highest precedence)
 2. Explicit value in `env.yaml`
-3. `cmd` output from `config.yaml`
-4. `detect` auto-detection
-5. `default` static fallback from `config.yaml`
-6. Unset — surfaces as error or prompt, never silent
+3. Built-in auto-detection (`os`, `distro`, `shell`)
+4. Unset — surfaces as error or prompt, never silent
 
 ### Missing keys at apply time
 

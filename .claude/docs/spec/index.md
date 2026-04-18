@@ -33,5 +33,3 @@ dot-dagger is a dotfiles composition engine — predicate-gated files, DAG-order
 - Missing env keys: prompt (TTY) or halt (non-interactive) — never silent
 
 ---
-
-[original.md](original.md) — full monolithic spec preserved for reference

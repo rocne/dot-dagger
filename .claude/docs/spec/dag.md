@@ -77,8 +77,12 @@ Metadata is declared as comment annotations at the top of a file.
 | `@after <ref>` | DAG ordering dependency — logical name or path prefix ending in `/` |
 | `@name <logical-name>` | Override the full logical name of this file |
 | `@symlink <path>` | Symlink this file to an explicit destination (see symlinks.md for path rules) |
-| `@retain-prefix` | Opt out of `dot-` transformation for this path component |
-| custom | Dispatched to registered external handlers |
+| `@retain-prefix` | Opt out of `dot-`/`nosync-` stripping for this file's name component |
+| `@disable` | Exclude this file from all processing — no DAG, no sourcing, no symlinking |
+| `@no-source` | Keep file in DAG for ordering but omit from `init.sh` (KindScript nodes only) |
+| `@source` | Force file into `init.sh` sourcing regardless of which directory it lives in |
+| `@require <key>` | Declare a required env key for this file |
+| `@request <key>` | Declare a requested (optional) env key for this file |
 
 ### `@symlink`
 
@@ -86,64 +90,52 @@ Opts any file into symlinking at an explicit destination. Rarely needed — `con
 
 Files in `conf/` are symlinked by convention — `@symlink` is only needed there to override the default destination. `@symlink` takes precedence over convention in all cases. See [symlinks.md](symlinks.md) for destination path rules.
 
-### Custom annotations
-
-Unknown annotations are not errors. They are dispatched to registered external handlers declared in `config.yaml`:
-
-```yaml
-annotation_handlers:
-  requires: dag-pkg procure
-```
-
-So `@requires fzf` becomes `dag-pkg procure fzf` at apply time.
-
-In `--dry-run` mode, annotation handlers are not invoked. The tool prints what would be called instead.
-
-If a handler is not installed or fails, the tool warns but continues by default. With `--no-interactive`, failures halt execution.
-
 ---
 
 ## 6. `.dotd.yaml`
 
 An optional metadata file that can appear in any directory. Its primary purpose is to provide metadata for files that cannot carry annotations — JSON, binary, XML, and other formats without supported comment syntax.
 
-`.dotd.yaml` has three sections:
+`.dotd.yaml` has three top-level sections: `dotd`, `link`, and `env`.
 
-**`directory`** — properties of the directory node itself. Does not cascade to contents. The `when` field gates traversal of the entire subtree; if false, the directory is not entered at all.
+**`dotd.when`** — gates traversal of the entire subtree; if false, the directory is not entered at all. Does not cascade to contents.
 
-**`defaults`** — values that cascade to all files inside the directory and all subdirectories, ANDed with each file's own annotations.
+**`dotd.defaults.when`** — cascades to all files inside the directory and all subdirectories, ANDed with each file's own `@when`.
 
-**`files`** — per-file metadata for specific files that cannot carry annotations.
+**`dotd.files`** — per-file metadata for specific files that cannot carry annotations.
+
+**`link.link_root`** — overrides the symlink destination root for this subtree. Cascades to subdirectories unless overridden by a closer `.dotd.yaml`.
 
 ```yaml
-# Properties of this directory node itself
-directory:
+dotd:
   when: "os=macos"        # gates traversal — don't enter unless this matches
-  retain_prefix: true     # don't transform dot- on this directory's name in symlink paths
+
+  defaults:
+    when: "context=work"  # cascades to all files inside
+
+  # Per-file metadata for files that cannot carry annotations
+  # path: true filename as it exists on disk
+  files:
+    - path: dot-gitconfig-work
+      when: "context=work"
+      symlink: ~/.gitconfig
+
+    - path: dot-gitconfig-personal
+      when: "context=personal"
+      symlink: ~/.gitconfig
+
+    - path: settings.json
+      symlink: "settings.json"   # relative to link_root
+      when: "os=macos"
+      retain_prefix: true
+      disable: false
+      no_source: false
+      source: false
+
+link:
   link_root: ~/.config/someapp  # override symlink destination root for this subtree
-
-# Defaults that cascade to all files inside
-defaults:
-  when: "context=work"
-
-# Per-file metadata for files that cannot carry annotations
-# path: true filename as it exists on disk
-# when/after/name/symlink: use logical name semantics, same as annotations
-files:
-  - path: dot-gitconfig-work
-    when: "context=work"
-    symlink: ~/.gitconfig
-
-  - path: dot-gitconfig-personal
-    when: "context=personal"
-    symlink: ~/.gitconfig
-
-  - path: settings.json
-    symlink: "settings.json"   # relative to link_root
-    when: "os=macos"
-    retain_prefix: true
 ```
 
-All sections are optional. A `.dotd.yaml` with just a `defaults.when` is valid. A directory with no `.dotd.yaml` is also perfectly fine.
+All sections are optional. A `.dotd.yaml` with just `dotd.defaults.when` is valid. A directory with no `.dotd.yaml` is also perfectly fine.
 
 Declaring a predicate in `.dotd.yaml` for a specific file AND as an annotation in that file is an error. All predicate expressions are validated at load time.
