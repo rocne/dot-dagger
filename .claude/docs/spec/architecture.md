@@ -57,7 +57,7 @@ dot-dagger/
 | Directory `when` as shared default | Avoids repeating the same predicate on every non-annotatable file in a directory. Cascades to all subdirectories, not just immediate files. |
 | `.dotd.yaml` purpose is fallback | Primary use is metadata for files that cannot carry annotations. Not a module manifest. |
 | Missing required keys prompt or halt | Never silently exclude files due to unset keys. Always surface the issue. |
-| `nosync-` is user responsibility | `nosync-` is stripped at runtime. User must gitignore. `dotd install` and `dotd check` warn and offer to add `nosync-*` to `.gitignore` if missing — never silently. |
+| `nosync-` is user responsibility | `nosync-` is stripped at runtime. User must gitignore. `dotd setup` and `dotd check` warn and offer to add `nosync-*` to `.gitignore` if missing — never silently. |
 | Symlink destination conflict detection | Separate from logical name conflicts. Two `@symlink` to same path with overlapping predicates is an error. |
 | Custom annotation dispatch | Extends dot-dagger without modifying it. External tools own their annotations. |
 | `--dry-run` skips annotation handlers | Annotation handlers have side effects. dry-run must be fully safe. |
@@ -68,7 +68,7 @@ dot-dagger/
 | `conf/` symlinks relative to `~` by default | `link_root` in `.dotd.yaml` allows overriding the base path per subtree. Cascades to subdirectories. |
 | `@symlink` path is implicit-relative | Absolute if starting with `/` or `~/`, otherwise relative to `link_root`. No new sigil needed — mirrors Unix path conventions. |
 | Special dirs recognised until first encounter | Once inside a special dir, further special dirs inside it are ignored. Prevents confusing nesting without a hard depth cap. Allows `nosync-work/tmux/scripts/` and other deep but legitimate layouts. |
-| `directory` and `defaults` sections in `.dotd.yaml` | Clear separation between properties of the directory node itself and defaults that cascade to contents. |
+| `dotd` and `link` sections in `.dotd.yaml` | `dotd` owns directory/file metadata (when, defaults, files list). `link` owns symlink config (link_root). Clear separation of concerns. |
 | `files.path` uses true filename, predicates use logical names | Consistent with how annotations work — the filesystem is addressed by real name, the DAG by logical name. |
 | Single shell-agnostic `init.sh` | One source line in any rc file. Shell-specific content handled by predicates. Uses POSIX `.` not bash `source`. |
 | Single-quote shell paths with `'\''` | Universally safe quoting for sh/bash/zsh. `${HOME}` prefix for portability across machines. |
@@ -79,7 +79,7 @@ dot-dagger/
 | No `dotd diff` command | Deployment artifacts are symlinks and `init.sh`. `dotd apply --dry-run` covers the preview use case. A dedicated diff command adds complexity without meaningful value. |
 | No modules concept | Directories are the natural organisational unit. `@module` and `dotd module` subcommands removed. |
 | `Resolve()` never prompts | Returns `*MissingKeysError`; the CLI catches with `errors.As` and decides whether to prompt or halt based on TTY. |
-| Injectable test seams everywhere | `Evaluator.LookPath`, `Resolver.Detectors`, `Resolver.RunCmd`, `walker.readAnnotations`, `walker.readDotdYaml` — all injectable. Real implementations are zero values or defaults. |
+| Injectable test seams everywhere | `Evaluator.LookPath`, `Resolver.Detectors`, `walker.readAnnotations`, `walker.readDotdYaml` — all injectable. Real implementations are zero values or defaults. |
 | All errors collected before returning | `dotd check` shows every problem at once, not just the first one. `errors.Join` throughout. |
 | Separate package procurement tool | dot-dagger stays focused. Package management is a well-defined standalone problem. |
 | Modular internal packages | Each internal package independently testable. Clean boundaries. |

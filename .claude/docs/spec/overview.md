@@ -65,7 +65,7 @@ The `dot-` transformation applies uniformly to every path component — files an
 
 ### The `nosync-` prefix
 
-Any file or directory prefixed with `nosync-` has the prefix stripped from its logical name and symlink destination. It is the user's responsibility to add `nosync-*` to `.gitignore` to prevent accidental staging of private files. During `dotd install` and `dotd check`, the tool will warn and offer to add `nosync-*` to `.gitignore` if it is missing — but will never do so silently.
+Any file or directory prefixed with `nosync-` has the prefix stripped from its logical name and symlink destination. It is the user's responsibility to add `nosync-*` to `.gitignore` to prevent accidental staging of private files. During `dotd setup` and `dotd check`, the tool will warn and offer to add `nosync-*` to `.gitignore` if it is missing — but will never do so silently.
 
 ```
 nosync-work/conf/dot-gitconfig     → ~/.gitconfig  (nosync- stripped from destination)
@@ -74,6 +74,6 @@ nosync-work/scripts/aliases.sh     → sourced (nosync- stripped from logical na
 
 The stripping of `nosync-` from symlink destinations applies only to *implicit* destinations. If `@symlink` is declared explicitly, the destination is taken literally with no transformation. `@symlink` is the mechanism for overriding default destination behaviour.
 
-### Configurable convention names
+### Convention names
 
-The names `scripts/`, `bin/`, and `conf/` are defaults. They can be overridden in `config.yaml` for power users who need different names. This is not prominently documented — the defaults cover the common case.
+`scripts/`, `bin/`, and `conf/` are fixed convention names — they are not configurable.

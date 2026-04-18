@@ -1,40 +1,6 @@
 # §7 — Config Files
 
-## `config.yaml` (committed — dotfiles repo root)
-
-Declares the environment schema, annotation handlers, and configurable tool settings.
-
-```yaml
-env:
-  os:     { detect: true }
-  distro: { detect: true }
-  shell:  { detect: true }
-  context:
-    detect: false
-    values: [personal, work]
-  role:
-    default: desktop
-  host:
-    cmd: hostname
-
-annotation_handlers:
-  requires: dag-pkg procure
-
-# Optional overrides for convention directory names (power user)
-dirs:
-  scripts: scripts
-  bin: bin
-  conf: conf
-
-# Optional override for managed bin dir
-bin_dir: ~/.local/bin/dot-dagger
-```
-
-The `bin_dir` defaults to `~/.local/bin/dot-dagger/` (or `$XDG_BIN_HOME/dot-dagger/` if `$XDG_BIN_HOME` is set).
-
----
-
-## `~/.config/dot-dagger/env.yaml` (not committed — machine local)
+## `env.yaml` (`~/.config/dot-dagger/env.yaml`, not committed — machine local)
 
 Stores the resolved environment for this machine. The dotfiles repo location is also read from here, so `dotd` does not need to be run from within the dotfiles repo.
 
@@ -45,6 +11,16 @@ env:
 
 dotfiles_repo: ~/dotfiles
 ```
+
+All fields are optional. Keys under `env` override auto-detected values. `dotfiles_repo` sets the path to the dotfiles repo for this machine.
+
+---
+
+## `.dotd.yaml` (per-directory, in dotfiles repo)
+
+The only config file in the dotfiles repo. See [dag.md §6](dag.md) for full structure.
+
+There is no separate `config.yaml` or global schema file — environment keys, annotation handlers, and convention directory names are not configurable at the repo level in the current implementation.
 
 ---
 
