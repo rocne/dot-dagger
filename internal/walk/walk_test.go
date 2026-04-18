@@ -25,7 +25,7 @@ func mkTree(t *testing.T, files map[string]string) string {
 
 func TestWalkKinds(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		"scripts/base.sh":         "# @when os=linux\n",
+		"shellrc/base.sh":         "# @when os=linux\n",
 		"conf/dot-gitconfig":      "",
 		"bin/my-tool":             "",
 		"other/readme.txt":        "",
@@ -47,8 +47,8 @@ func TestWalkKinds(t *testing.T) {
 		return KindOther
 	}
 
-	if kindOf("scripts/base.sh") != KindScript {
-		t.Error("scripts/base.sh: want KindScript")
+	if kindOf("shellrc/base.sh") != KindScript {
+		t.Error("shellrc/base.sh: want KindScript")
 	}
 	if kindOf("conf/dot-gitconfig") != KindConf {
 		t.Error("conf/dot-gitconfig: want KindConf")
@@ -62,10 +62,10 @@ func TestWalkKinds(t *testing.T) {
 }
 
 func TestWalkSpecialDirNesting(t *testing.T) {
-	// scripts/conf/ should NOT be treated as a conf dir (inside special dir already).
+	// shellrc/conf/ should NOT be treated as a conf dir (inside special dir already).
 	root := mkTree(t, map[string]string{
-		"scripts/helpers.sh":        "",
-		"scripts/conf/dot-tmux.conf": "",
+		"shellrc/helpers.sh":        "",
+		"shellrc/conf/dot-tmux.conf": "",
 	})
 
 	nodes, err := Walk(root)
@@ -75,15 +75,15 @@ func TestWalkSpecialDirNesting(t *testing.T) {
 
 	for _, n := range nodes {
 		if filepath.Base(n.Path) == "dot-tmux.conf" && n.Kind == KindConf {
-			t.Error("scripts/conf/dot-tmux.conf: should NOT be KindConf (nested special dir)")
+			t.Error("shellrc/conf/dot-tmux.conf: should NOT be KindConf (nested special dir)")
 		}
 	}
 }
 
 func TestWalkTopicGrouped(t *testing.T) {
-	// tmux/scripts/ should be KindScript.
+	// tmux/shellrc/ should be KindScript.
 	root := mkTree(t, map[string]string{
-		"tmux/scripts/helpers.sh": "",
+		"tmux/shellrc/helpers.sh": "",
 		"tmux/conf/dot-tmux.conf": "",
 	})
 
@@ -103,8 +103,8 @@ func TestWalkTopicGrouped(t *testing.T) {
 		return KindOther
 	}
 
-	if kindOf("tmux/scripts/helpers.sh") != KindScript {
-		t.Error("tmux/scripts/helpers.sh: want KindScript")
+	if kindOf("tmux/shellrc/helpers.sh") != KindScript {
+		t.Error("tmux/shellrc/helpers.sh: want KindScript")
 	}
 	if kindOf("tmux/conf/dot-tmux.conf") != KindConf {
 		t.Error("tmux/conf/dot-tmux.conf: want KindConf")
@@ -116,9 +116,9 @@ func TestWalkLogicalName(t *testing.T) {
 		path string
 		want string
 	}{
-		{"scripts/helpers.sh", "scripts.helpers"},
-		{"tmux/scripts/helpers.sh", "tmux.scripts.helpers"},
-		{"nosync-work/scripts/aliases.sh", "work.scripts.aliases"},
+		{"shellrc/helpers.sh", "shellrc.helpers"},
+		{"tmux/shellrc/helpers.sh", "tmux.shellrc.helpers"},
+		{"nosync-work/shellrc/aliases.sh", "work.shellrc.aliases"},
 		{"conf/dot-gitconfig", "conf.gitconfig"},
 		{"nosync-dot-secrets/api.sh", "secrets.api"},
 	}
@@ -155,7 +155,7 @@ func TestWalkLogicalName(t *testing.T) {
 
 func TestWalkAnnotations(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		"scripts/base.sh": "#!/bin/bash\n# @when os=linux\n# @after scripts.other\nexport FOO=1\n",
+		"shellrc/base.sh": "#!/bin/bash\n# @when os=linux\n# @after shellrc.other\nexport FOO=1\n",
 	})
 
 	nodes, err := Walk(root)
@@ -174,9 +174,9 @@ func TestWalkAnnotations(t *testing.T) {
 
 func TestWalkDotRYamlCascade(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		".dotd.yaml":        "dotd:\n  defaults:\n    when: \"context=work\"\n",
-		"scripts/base.sh":   "# @when os=linux\n",
-		"scripts/other.sh":  "",
+		".dotd.yaml":         "dotd:\n  defaults:\n    when: \"context=work\"\n",
+		"shellrc/base.sh":   "# @when os=linux\n",
+		"shellrc/other.sh":  "",
 	})
 
 	nodes, err := Walk(root)
@@ -203,7 +203,7 @@ func TestWalkDotRYamlCascade(t *testing.T) {
 
 func TestWalkNameAnnotation(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		"tmux/scripts/tmux-helpers-macos.sh": "# @name tmux.scripts.helpers\n",
+		"tmux/shellrc/tmux-helpers-macos.sh": "# @name tmux.shellrc.helpers\n",
 	})
 
 	nodes, err := Walk(root)
@@ -213,8 +213,8 @@ func TestWalkNameAnnotation(t *testing.T) {
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
-	if nodes[0].LogicalName != "tmux.scripts.helpers" {
-		t.Errorf("LogicalName = %q, want tmux.scripts.helpers", nodes[0].LogicalName)
+	if nodes[0].LogicalName != "tmux.shellrc.helpers" {
+		t.Errorf("LogicalName = %q, want tmux.shellrc.helpers", nodes[0].LogicalName)
 	}
 }
 
@@ -224,9 +224,9 @@ func TestLogicalNameFor(t *testing.T) {
 		retainPrefix bool
 		want         string
 	}{
-		{"scripts/helpers.sh", false, "scripts.helpers"},
+		{"shellrc/helpers.sh", false, "shellrc.helpers"},
 		{"conf/dot-gitconfig", false, "conf.gitconfig"},
-		{"nosync-work/scripts/aliases.sh", false, "work.scripts.aliases"},
+		{"nosync-work/shellrc/aliases.sh", false, "work.shellrc.aliases"},
 		{"nosync-dot-secrets/api.sh", false, "secrets.api"},
 		{"conf/dot-config/tmux/tmux.conf", false, "conf.config.tmux.tmux"},
 		// retain-prefix: dot- kept on last component, nosync- still stripped.
@@ -334,6 +334,37 @@ func TestWalkLinkRootInnerOverridesOuter(t *testing.T) {
 	}
 	if got := linkRootOf("conf/dot-zshrc"); got != "/outer" {
 		t.Errorf("conf/dot-zshrc: LinkRoot = %q, want /outer", got)
+	}
+}
+
+func TestWalkConventionOverride(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		".dotd.yaml":          "dotd:\n  conventions:\n    shellrc: myscripts\n",
+		"myscripts/base.sh":   "",
+		"shellrc/other.sh":    "",
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	kindOf := func(rel string) Kind {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		for _, n := range nodes {
+			if n.Path == full {
+				return n.Kind
+			}
+		}
+		t.Fatalf("node not found: %s", rel)
+		return KindOther
+	}
+
+	if kindOf("myscripts/base.sh") != KindScript {
+		t.Error("myscripts/base.sh: want KindScript when conventions.shellrc=myscripts")
+	}
+	if kindOf("shellrc/other.sh") != KindOther {
+		t.Error("shellrc/other.sh: want KindOther when convention overridden to myscripts")
 	}
 }
 

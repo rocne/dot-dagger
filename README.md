@@ -90,7 +90,7 @@ The core dotd bet: **conditions belong on files, not in shell code or central ma
 
 **One annotation, one concern.** Each annotation does exactly one thing. `@when` controls inclusion. `@after` controls ordering. `@require` gates on a package. They compose but don't interfere.
 
-**Convention over config.** Put files in `scripts/`, `conf/`, or `bin/` and they just work. Annotations and `.dotd.yaml` are for exceptions, not the common case.
+**Convention over config.** Put files in `shellrc/`, `conf/`, or `bin/` and they just work. Annotations and `.dotd.yaml` are for exceptions, not the common case.
 
 **Composable subsystems.** Every subsystem works standalone. `dotd apply` composes them, but you can run individual stages, use only the pieces you need, and understand the system by reading one part at a time.
 
@@ -103,7 +103,7 @@ The core dotd bet: **conditions belong on files, not in shell code or central ma
 dotd runs four stages in sequence:
 
 1. **Env** — detects your environment (OS, distro, shell) and loads any overrides from `env.yaml`. This produces the resolved environment used for all condition evaluation.
-2. **Fileset** — walks the entire dotfiles repo, evaluates `@when` conditions, and builds the active file set for this machine. Files under `scripts/`, `conf/`, and `bin/` get special treatment (sourced, symlinked, added to PATH respectively); files anywhere else in the repo are included if they carry `@symlink` or `@source` annotations.
+2. **Fileset** — walks the entire dotfiles repo, evaluates `@when` conditions, and builds the active file set for this machine. Files under `shellrc/`, `conf/`, and `bin/` get special treatment (sourced, symlinked, added to PATH respectively); files anywhere else in the repo are included if they carry `@symlink` or `@source` annotations.
 3. **Packages** — reads `@require` and `@request` annotations and installs packages using whichever manager is available on this machine.
 4. **Symlinks + init.sh** — creates symlinks for `conf/` and `bin/` files; resolves `@after` dependencies and writes a single `init.sh` that sources only the active scripts in the right order.
 
@@ -166,7 +166,7 @@ dotd check -f ~/dotfiles
 
 ```
 dotfiles/
-  scripts/          ← shell scripts sourced into init.sh, in dependency order
+  shellrc/          ← shell rc fragments sourced into init.sh, in dependency order
   conf/             ← config files symlinked into $HOME
   bin/              ← executables symlinked onto $PATH
   env.yaml          ← your environment context (os, shell, context, etc.)
@@ -174,7 +174,7 @@ dotfiles/
   .dotd.yaml  ← per-directory config for files that can't carry annotations
 ```
 
-dotd walks the entire repo. Files under `scripts/`, `conf/`, or `bin/` are picked up automatically based on their location. Files elsewhere are included if they carry `@symlink` or `@source` annotations. Annotations (comments at the top of a file) control conditions, ordering, and package requirements.
+dotd walks the entire repo. Files under `shellrc/`, `conf/`, or `bin/` are picked up automatically based on their location. Files elsewhere are included if they carry `@symlink` or `@source` annotations. Annotations (comments at the top of a file) control conditions, ordering, and package requirements.
 
 ### Naming conventions
 
@@ -188,7 +188,7 @@ conf/dot-zshrc                 →  ~/.zshrc
 **`nosync-` prefix** is stripped from path components when computing a file's identity. This is useful for machine-specific directories you don't want to commit — they still participate in the process but don't pollute logical names:
 
 ```
-nosync-work/scripts/aliases.sh  →  identity: work.scripts.aliases
+nosync-work/shellrc/aliases.sh  →  identity: work.shellrc.aliases
 ```
 
 ---
@@ -241,7 +241,7 @@ dotd adopt ~/.zshrc --yes         # accept inferred destination without promptin
 | File characteristic | Destination |
 |--------------------|------------|
 | Marked executable (`chmod +x`) | `bin/<name>` |
-| `.sh`, `.bash`, `.zsh`, `.fish` extension | `scripts/<name>` |
+| `.sh`, `.bash`, `.zsh`, `.fish` extension | `shellrc/<name>` |
 | Hidden file (`.bashrc`, `.zshrc`, …) | `conf/dot-<name>` |
 | `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `conf/<name>` |
 | Anything else | Error — use `--to` |
@@ -296,7 +296,7 @@ Annotations are metadata written as comments at the top of a file. They declare 
 ```sh
 #!/bin/bash
 # @when os=macos AND context=work
-# @after scripts/base/
+# @after shellrc/base/
 # @require ripgrep
 
 export EDITOR=nvim
@@ -307,8 +307,8 @@ Scanning begins at the first line. If the first line is a shebang (`#!/bin/bash`
 Every file has a **logical name** derived from its path: `nosync-` and `dot-` prefixes are stripped from each path component, the file extension is stripped from the filename, and the remaining components are joined with `.`:
 
 ```
-scripts/helpers.sh              →  scripts.helpers
-nosync-work/scripts/work.sh     →  work.scripts.work
+shellrc/helpers.sh              →  shellrc.helpers
+nosync-work/shellrc/work.sh     →  work.shellrc.work
 conf/dot-config/nvim/init.lua   →  conf.config.nvim.init
 ```
 
@@ -367,14 +367,14 @@ Multiple `@when` lines are ANDed together.
 Primarily used for **variant files** — two files that represent the same thing under mutually exclusive conditions:
 
 ```sh
-# scripts/aliases-macos.sh
-# @name scripts.aliases
+# shellrc/aliases-macos.sh
+# @name shellrc.aliases
 # @when os=macos
 ```
 
 ```sh
-# scripts/aliases-linux.sh
-# @name scripts.aliases
+# shellrc/aliases-linux.sh
+# @name shellrc.aliases
 # @when os=linux
 ```
 
@@ -384,12 +384,12 @@ Only one can be active at a time. Two active files with the same logical name is
 
 ### `@after` — load order
 
-Controls the order scripts appear in `init.sh`. Only meaningful in `scripts/`.
+Controls the order scripts appear in `init.sh`. Only meaningful in `shellrc/`.
 
 ```sh
-# @after scripts/base/            # all active files under scripts/base/
-# @after scripts/env/
-# @after scripts.helpers          # one specific file, by logical name
+# @after shellrc/base/            # all active files under shellrc/base/
+# @after shellrc/env/
+# @after shellrc.helpers          # one specific file, by logical name
 ```
 
 A path ending in `/` expands to all active files under that path. If no matching files are active, the dependency is silently ignored.
@@ -431,12 +431,12 @@ Keeps the `dot-` or `nosync-` prefix on the filename in the symlink destination:
 ```sh
 # @disable    # exclude from all processing
 # @no-source  # in load order but not sourced in init.sh
-# @source     # force-source even if not in scripts/
+# @source     # force-source even if not in shellrc/
 ```
 
 | Annotation | In load order? | Symlinked? | Sourced in init.sh? |
 |-----------|---------------|-----------|-------------------|
-| _(none)_ in `scripts/` | Yes | No | Yes |
+| _(none)_ in `shellrc/` | Yes | No | Yes |
 | _(none)_ in `conf/` | No | Yes | No |
 | `@no-source` | Yes | As normal | **No** |
 | `@source` | Yes | As normal | **Yes** |

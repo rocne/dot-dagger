@@ -115,10 +115,10 @@ func inferImportDest(src string, info os.FileInfo) importInference {
 		return importInference{rel: filepath.Join(walk.DirBin, name), reason: "executable"}
 	}
 
-	// Shell script extensions → scripts/
+	// Shell script extensions → shellrc/
 	switch ext {
 	case ".sh", ".bash", ".zsh", ".fish":
-		return importInference{rel: filepath.Join(walk.DirScripts, name), reason: "shell script"}
+		return importInference{rel: filepath.Join(walk.DirShellrc, name), reason: "shell script"}
 	}
 
 	// Hidden dotfile (e.g. .bashrc) → conf/dot-bashrc

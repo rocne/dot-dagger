@@ -13,7 +13,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 ## UX / CLI
 
 - [ ] **`dotd files` / `dotd list` command** — expose the active fileset as a subcommand. Candidates: `dotd files list`, `dotd files list --all`, `dotd files list --os linux --context work`. Iterate on exact shape. Also consider unifying "fileset" stage naming with whatever this command is called.
-- [ ] **Rename `scripts/` → `shellrc/`** — more intuitive name (users think "shell rc fragments", not "scripts"). Make the convention name configurable in `.dotd.yaml` so repos can override all three convention dir names (`shellrc`, `conf`, `bin`). Update walk.go constants, README, spec, and all examples.
+- [x] **Rename `scripts/` → `shellrc/`** — done. Convention names now configurable via `dotd.conventions` in root `.dotd.yaml`.
 
 ## Git / CI Infrastructure
 

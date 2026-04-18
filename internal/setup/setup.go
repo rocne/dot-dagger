@@ -61,7 +61,7 @@ func Scaffold(opts Options) (*Result, error) {
 	var res Result
 
 	// Repo directories owned by suite tools.
-	for _, sub := range []string{walk.DirScripts, walk.DirConf, walk.DirBin} {
+	for _, sub := range []string{walk.DirShellrc, walk.DirConf, walk.DirBin} {
 		act, err := ensureDir(filepath.Join(opts.DotfilesDir, sub))
 		if err != nil {
 			return nil, err

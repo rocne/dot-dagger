@@ -320,10 +320,10 @@ func TestApplyDryRunEmptyRepo(t *testing.T) {
 
 func TestApplyDryRunWithScript(t *testing.T) {
 	dotfiles := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dotfiles, "scripts"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "scripts", "base.sh"), []byte("# @when os=linux\nexport X=1\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "base.sh"), []byte("# @when os=linux\nexport X=1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

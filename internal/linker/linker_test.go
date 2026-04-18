@@ -34,7 +34,7 @@ func TestConfRelPath(t *testing.T) {
 }
 
 func TestConfRelPathNoConf(t *testing.T) {
-	_, err := confRelPath("/dotfiles/scripts/base.sh")
+	_, err := confRelPath("/dotfiles/shellrc/base.sh")
 	if err == nil {
 		t.Error("expected error for path without conf/ ancestor")
 	}
@@ -138,7 +138,7 @@ func TestPlanConfNodePerNodeLinkRoot(t *testing.T) {
 
 func TestPlanScriptNodeSkipped(t *testing.T) {
 	nodes := []fileset.Node{
-		{Path: "/repo/scripts/base.sh", Kind: fileset.KindScript},
+		{Path: "/repo/shellrc/base.sh", Kind: fileset.KindScript},
 	}
 	links, err := Plan(nodes, Options{LinkRoot: "/home/user", BinDir: "/home/user/.local/bin"})
 	if err != nil {

@@ -30,7 +30,7 @@ type Kind int
 
 const (
 	KindOther  Kind = iota
-	KindScript      // under scripts/
+	KindScript      // under shellrc/
 	KindConf        // under conf/
 	KindBin         // under bin/
 )
@@ -74,40 +74,61 @@ type Node struct {
 	LinkRoot string
 }
 
-// Special directory names recognised anywhere in the dotfiles repo.
+// Default convention directory names. Override via dotd.conventions in root .dotd.yaml.
 const (
-	DirScripts = "scripts"
+	DirShellrc = "shellrc"
 	DirConf    = "conf"
 	DirBin     = "bin"
 )
 
-// specialDirNames maps directory base names to their Kind.
-var specialDirNames = map[string]Kind{
-	DirScripts: KindScript,
-	DirConf:    KindConf,
-	DirBin:     KindBin,
-}
-
 // Walk traverses the dotfiles repo at root and returns all file nodes.
 // It respects .dotd.yaml config at each directory level.
-// Special dirs (scripts/, conf/, bin/) are recognised anywhere unless
-// already inside a special dir — at which point they are treated as regular dirs.
+// Convention dirs (shellrc/, conf/, bin/ by default) are recognised anywhere unless
+// already inside a convention dir — at which point they are treated as regular dirs.
+// Convention dir names can be overridden via dotd.conventions in the root .dotd.yaml.
 func Walk(root string) ([]Node, error) {
 	root = filepath.Clean(root)
+	rootCfg, err := daggeryaml.LoadFile(filepath.Join(root, ecosystem.ConfigFile))
+	if err != nil {
+		return nil, err
+	}
+	dirNames := buildDirNames(rootCfg.Dotd.Conventions)
 	var nodes []Node
-	err := walkDir(root, root, KindOther, false, "", "", &nodes)
+	err = walkDir(root, root, KindOther, false, "", "", dirNames, &nodes)
 	return nodes, err
+}
+
+// buildDirNames constructs the special-dir → Kind map, applying any convention overrides.
+func buildDirNames(c daggeryaml.ConventionsSection) map[string]Kind {
+	shellrc := c.Shellrc
+	if shellrc == "" {
+		shellrc = DirShellrc
+	}
+	conf := c.Conf
+	if conf == "" {
+		conf = DirConf
+	}
+	bin := c.Bin
+	if bin == "" {
+		bin = DirBin
+	}
+	return map[string]Kind{
+		shellrc: KindScript,
+		conf:    KindConf,
+		bin:     KindBin,
+	}
 }
 
 // walkDir recurses into dir.
 //
 //   - root:             repo root (for logical name computation)
 //   - dir:              current directory being walked
-//   - inheritedKind:    kind inherited from a parent special dir (KindOther = not in one)
-//   - inSpecialDir:     true if we are already inside a special dir
+//   - inheritedKind:    kind inherited from a parent convention dir (KindOther = not in one)
+//   - inSpecialDir:     true if we are already inside a convention dir
 //   - cascadeWhen:      accumulated @when expression from ancestor .dotd.yaml defaults
-//   - cascadeLinkRoot:  link_root from nearest ancestor .dotd.yaml dotl section
-func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhen, cascadeLinkRoot string, nodes *[]Node) error {
+//   - cascadeLinkRoot:  link_root from nearest ancestor .dotd.yaml link section
+//   - dirNames:         map of directory base name → Kind for this walk
+func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhen, cascadeLinkRoot string, dirNames map[string]Kind, nodes *[]Node) error {
 	// Load .dotd.yaml for this directory.
 	cfg, err := daggeryaml.LoadFile(filepath.Join(dir, ecosystem.ConfigFile))
 	if err != nil {
@@ -156,14 +177,14 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 			childInSpecial := inSpecialDir
 
 			if !inSpecialDir {
-				if k, ok := specialDirNames[stripPrefixes(name)]; ok {
+				if k, ok := dirNames[stripPrefixes(name)]; ok {
 					childKind = k
 					childInSpecial = true
 				}
 			}
 
 			childCascade := dirDefaultWhen
-			if err := walkDir(root, fullPath, childKind, childInSpecial, childCascade, effectiveLinkRoot, nodes); err != nil {
+			if err := walkDir(root, fullPath, childKind, childInSpecial, childCascade, effectiveLinkRoot, dirNames, nodes); err != nil {
 				return err
 			}
 			continue
