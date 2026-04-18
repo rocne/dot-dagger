@@ -102,7 +102,7 @@ func Build(nodes []fileset.Node) ([]fileset.Node, error) {
 // Otherwise it is an exact logical name match.
 func resolveAfter(ref string, nodes []fileset.Node) []string {
 	if strings.HasSuffix(ref, "/") {
-		// Path prefix: tmux/scripts/ → logical name prefix tmux.scripts.
+		// Path prefix: tmux/shellrc/ → logical name prefix tmux.shellrc.
 		prefix := strings.ReplaceAll(strings.TrimSuffix(ref, "/"), "/", ".") + "."
 		var names []string
 		for _, n := range nodes {

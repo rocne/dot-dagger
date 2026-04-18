@@ -172,11 +172,11 @@ func TestBuildPathPrefixAfter(t *testing.T) {
 
 func TestResolveAfterPathPrefix(t *testing.T) {
 	nodes := []fileset.Node{
-		{LogicalName: "tmux.scripts.helpers"},
-		{LogicalName: "tmux.scripts.base"},
-		{LogicalName: "other.scripts.foo"},
+		{LogicalName: "tmux.shellrc.helpers"},
+		{LogicalName: "tmux.shellrc.base"},
+		{LogicalName: "other.shellrc.foo"},
 	}
-	got := resolveAfter("tmux/scripts/", nodes)
+	got := resolveAfter("tmux/shellrc/", nodes)
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2: %v", len(got), got)
 	}

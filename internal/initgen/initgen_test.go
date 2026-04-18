@@ -34,14 +34,14 @@ func TestGenerateBinDirPrependedToPath(t *testing.T) {
 
 func TestGenerateSourceLines(t *testing.T) {
 	nodes := []fileset.Node{
-		{Path: "/dotfiles/scripts/base.sh"},
-		{Path: "/dotfiles/scripts/aliases.sh"},
+		{Path: "/dotfiles/shellrc/base.sh"},
+		{Path: "/dotfiles/shellrc/aliases.sh"},
 	}
 	got := string(Generate(nodes, ""))
-	if !strings.Contains(got, ". '/dotfiles/scripts/base.sh'") {
+	if !strings.Contains(got, ". '/dotfiles/shellrc/base.sh'") {
 		t.Errorf("missing source line for base.sh in:\n%s", got)
 	}
-	if !strings.Contains(got, ". '/dotfiles/scripts/aliases.sh'") {
+	if !strings.Contains(got, ". '/dotfiles/shellrc/aliases.sh'") {
 		t.Errorf("missing source line for aliases.sh in:\n%s", got)
 	}
 }

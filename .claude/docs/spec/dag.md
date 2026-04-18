@@ -12,9 +12,9 @@ Applied per path component, in order:
 3. Strip file extension from the final component only
 
 ```
-tmux/scripts/helpers.sh         → tmux.scripts.helpers
-scripts/math.sh                 → scripts.math
-nosync-work/scripts/aliases.sh  → work.scripts.aliases
+tmux/shellrc/helpers.sh         → tmux.shellrc.helpers
+shellrc/math.sh                 → shellrc.math
+nosync-work/shellrc/aliases.sh  → work.shellrc.aliases
 conf/dot-config/tmux/tmux.conf  → conf.config.tmux.tmux
 nosync-dot-secrets/api.sh       → secrets.api
 ```
@@ -26,8 +26,8 @@ The logical name always reflects the full path. No segments are skipped regardle
 `@name` replaces the entire logical name, not just the last segment. It creates a canonical identity for the file independent of its filesystem location:
 
 ```bash
-# tmux/scripts/tmux-helpers-macos.sh
-# @name tmux.scripts.helpers
+# tmux/shellrc/tmux-helpers-macos.sh
+# @name tmux.shellrc.helpers
 ```
 
 This is the primary tool for variant files — two files that represent the same logical unit under different conditions both declare the same `@name`. The resolver enforces that exactly one is active at a time. Predicates must be mutually exclusive.
@@ -37,9 +37,9 @@ This is the primary tool for variant files — two files that represent the same
 `@after` accepts either a full logical name or a path prefix ending in `/`:
 
 ```bash
-# @after tmux.scripts.helpers   — specific file by logical name
+# @after tmux.shellrc.helpers   — specific file by logical name
 # @after tmux/                  — all active files under tmux/
-# @after tmux/scripts/          — all active files under tmux/scripts/
+# @after tmux/shellrc/          — all active files under tmux/shellrc/
 ```
 
 Path-prefix references expand to the set of active files under that path. If no files under that path are active, the dependency is a no-op — never an error.

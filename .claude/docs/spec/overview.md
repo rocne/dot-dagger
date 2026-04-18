@@ -14,33 +14,33 @@ Any directory in the dotfiles repo can contain these conventionally-named subdir
 
 | Directory | Behavior |
 |-----------|----------|
-| `scripts/` | Files are sourced into the generated `init.sh` in DAG order |
+| `shellrc/` | Files are sourced into the generated `init.sh` in DAG order |
 | `bin/` | Files are symlinked into the managed bin dir and added to `PATH` |
 | `conf/` | Files are symlinked to their destination path (default root: `~`) for third-party tools that expect config files at a fixed location |
 
-These conventions require zero configuration. The key distinction: `scripts/` files are *sourced* into your shell; `conf/` files are *symlinked* into place for external tools.
+These conventions require zero configuration. The key distinction: `shellrc/` files are *sourced* into your shell; `conf/` files are *symlinked* into place for external tools.
 
 ### Where conventions apply
 
-Special dirs are recognised anywhere in the dotfiles tree, as long as you have not already passed through a special dir to reach them. Once inside a special dir, further special dirs are not recognised — they are treated as regular directories.
+Convention dirs are recognised anywhere in the dotfiles tree, as long as you have not already passed through a convention dir to reach them. Once inside a convention dir, further convention dirs are not recognised — they are treated as regular directories.
 
 ```
-scripts/           ✓  root-level
-tmux/scripts/      ✓  topic-grouped
-nosync-work/tmux/scripts/  ✓  private + topic-grouped
-scripts/conf/      ✗  inside a special dir — ignored
-scripts/scripts/   ✗  inside a special dir — ignored
+shellrc/                       ✓  root-level
+tmux/shellrc/                  ✓  topic-grouped
+nosync-work/tmux/shellrc/      ✓  private + topic-grouped
+shellrc/conf/                  ✗  inside a convention dir — ignored
+shellrc/shellrc/               ✗  inside a convention dir — ignored
 ```
 
 A typical topic-grouped layout:
 
 ```
 tmux/
-  scripts/helpers.sh       → sourced
+  shellrc/helpers.sh       → sourced
   bin/tmux-sessionizer     → symlinked to managed bin
   conf/dot-tmux.conf       → symlinked to ~/.tmux.conf
 git/
-  scripts/aliases.sh       → sourced
+  shellrc/aliases.sh       → sourced
   conf/dot-gitconfig       → symlinked to ~/.gitconfig
 ```
 
@@ -69,11 +69,21 @@ Any file or directory prefixed with `nosync-` has the prefix stripped from its l
 
 ```
 nosync-work/conf/dot-gitconfig     → ~/.gitconfig  (nosync- stripped from destination)
-nosync-work/scripts/aliases.sh     → sourced (nosync- stripped from logical name)
+nosync-work/shellrc/aliases.sh     → sourced (nosync- stripped from logical name)
 ```
 
 The stripping of `nosync-` from symlink destinations applies only to *implicit* destinations. If `@symlink` is declared explicitly, the destination is taken literally with no transformation. `@symlink` is the mechanism for overriding default destination behaviour.
 
 ### Convention names
 
-`scripts/`, `bin/`, and `conf/` are fixed convention names — they are not configurable.
+`shellrc/`, `bin/`, and `conf/` are the default convention dir names. They can be overridden per-repo via the `dotd.conventions` section in the root-level `.dotd.yaml`:
+
+```yaml
+dotd:
+  conventions:
+    shellrc: myscripts  # use myscripts/ instead of shellrc/
+    conf: dotfiles      # override conf/ name
+    bin: executables    # override bin/ name
+```
+
+All three fields are optional — omit any to keep the default.

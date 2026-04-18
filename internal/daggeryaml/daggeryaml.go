@@ -24,9 +24,18 @@ type EnvSection struct {
 // DotdSection holds dotd-owned config: directory-level when, cascading defaults,
 // and per-file metadata for files that cannot carry annotations.
 type DotdSection struct {
-	When     string       `yaml:"when"`
-	Defaults DotdDefaults `yaml:"defaults"`
-	Files    []FileEntry  `yaml:"files"`
+	When        string              `yaml:"when"`
+	Defaults    DotdDefaults        `yaml:"defaults"`
+	Files       []FileEntry         `yaml:"files"`
+	Conventions ConventionsSection  `yaml:"conventions"`
+}
+
+// ConventionsSection holds optional overrides for convention directory names.
+// Only honoured in the root-level .dotd.yaml. Default names: shellrc, conf, bin.
+type ConventionsSection struct {
+	Shellrc string `yaml:"shellrc"`
+	Conf    string `yaml:"conf"`
+	Bin     string `yaml:"bin"`
 }
 
 // DotdDefaults holds values that cascade to all files within the directory.

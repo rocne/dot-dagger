@@ -49,7 +49,7 @@ dot-dagger/
 | Decision | Rationale |
 |----------|-----------|
 | Go, single binary | No runtime dependency. Distributable via curl. Fast startup. |
-| Convention over config | `scripts/`, `bin/`, `conf/` directories just work. `.dotd.yaml` only when needed. Convention names configurable for power users. |
+| Convention over config | `shellrc/`, `bin/`, `conf/` directories just work. `.dotd.yaml` only when needed. Convention names overridable via `dotd.conventions` in root `.dotd.yaml`. |
 | Full dot-path logical names | Always predictable. No skipping of unnamed directories. `@name` for aliasing when paths are too long. |
 | `@name` replaces full logical name | Enables variant files cleanly. Two files share a `@name`, predicates must be mutually exclusive. |
 | `@after` is ordering only | Never affects inclusion. Missing or inactive targets are no-ops, never errors. |
@@ -67,7 +67,7 @@ dot-dagger/
 | `conf/` renamed from `dots/` | `conf/` more precisely describes the purpose: config files that third-party tools expect at a fixed path. `dots/` implied "dotfiles broadly" which was misleading. |
 | `conf/` symlinks relative to `~` by default | `link_root` in `.dotd.yaml` allows overriding the base path per subtree. Cascades to subdirectories. |
 | `@symlink` path is implicit-relative | Absolute if starting with `/` or `~/`, otherwise relative to `link_root`. No new sigil needed — mirrors Unix path conventions. |
-| Special dirs recognised until first encounter | Once inside a special dir, further special dirs inside it are ignored. Prevents confusing nesting without a hard depth cap. Allows `nosync-work/tmux/scripts/` and other deep but legitimate layouts. |
+| Convention dirs recognised until first encounter | Once inside a convention dir, further convention dirs inside it are ignored. Prevents confusing nesting without a hard depth cap. Allows `nosync-work/tmux/shellrc/` and other deep but legitimate layouts. |
 | `dotd` and `link` sections in `.dotd.yaml` | `dotd` owns directory/file metadata (when, defaults, files list). `link` owns symlink config (link_root). Clear separation of concerns. |
 | `files.path` uses true filename, predicates use logical names | Consistent with how annotations work — the filesystem is addressed by real name, the DAG by logical name. |
 | Single shell-agnostic `init.sh` | One source line in any rc file. Shell-specific content handled by predicates. Uses POSIX `.` not bash `source`. |
