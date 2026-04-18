@@ -103,7 +103,7 @@ The core dotd bet: **conditions belong on files, not in shell code or central ma
 dotd runs four stages in sequence:
 
 1. **Env** — detects your environment (OS, distro, shell) and loads any overrides from `env.yaml`. This produces the resolved environment used for all condition evaluation.
-2. **Fileset** — walks `scripts/`, `conf/`, and `bin/`, evaluates `@when` conditions, and builds the active file set for this machine.
+2. **Fileset** — walks the entire dotfiles repo, evaluates `@when` conditions, and builds the active file set for this machine. Files under `scripts/`, `conf/`, and `bin/` get special treatment (sourced, symlinked, added to PATH respectively); files anywhere else in the repo are included if they carry `@symlink` or `@source` annotations.
 3. **Packages** — reads `@require` and `@request` annotations and installs packages using whichever manager is available on this machine.
 4. **Symlinks + init.sh** — creates symlinks for `conf/` and `bin/` files; resolves `@after` dependencies and writes a single `init.sh` that sources only the active scripts in the right order.
 
@@ -174,7 +174,7 @@ dotfiles/
   .dotd.yaml  ← per-directory config for files that can't carry annotations
 ```
 
-Any file in `scripts/`, `conf/`, or `bin/` is picked up automatically. Annotations (comments at the top of a file) control conditions, ordering, and package requirements.
+dotd walks the entire repo. Files under `scripts/`, `conf/`, or `bin/` are picked up automatically based on their location. Files elsewhere are included if they carry `@symlink` or `@source` annotations. Annotations (comments at the top of a file) control conditions, ordering, and package requirements.
 
 ### Naming conventions
 
