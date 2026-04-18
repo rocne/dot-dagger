@@ -1,3 +1,3 @@
 #!/bin/bash
-# @after scripts.base
+# @after shellrc.base
 export PATH="$HOME/.local/bin:$PATH"

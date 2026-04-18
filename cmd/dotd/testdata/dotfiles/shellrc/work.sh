@@ -1,5 +1,5 @@
 #!/bin/bash
 # @when context=work
-# @after scripts.aliases
+# @after shellrc.aliases
 alias deploy='echo "deploying..."'
 alias staging='echo "connecting to staging..."'
