@@ -14,10 +14,11 @@ import (
 type Kind = walk.Kind
 
 const (
-	KindOther  = walk.KindOther
-	KindScript = walk.KindScript
-	KindConf   = walk.KindConf
-	KindBin    = walk.KindBin
+	KindOther    = walk.KindOther
+	KindScript   = walk.KindScript
+	KindConf     = walk.KindConf
+	KindBin      = walk.KindBin
+	KindManifest = walk.KindManifest
 )
 
 // Node is an active file in the FileSet.
@@ -75,6 +76,9 @@ func (s *Set) Conf() []Node { return s.byKind(KindConf) }
 
 // Bin returns all nodes with KindBin.
 func (s *Set) Bin() []Node { return s.byKind(KindBin) }
+
+// Manifests returns all package manifest nodes (KindManifest).
+func (s *Set) Manifests() []Node { return s.byKind(KindManifest) }
 
 func (s *Set) byKind(k Kind) []Node {
 	var result []Node

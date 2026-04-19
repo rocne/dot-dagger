@@ -231,7 +231,10 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	reqs := packages.CollectRequests(nodes.Nodes)
+	reqs, err := collectAllRequests(nodes)
+	if err != nil {
+		return err
+	}
 	var pkgMissing int
 	for _, req := range reqs {
 		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
