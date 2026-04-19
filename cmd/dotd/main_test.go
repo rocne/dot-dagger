@@ -343,3 +343,61 @@ func TestApplyDryRunWithScript(t *testing.T) {
 		t.Errorf("expected base.sh in dry-run output: %q", out)
 	}
 }
+
+// --- dotd files list ---
+
+func TestFilesListActiveOnly(t *testing.T) {
+	dotfiles := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "linux.sh"), []byte("# @when os=linux\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "macos.sh"), []byte("# @when os=macos\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "files", "list",
+		"--env-file", emptyEnvFile(t),
+		"--files", dotfiles,
+		"--env", "os=linux",
+	)
+	if err != nil {
+		t.Fatalf("files list error = %v", err)
+	}
+	if !strings.Contains(out, "linux.sh") {
+		t.Errorf("expected linux.sh in output: %q", out)
+	}
+	if strings.Contains(out, "macos.sh") {
+		t.Errorf("macos.sh should not appear in active-only output: %q", out)
+	}
+}
+
+func TestFilesListAll(t *testing.T) {
+	dotfiles := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "linux.sh"), []byte("# @when os=linux\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "macos.sh"), []byte("# @when os=macos\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "files", "list", "--all",
+		"--env-file", emptyEnvFile(t),
+		"--files", dotfiles,
+		"--env", "os=linux",
+	)
+	if err != nil {
+		t.Fatalf("files list --all error = %v", err)
+	}
+	if !strings.Contains(out, "active") || !strings.Contains(out, "inactive") {
+		t.Errorf("expected both active and inactive entries: %q", out)
+	}
+	if !strings.Contains(out, "linux.sh") || !strings.Contains(out, "macos.sh") {
+		t.Errorf("expected both files in --all output: %q", out)
+	}
+}

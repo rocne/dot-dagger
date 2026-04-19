@@ -12,7 +12,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## UX / CLI
 
-- [ ] **`dotd files` / `dotd list` command** — expose the active fileset as a subcommand. Candidates: `dotd files list`, `dotd files list --all`, `dotd files list --os linux --context work`. Iterate on exact shape. Also consider unifying "fileset" stage naming with whatever this command is called.
+- [x] **`dotd files list`** — done. `dotd files list` shows active files; `dotd files list --all` shows all including inactive/disabled with conditions.
 - [x] **Rename `scripts/` → `shellrc/`** — done. Convention names now configurable via `dotd.conventions` in root `.dotd.yaml`.
 
 ## Git / CI Infrastructure
