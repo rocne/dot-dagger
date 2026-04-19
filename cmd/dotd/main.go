@@ -79,6 +79,7 @@ func newRootCmd() *cobra.Command {
 			},
 		},
 		newEnvCmd(cfg),
+		newFilesCmd(cfg),
 		newDAGCmd(cfg),
 		newLinkCmd(cfg),
 		newPackageCmd(cfg),

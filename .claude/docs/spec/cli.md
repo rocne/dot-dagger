@@ -31,6 +31,13 @@ dotd <command> [options]
 | `dotd dag apply` | Resolve DAG and write `init.sh` |
 | `dotd dag check` | Validate DAG ordering without writing `init.sh` |
 
+### `dotd files` subcommands
+
+| Command | Description |
+|---------|-------------|
+| `dotd files list` | List active files (kind, logical name, path) |
+| `dotd files list --all` | List all files including inactive and disabled, with conditions |
+
 ### `dotd env` subcommands
 
 | Command | Description |

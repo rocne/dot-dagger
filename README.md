@@ -246,6 +246,16 @@ dotd adopt ~/.zshrc --yes         # accept inferred destination without promptin
 | `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `conf/<name>` |
 | Anything else | Error — use `--to` |
 
+### dotd files — inspect the file set
+
+```sh
+dotd files list                              # list active files for this machine
+dotd files list --all                        # include inactive and disabled files
+dotd files list --all --env os=macos        # preview for a different environment
+```
+
+`dotd files list` is useful for understanding which files are active and why. `--all` shows inactive files alongside the condition that excluded them.
+
 ### dotd env — environment
 
 ```sh
