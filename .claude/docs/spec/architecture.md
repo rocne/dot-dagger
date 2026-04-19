@@ -108,6 +108,7 @@ All packages implemented and tested.
 | `internal/linker` | ✅ Implemented |
 | `internal/initgen` | ✅ Implemented |
 | `internal/packages` | ✅ Implemented |
+| `internal/manifest` | ✅ Implemented — parses `dotd-packages.yaml` files, evaluates block predicates |
 | `internal/setup` | ✅ Implemented |
 | `internal/ecosystem` | ✅ Implemented |
 | `internal/ui` | ✅ Implemented |
@@ -118,3 +119,14 @@ All packages implemented and tested.
 ## 19. Open Questions
 
 None — all design decisions resolved.
+
+---
+
+## Additional Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `dotd-packages.yaml` / `*.dotd-packages.yaml` naming | Avoids collision with user-owned `*.packages.yaml` files used by other tools. |
+| Package manifests excluded from DAG | They declare desired state, not shell behaviour. No ordering, no sourcing, no logical name. |
+| Block-level `when`, no file-level `when` | File-level predicate is handled by directory `.dotd.yaml` `when` — same mechanism as all other files. No new concept needed. |
+| Manifests contribute to same package catalog as `@request` | Single unified source for `dotd package` commands regardless of declaration location. |

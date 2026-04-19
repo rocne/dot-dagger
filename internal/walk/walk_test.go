@@ -382,3 +382,80 @@ func TestCombineWhen(t *testing.T) {
 		}
 	}
 }
+
+func TestWalkManifestKind(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		"dotd-packages.yaml":       "- packages:\n    - ripgrep\n",
+		"mac.dotd-packages.yaml":   "- packages:\n    - aerospace\n",
+		"other.packages.yaml":      "",
+		"shellrc/base.sh":          "",
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	kindOf := func(rel string) (Kind, bool) {
+		import_path := filepath.Join(root, filepath.FromSlash(rel))
+		for _, n := range nodes {
+			if n.Path == import_path {
+				return n.Kind, true
+			}
+		}
+		return KindOther, false
+	}
+
+	if k, ok := kindOf("dotd-packages.yaml"); !ok || k != KindManifest {
+		t.Errorf("dotd-packages.yaml: want KindManifest, got %v (found=%v)", k, ok)
+	}
+	if k, ok := kindOf("mac.dotd-packages.yaml"); !ok || k != KindManifest {
+		t.Errorf("mac.dotd-packages.yaml: want KindManifest, got %v (found=%v)", k, ok)
+	}
+	if k, ok := kindOf("other.packages.yaml"); !ok || k != KindOther {
+		t.Errorf("other.packages.yaml: want KindOther, got %v (found=%v)", k, ok)
+	}
+}
+
+func TestWalkManifestNoAnnotations(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		"dotd-packages.yaml": "- packages:\n    - ripgrep\n",
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	for _, n := range nodes {
+		if n.Kind == KindManifest {
+			if len(n.Annotations) != 0 {
+				t.Errorf("manifest node should have no annotations, got %v", n.Annotations)
+			}
+			return
+		}
+	}
+	t.Error("no manifest node found")
+}
+
+func TestWalkManifestCascadeWhen(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		"mac/.dotd.yaml":              "dotd:\n  defaults:\n    when: os=macos\n",
+		"mac/dotd-packages.yaml":      "- packages:\n    - aerospace\n",
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	for _, n := range nodes {
+		if n.Kind == KindManifest {
+			if n.EffectiveWhen != "os=macos" {
+				t.Errorf("manifest EffectiveWhen = %q, want %q", n.EffectiveWhen, "os=macos")
+			}
+			return
+		}
+	}
+	t.Error("no manifest node found")
+}

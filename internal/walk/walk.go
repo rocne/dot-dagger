@@ -29,10 +29,11 @@ func expandTilde(s string) (string, error) {
 type Kind int
 
 const (
-	KindOther  Kind = iota
-	KindScript      // under shellrc/
-	KindConf        // under conf/
-	KindBin         // under bin/
+	KindOther    Kind = iota
+	KindScript        // under shellrc/
+	KindConf          // under conf/
+	KindBin           // under bin/
+	KindManifest      // dotd-packages.yaml or *.dotd-packages.yaml
 )
 
 func (k Kind) String() string {
@@ -43,6 +44,8 @@ func (k Kind) String() string {
 		return "conf"
 	case KindBin:
 		return "bin"
+	case KindManifest:
+		return "manifest"
 	default:
 		return "other"
 	}
@@ -190,6 +193,17 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 			continue
 		}
 
+		// Package manifests are YAML — no annotation header.
+		if isManifest(name) {
+			*nodes = append(*nodes, Node{
+				Path:          fullPath,
+				Kind:          KindManifest,
+				EffectiveWhen: dirDefaultWhen,
+				LinkRoot:      effectiveLinkRoot,
+			})
+			continue
+		}
+
 		// File node.
 		anns, err := readAnnotations(fullPath)
 		if err != nil {
@@ -221,6 +235,11 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 		})
 	}
 	return nil
+}
+
+// isManifest reports whether name matches the package manifest pattern.
+func isManifest(name string) bool {
+	return name == "dotd-packages.yaml" || strings.HasSuffix(name, ".dotd-packages.yaml")
 }
 
 // readAnnotations opens a file and scans its header for annotations.

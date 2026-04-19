@@ -64,8 +64,8 @@ func runFilesList(cmd *cobra.Command, cfg *config, showAll bool) error {
 		}
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 		for _, n := range active.Nodes {
-			if n.Kind == fileset.KindOther {
-				continue // skip KindOther (env.yaml, packages.yaml, etc.); use --all to see them
+			if n.Kind == fileset.KindOther || n.Kind == fileset.KindManifest {
+				continue // skip non-DAG files (env.yaml, manifests, etc.); use --all to see them
 			}
 			rel, _ := filepath.Rel(cfg.files, n.Path)
 			fmt.Fprintf(w, "%s\t%s\t%s\n", kindLabel(n.Kind), n.LogicalName, rel)
@@ -104,6 +104,8 @@ func kindLabel(k fileset.Kind) string {
 		return "conf"
 	case fileset.KindBin:
 		return "bin"
+	case fileset.KindManifest:
+		return "manifest"
 	default:
 		return "other"
 	}

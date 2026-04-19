@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/rocne/dot-dagger/internal/fileset"
+	"github.com/rocne/dot-dagger/internal/manifest"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -62,6 +64,20 @@ Write install script to file:
 	return cmd
 }
 
+// collectAllRequests merges annotation-based and manifest-based package requests.
+func collectAllRequests(nodes *fileset.Set) ([]packages.PackageRequest, error) {
+	reqs := packages.CollectRequests(nodes.Nodes)
+	var paths []string
+	for _, n := range nodes.Manifests() {
+		paths = append(paths, n.Path)
+	}
+	mreqs, err := manifest.CollectFromPaths(paths, nodes.Env)
+	if err != nil {
+		return nil, err
+	}
+	return append(reqs, mreqs...), nil
+}
+
 func runPackageGenerate(cmd *cobra.Command, cfg *config, outputFile string) error {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
@@ -75,7 +91,10 @@ func runPackageGenerate(cmd *cobra.Command, cfg *config, outputFile string) erro
 	if err != nil {
 		return err
 	}
-	reqs := packages.CollectRequests(nodes.Nodes)
+	reqs, err := collectAllRequests(nodes)
+	if err != nil {
+		return err
+	}
 
 	w := cmd.OutOrStdout()
 	if outputFile != "" {
@@ -104,7 +123,10 @@ func runPackageCheck(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 
-	reqs := packages.CollectRequests(nodes.Nodes)
+	reqs, err := collectAllRequests(nodes)
+	if err != nil {
+		return err
+	}
 	if len(reqs) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(), "no package requirements found")
 		return nil
@@ -144,7 +166,10 @@ func runPackageList(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 
-	reqs := packages.CollectRequests(nodes.Nodes)
+	reqs, err := collectAllRequests(nodes)
+	if err != nil {
+		return err
+	}
 	if len(reqs) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(), "no package requirements found")
 		return nil

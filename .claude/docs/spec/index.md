@@ -18,6 +18,7 @@ dot-dagger is a dotfiles composition engine — predicate-gated files, DAG-order
 | [symlinks.md](symlinks.md) | §9 Symlink Strategy, §10 Drift Detection |
 | [cli.md](cli.md) | §11 CLI Interface, §13 Bootstrap |
 | [architecture.md](architecture.md) | §14 Project Structure, §15 Dependencies, §16 Design Decisions, §17 Out of Scope, §18 Status |
+| [package-manifests.md](package-manifests.md) | §20 Package Manifests — `dotd-packages.yaml`, schema, predicate scoping, DAG exclusion |
 
 ---
 
@@ -31,5 +32,6 @@ dot-dagger is a dotfiles composition engine — predicate-gated files, DAG-order
 - Convention dirs recognised until first encounter — `shellrc/conf/` is ignored, `nosync-work/tmux/shellrc/` is valid
 - Default ordering: alphabetical by logical name within each DAG frontier (Kahn's + alpha tie-break)
 - Missing env keys: prompt (TTY) or halt (non-interactive) — never silent
+- Package manifests: `dotd-packages.yaml` / `*.dotd-packages.yaml` — predicate-scoped, no DAG participation
 
 ---
