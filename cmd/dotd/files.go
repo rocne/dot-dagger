@@ -24,8 +24,9 @@ func newFilesCmd(cfg *config) *cobra.Command {
 		Short: "List files in the active set",
 		Long: `List files in the active set for the current environment.
 
-By default only active (predicate-passing) files are shown. Use --all to
-include inactive and disabled files alongside their conditions.`,
+By default only active shellrc/conf/bin files are shown. Use --all to
+include KindOther files (env.yaml, packages.yaml, etc.) and inactive or
+disabled files alongside their conditions.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFilesList(cmd, cfg, showAll)
 		},
@@ -54,6 +55,9 @@ func runFilesList(cmd *cobra.Command, cfg *config, showAll bool) error {
 		}
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 		for _, n := range active.Nodes {
+			if n.Kind == fileset.KindOther {
+				continue // skip KindOther (env.yaml, packages.yaml, etc.); use --all to see them
+			}
 			rel, _ := filepath.Rel(cfg.files, n.Path)
 			fmt.Fprintf(w, "%s\t%s\t%s\n", kindLabel(n.Kind), n.LogicalName, rel)
 		}
