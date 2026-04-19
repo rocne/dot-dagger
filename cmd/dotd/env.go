@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -67,10 +68,42 @@ func runEnvShow(cmd *cobra.Command, cfg *config) error {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	for _, k := range keys {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", ui.Key(k), resolved[k])
+
+	if !cfg.verbose {
+		for _, k := range keys {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", ui.Key(k), resolved[k])
+		}
+		return nil
 	}
-	return nil
+
+	// Verbose: show source of each value.
+	detected, _ := env.NewResolver().Resolve(nil)
+	ef, _ := env.LoadEnvFileFromPath(cfg.envFile)
+	cliOverrides := make(map[string]string)
+	for _, kv := range cfg.env {
+		if parts := strings.SplitN(kv, "=", 2); len(parts) == 2 {
+			cliOverrides[parts[0]] = parts[1]
+		}
+	}
+
+	source := func(k string) string {
+		if _, ok := cliOverrides[k]; ok {
+			return "--env flag"
+		}
+		if _, ok := ef.Env[k]; ok {
+			return "env.yaml"
+		}
+		if _, ok := detected[k]; ok {
+			return "detected"
+		}
+		return "unknown"
+	}
+
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	for _, k := range keys {
+		fmt.Fprintf(w, "%s=%s\t(%s)\n", ui.Key(k), resolved[k], source(k))
+	}
+	return w.Flush()
 }
 
 func runEnvGet(cmd *cobra.Command, cfg *config, key string) error {

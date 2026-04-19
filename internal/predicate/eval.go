@@ -7,6 +7,15 @@ import (
 	"os/exec"
 )
 
+// MissingKeyError is returned when a predicate references an env key that is not set.
+type MissingKeyError struct {
+	Key string
+}
+
+func (e *MissingKeyError) Error() string {
+	return fmt.Sprintf("predicate: env key %q not set", e.Key)
+}
+
 // Mode controls how unknown predicate function calls are handled.
 type Mode int
 
@@ -94,7 +103,7 @@ func (e *Evaluator) Eval(expr Expr) (bool, error) {
 	case ConditionExpr:
 		actual, ok := e.Env[x.Key]
 		if !ok {
-			return false, fmt.Errorf("predicate: env key %q not set", x.Key)
+			return false, &MissingKeyError{Key: x.Key}
 		}
 		for _, v := range x.Values {
 			if actual == v {

@@ -30,7 +30,12 @@ func newLinkCmd(cfg *config) *cobra.Command {
 		},
 		&cobra.Command{
 			Use:   "remove",
-			Short: "Remove owned symlinks",
+			Short: "Remove symlinks that point into the dotfiles repo",
+			Long: `Remove symlinks that are owned by dotd — those whose target points into the
+dotfiles repo. Symlinks pointing elsewhere (pre-existing or foreign) are never
+touched, even if they share the same destination path.
+
+Use --dry-run to preview what would be removed before committing.`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runLinkRemove(cmd, cfg)
 			},
