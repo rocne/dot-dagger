@@ -287,8 +287,8 @@ func TestCheckEmptyRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("check error = %v", err)
 	}
-	if !strings.Contains(out, "scripts: 0 active") {
-		t.Errorf("expected 'scripts: 0 active': %q", out)
+	if !strings.Contains(out, "shellrc: 0 active") {
+		t.Errorf("expected 'shellrc: 0 active': %q", out)
 	}
 	if !strings.Contains(out, "symlinks:") {
 		t.Errorf("expected 'symlinks:' summary: %q", out)

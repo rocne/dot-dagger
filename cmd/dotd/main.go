@@ -199,7 +199,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active, %s\n", ui.Header("scripts:"), len(ordered), ui.OK("DAG OK"))
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active, %s\n", ui.Header("shellrc:"), len(ordered), ui.OK("DAG OK"))
 
 	reg, err := loadPackageContext(cfg)
 	if err != nil {
