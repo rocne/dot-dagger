@@ -19,19 +19,28 @@ func newFilesCmd(cfg *config) *cobra.Command {
 
 	var showAll bool
 
+	listLong := `List files in the active set for the current environment.
+
+By default only active shellrc/conf/bin files are shown. Use --all to
+include inactive or disabled files alongside their conditions, and files
+with no special kind (env.yaml, packages.yaml, etc.).`
+
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List files in the active set",
-		Long: `List files in the active set for the current environment.
-
-By default only active shellrc/conf/bin files are shown. Use --all to
-include KindOther files (env.yaml, packages.yaml, etc.) and inactive or
-disabled files alongside their conditions.`,
+		Long:  listLong,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFilesList(cmd, cfg, showAll)
 		},
 	}
 	list.Flags().BoolVar(&showAll, "all", false, "include inactive and disabled files")
+
+	// Bare `dotd files` runs list.
+	cmd.Long = listLong
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return runFilesList(cmd, cfg, showAll)
+	}
+	cmd.Flags().BoolVar(&showAll, "all", false, "include inactive and disabled files")
 
 	cmd.AddCommand(list)
 	return cmd
@@ -49,7 +58,7 @@ func runFilesList(cmd *cobra.Command, cfg *config, showAll bool) error {
 	}
 
 	if !showAll {
-		active, err := fileset.Build(walked, resolved, nil)
+		active, err := buildFileSetFromWalked(walked, resolved)
 		if err != nil {
 			return err
 		}
@@ -65,7 +74,7 @@ func runFilesList(cmd *cobra.Command, cfg *config, showAll bool) error {
 	}
 
 	// --all: show every walked node with its status.
-	active, err := fileset.Build(walked, resolved, nil)
+	active, err := buildFileSetFromWalked(walked, resolved)
 	if err != nil {
 		return err
 	}

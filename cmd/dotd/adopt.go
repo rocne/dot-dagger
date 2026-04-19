@@ -24,7 +24,22 @@ func newAdoptCmd(rootCfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "adopt <file>",
 		Short: "Import a file into the dotfiles repo, inferring the destination directory",
-		Args:  cobra.ExactArgs(1),
+		Long: `Copy a file into the dotfiles repo. The destination is inferred from the file:
+
+  Executable bit set          →  bin/<name>
+  .sh / .bash / .zsh / .fish  →  shellrc/<name>
+  Hidden file (.bashrc, …)    →  conf/dot-<name>   (dot- prefix added)
+  .conf / .toml / .yaml / …   →  conf/<name>
+
+Use --to to override the inferred destination. If inference fails and --to is
+not provided, the command errors.
+
+Examples:
+  dotd adopt ~/.bashrc                         # → conf/dot-bashrc
+  dotd adopt ~/bin/my-script                   # → bin/my-script
+  dotd adopt ~/.gitconfig --to conf/dot-gitconfig-work
+  dotd adopt ~/.zshrc --yes                    # skip confirmation prompt`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nonInteractive := yes || noInteractive
 			return runAdopt(cmd, rootCfg, args[0], to, nonInteractive)

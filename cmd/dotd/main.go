@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/initgen"
 	"github.com/rocne/dot-dagger/internal/linker"
 	"github.com/rocne/dot-dagger/internal/packages"
+	"github.com/rocne/dot-dagger/internal/predicate"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/rocne/dot-dagger/internal/walk"
 	"github.com/spf13/cobra"
@@ -67,6 +69,20 @@ func newRootCmd() *cobra.Command {
 		&cobra.Command{
 			Use:   "apply",
 			Short: "Full reconciliation: env → fileset → packages → links → init.sh",
+			Long: `Reconcile the dotfiles repo against the current machine in one shot.
+
+Stages run in order:
+  1. env      — detect os/distro/shell, merge env.yaml and --env overrides
+  2. fileset  — walk the repo, evaluate @when predicates, build the active set
+  3. packages — install packages declared with @require / @request
+  4. links    — create symlinks for conf/ and bin/ files
+  5. init.sh  — resolve @after DAG ordering, write init.sh
+
+Examples:
+  dotd apply
+  dotd apply --dry-run          # preview without making any changes
+  dotd apply --env context=work # override a single env key for this run
+  dotd apply --verbose          # show per-stage counts`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runApply(cmd, cfg)
 			},
@@ -74,6 +90,16 @@ func newRootCmd() *cobra.Command {
 		&cobra.Command{
 			Use:   "check",
 			Short: "Validate all stages without making changes",
+			Long: `Validate the dotfiles repo against the current machine without changing anything.
+
+Runs the same evaluation as apply — env resolution, predicate filtering, DAG
+ordering, package status, symlink state — and prints a summary of each stage.
+Exits non-zero if any stage has errors.
+
+Examples:
+  dotd check
+  dotd check --verbose   # include per-file symlink status
+  dotd check --env os=macos  # preview for a different environment`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runCheck(cmd, cfg)
 			},
@@ -282,7 +308,23 @@ func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error)
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
-	return fileset.Build(walked, resolved, nil)
+	return buildFileSetFromWalked(walked, resolved)
+}
+
+func buildFileSetFromWalked(walked []walk.Node, resolved map[string]string) (*fileset.Set, error) {
+	set, err := fileset.Build(walked, resolved, nil)
+	if err != nil {
+		return nil, annotateKeyError(err)
+	}
+	return set, nil
+}
+
+func annotateKeyError(err error) error {
+	var mke *predicate.MissingKeyError
+	if errors.As(err, &mke) {
+		return fmt.Errorf("%w\n\nHint: set it with --env %s=<value> or: dotd env set %s=<value>", err, mke.Key, mke.Key)
+	}
+	return err
 }
 
 func loadPackageContext(cfg *config) (*packages.Registry, error) {
