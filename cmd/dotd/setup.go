@@ -26,7 +26,7 @@ func newSetupCmd(rootCfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Interactive onboarding: scaffold dotfiles repo structure and config files",
-		Long: `scaffold walks you through creating a dotfiles repo structure,
+		Long: `Walk through creating a dotfiles repo structure,
 writing env.yaml, and wiring up your shell init file.
 
 Run without flags for interactive mode (default). Use --no-interactive or

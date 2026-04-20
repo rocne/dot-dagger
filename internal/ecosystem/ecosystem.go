@@ -61,9 +61,9 @@ func DefaultInitFile() (string, error) {
 }
 
 // DefaultGeneratedDir returns the default path to the compose generated-files directory:
-// $XDG_CONFIG_HOME/dot-dagger/generated.
+// $XDG_DATA_HOME/dot-dagger/generated.
 func DefaultGeneratedDir() (string, error) {
-	base, err := xdgConfigHome()
+	base, err := xdgDataHome()
 	if err != nil {
 		return "", err
 	}

@@ -71,16 +71,17 @@ func newRootCmd() *cobra.Command {
 		newAdoptCmd(cfg),
 		&cobra.Command{
 			Use:   "apply",
-			Short: "Full reconciliation: env → fileset → packages → links → init.sh",
+			Short: "Full reconciliation: env → fileset → compose → links → init.sh",
 			Long: `Reconcile the dotfiles repo against the current machine in one shot.
 
 Stages run in order:
   1. env      — detect os/distro/shell, merge env.yaml and --env overrides
   2. fileset  — walk the repo, evaluate @when predicates, build the active set
-  3. packages — install packages declared with @require / @request
-  4. compose  — assemble compose targets into generated files
-  5. links    — create symlinks for conf/ and bin/ files
-  6. init.sh  — resolve @after DAG ordering, write init.sh
+  3. compose  — assemble compose targets into generated files
+  4. links    — create symlinks for conf/ and bin/ files
+  5. init.sh  — resolve @after DAG ordering, write init.sh
+
+To install packages declared with @require / @request, run: dotd package check
 
 Examples:
   dotd apply
@@ -96,9 +97,9 @@ Examples:
 			Short: "Validate all stages without making changes",
 			Long: `Validate the dotfiles repo against the current machine without changing anything.
 
-Runs the same evaluation as apply — env resolution, predicate filtering, DAG
-ordering, package status, symlink state — and prints a summary of each stage.
-Exits non-zero if any stage has errors.
+Runs the same evaluation as apply — env resolution, predicate filtering, compose
+drift, package status, symlink state — and prints a summary of each stage.
+Exits non-zero if any stage reports issues.
 
 Examples:
   dotd check
@@ -238,11 +239,13 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
 
+	var hasIssues bool
+
 	composeStatuses, err := composer.Check(nodes.Compose(), composer.Options{GeneratedDir: cfg.generatedDir})
 	if err != nil {
 		return fmt.Errorf("compose: %w", err)
 	}
-	{
+	if len(composeStatuses) > 0 {
 		var ok, missing, stale int
 		for _, s := range composeStatuses {
 			switch s.State {
@@ -250,22 +253,24 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 				ok++
 			case composer.StateMissing:
 				missing++
+				hasIssues = true
 				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), s.OutputPath)
 			case composer.StateStale:
 				stale++
+				hasIssues = true
 				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("stale"), s.OutputPath)
 			}
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d stale\n",
 			ui.Header("compose:"), ok, missing, stale)
-		// Add synthetic nodes so linker and initgen see the generated files.
-		synthetic, err := composer.Apply(nodes.Compose(), composer.Options{
-			GeneratedDir: cfg.generatedDir,
-			DryRun:       true, // check mode — do not write
-		})
-		if err == nil {
-			nodes.Nodes = append(nodes.Nodes, synthetic...)
-		}
+	}
+	// Add synthetic nodes so linker and initgen see the generated files.
+	synthetic, err := composer.Apply(nodes.Compose(), composer.Options{
+		GeneratedDir: cfg.generatedDir,
+		DryRun:       true, // check mode — do not write
+	})
+	if err == nil {
+		nodes.Nodes = append(nodes.Nodes, synthetic...)
 	}
 
 	scripts := nodes.Scripts()
@@ -308,6 +313,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		}
 	}
 	if pkgMissing > 0 {
+		hasIssues = true
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Header("packages:"),
 			ui.Conflict(fmt.Sprintf("%d hard requirements unmet", pkgMissing)))
 	} else {
@@ -332,19 +338,27 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 			ok++
 		case linker.StateMissing:
 			missing++
+			hasIssues = true
 			if cfg.verbose {
 				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
 			}
 		case linker.StateWrongTarget:
 			wrong++
+			hasIssues = true
 			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("wrong"), l.Dst)
 		case linker.StateConflict:
 			conflict++
+			hasIssues = true
 			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Conflict("conflict"), l.Dst)
 		}
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d wrong-target, %d conflict\n",
 		ui.Header("symlinks:"), ok, missing, wrong, conflict)
+
+	if hasIssues {
+		cmd.SilenceErrors = true // output already printed; suppress cobra's "Error: ..." line
+		return errors.New("check: issues found")
+	}
 	return nil
 }
 
