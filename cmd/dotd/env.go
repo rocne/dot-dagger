@@ -76,7 +76,7 @@ func runEnvShow(cmd *cobra.Command, cfg *config) error {
 		return nil
 	}
 
-	// Verbose: show source of each value.
+	// debug: show source of each value alongside the key=value.
 	detected, _ := env.NewResolver().Resolve(nil)
 	ef, _ := env.LoadEnvFileFromPath(cfg.envFile)
 	cliOverrides := make(map[string]string)
@@ -170,14 +170,12 @@ func runEnvSet(cmd *cobra.Command, cfg *config, kv string) error {
 	ef.Env[key] = val
 
 	if cfg.dryRun {
-		fmt.Fprintf(cmd.OutOrStdout(), "would set %s=%s in %s\n", key, val, cfg.envFile)
+		cfg.log.Infof("would set %s=%s in %s", key, val, cfg.envFile)
 		return nil
 	}
 	if err := env.SaveEnvFileToPath(cfg.envFile, ef); err != nil {
 		return err
 	}
-	if cfg.verbose() {
-		fmt.Fprintf(cmd.OutOrStdout(), "set %s=%s in %s\n", key, val, cfg.envFile)
-	}
+	cfg.log.Infof("set %s=%s in %s", key, val, cfg.envFile)
 	return nil
 }

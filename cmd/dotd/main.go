@@ -48,8 +48,7 @@ type config struct {
 }
 
 // verbose reports whether debug-level output is enabled.
-// Used as a bridge during output migration; will be removed once all
-// cfg.verbose() guards are replaced with direct logger calls.
+// Used for callers that need a bool (io.Writer-based printers, stdout data detail).
 func (c *config) verbose() bool {
 	return c.log != nil && c.log.GetLevel() <= chlog.DebugLevel
 }
@@ -104,9 +103,9 @@ To install packages declared with @require / @request, run: dotd package check
 
 Examples:
   dotd apply
-  dotd apply --dry-run          # preview without making any changes
-  dotd apply --env context=work # override a single env key for this run
-  dotd apply --verbose          # show per-stage counts`,
+  dotd apply --dry-run              # preview without making any changes
+  dotd apply --env context=work     # override a single env key for this run
+  dotd apply --log-level debug      # show per-stage and per-item detail`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runApply(cmd, cfg)
 			},
@@ -122,8 +121,8 @@ Exits non-zero if any stage reports issues.
 
 Examples:
   dotd check
-  dotd check --verbose   # include per-file symlink status
-  dotd check --env os=macos  # preview for a different environment`,
+  dotd check --log-level debug   # include per-item symlink status
+  dotd check --env os=macos      # preview for a different environment`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runCheck(cmd, cfg)
 			},
@@ -174,17 +173,13 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	if cfg.verbose() {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %d keys resolved\n", ui.Header("env:"), len(resolved))
-	}
+	cfg.log.Debugf("%s %d keys resolved", ui.Header("env:"), len(resolved))
 
 	nodes, err := buildFileSet(cfg, resolved)
 	if err != nil {
 		return err
 	}
-	if cfg.verbose() {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
-	}
+	cfg.log.Debugf("%s %d active nodes", ui.Header("fileset:"), len(nodes.Nodes))
 
 	composeOpts := composer.Options{
 		GeneratedDir: cfg.generatedDir,
@@ -195,8 +190,8 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return fmt.Errorf("compose: %w", err)
 	}
 	nodes.Nodes = append(nodes.Nodes, synthetic...)
-	if cfg.verbose() && len(synthetic) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %d generated\n", ui.Header("compose:"), len(synthetic))
+	if len(synthetic) > 0 {
+		cfg.log.Debugf("%s %d generated", ui.Header("compose:"), len(synthetic))
 	}
 
 	opts := linker.Options{
@@ -220,9 +215,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		if err := linker.Apply(links, cfg.force); err != nil {
 			return err
 		}
-		if cfg.verbose() {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s %d applied\n", ui.Header("symlinks:"), len(links))
-		}
+		cfg.log.Infof("%s %d applied", ui.Header("symlinks:"), len(links))
 	}
 
 	scripts := nodes.Scripts()
@@ -239,9 +232,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		if err := initgen.WriteFile(cfg.initFile, content); err != nil {
 			return err
 		}
-		if cfg.verbose() {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s wrote %s (%d scripts)\n", ui.Header("init.sh:"), cfg.initFile, len(ordered))
-		}
+		cfg.log.Infof("%s wrote %s (%d scripts)", ui.Header("init.sh:"), cfg.initFile, len(ordered))
 	}
 	return nil
 }
@@ -256,7 +247,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
+	cfg.log.Infof("%s %d active nodes", ui.Header("fileset:"), len(nodes.Nodes))
 
 	var hasIssues bool
 
@@ -273,15 +264,14 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 			case composer.StateMissing:
 				missing++
 				hasIssues = true
-				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), s.OutputPath)
+				cfg.log.Warn(s.OutputPath, "state", "missing")
 			case composer.StateStale:
 				stale++
 				hasIssues = true
-				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("stale"), s.OutputPath)
+				cfg.log.Warn(s.OutputPath, "state", "stale")
 			}
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d stale\n",
-			ui.Header("compose:"), ok, missing, stale)
+		cfg.log.Infof("%s %d ok, %d missing, %d stale", ui.Header("compose:"), ok, missing, stale)
 	}
 	// Add synthetic nodes so linker and initgen see the generated files.
 	synthetic, err := composer.Apply(nodes.Compose(), composer.Options{
@@ -297,7 +287,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active, %s\n", ui.Header("shellrc:"), len(ordered), ui.OK("DAG OK"))
+	cfg.log.Infof("%s %d active, %s", ui.Header("shellrc:"), len(ordered), ui.OK("DAG OK"))
 
 	reg, err := loadPackageContext(cfg)
 	if err != nil {
@@ -311,11 +301,14 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	for _, req := range reqs {
 		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
 		installable, _ := packages.Installable(req.Package, reg, exec.LookPath)
+		kind := "@request"
+		if req.Hard {
+			kind = "@require"
+		}
 		if !installed && !installable && req.Hard {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %s @require: %s (from %s)\n",
-				ui.HardMissing("MISSING"), req.Package, req.NodePath)
+			cfg.log.Error(req.Package, "kind", kind, "state", ui.HardMissing("MISSING"), "from", req.NodePath)
 			pkgMissing++
-		} else if cfg.verbose() {
+		} else {
 			var status string
 			if installed {
 				status = ui.Installed("installed")
@@ -324,19 +317,14 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 			} else {
 				status = ui.Missing("not available")
 			}
-			kind := "@request"
-			if req.Hard {
-				kind = "@require"
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-10s %-20s %s\n", kind, req.Package, status)
+			cfg.log.Debug(req.Package, "kind", kind, "state", status)
 		}
 	}
 	if pkgMissing > 0 {
 		hasIssues = true
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Header("packages:"),
-			ui.Conflict(fmt.Sprintf("%d hard requirements unmet", pkgMissing)))
+		cfg.log.Errorf("%s %s", ui.Header("packages:"), ui.Conflict(fmt.Sprintf("%d hard requirements unmet", pkgMissing)))
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %d requirements, %s\n", ui.Header("packages:"), len(reqs), ui.OK("all OK"))
+		cfg.log.Infof("%s %d requirements, %s", ui.Header("packages:"), len(reqs), ui.OK("all OK"))
 	}
 
 	opts := linker.Options{
@@ -355,23 +343,22 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		switch l.State {
 		case linker.StateOK:
 			ok++
+			cfg.log.Debug(l.Dst, "state", "ok")
 		case linker.StateMissing:
 			missing++
 			hasIssues = true
-			if cfg.verbose() {
-				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
-			}
+			cfg.log.Warn(l.Dst, "state", "missing")
 		case linker.StateWrongTarget:
 			wrong++
 			hasIssues = true
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("wrong"), l.Dst)
+			cfg.log.Warn(l.Dst, "state", "wrong-target")
 		case linker.StateConflict:
 			conflict++
 			hasIssues = true
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Conflict("conflict"), l.Dst)
+			cfg.log.Error(l.Dst, "state", "conflict")
 		}
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d wrong-target, %d conflict\n",
+	cfg.log.Infof("%s %d ok, %d missing, %d wrong-target, %d conflict",
 		ui.Header("symlinks:"), ok, missing, wrong, conflict)
 
 	if hasIssues {
@@ -470,6 +457,7 @@ func resolvePaths(cfg *config) error {
 }
 
 // configureLogger initialises cfg.log from --log-level / --quiet.
+// Uses cmd.ErrOrStderr() so tests can capture output via cobra's SetErr().
 // --quiet overrides --log-level (sets level to error).
 func configureLogger(cfg *config, cmd *cobra.Command) error {
 	level := cfg.logLevel

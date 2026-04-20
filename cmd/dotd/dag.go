@@ -62,9 +62,7 @@ func runDAGApply(cmd *cobra.Command, cfg *config) error {
 	if err := initgen.WriteFile(cfg.initFile, content); err != nil {
 		return err
 	}
-	if cfg.verbose() {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s wrote %s (%d scripts)\n", ui.Header("init.sh:"), cfg.initFile, len(ordered))
-	}
+	cfg.log.Infof("%s wrote %s (%d scripts)", ui.Header("init.sh:"), cfg.initFile, len(ordered))
 	return nil
 }
 
@@ -83,12 +81,10 @@ func runDAGCheck(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return fmt.Errorf("dag: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active scripts, %s\n", ui.Header("dag:"), len(ordered), ui.OK("OK"))
+	cfg.log.Infof("%s %d active scripts, %s", ui.Header("dag:"), len(ordered), ui.OK("OK"))
 
-	if cfg.verbose() {
-		for i, n := range ordered {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %2d. %s\n", i+1, n.Path)
-		}
+	for i, n := range ordered {
+		cfg.log.Debugf("  %2d. %s", i+1, n.Path)
 	}
 	return nil
 }

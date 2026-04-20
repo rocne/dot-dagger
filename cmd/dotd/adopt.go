@@ -101,12 +101,11 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, nonInteractive bo
 	if err := copyFile(src, destAbs); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s %s %s\n",
-		ui.OK("imported"), src, ui.Arrow("→"), destAbs)
+	cfg.log.Infof("%s  %s %s %s", ui.OK("imported"), src, ui.Arrow("→"), destAbs)
 
 	// Offer to remove original (interactive only).
 	if !nonInteractive {
-		if err := offerRemoveOriginal(cmd, src); err != nil {
+		if err := offerRemoveOriginal(cfg, src); err != nil {
 			return err
 		}
 	}
@@ -185,7 +184,7 @@ func promptImportDest(src, prefilledRel string, inferred importInference) (strin
 	return strings.TrimSpace(destRel), nil
 }
 
-func offerRemoveOriginal(cmd *cobra.Command, src string) error {
+func offerRemoveOriginal(cfg *config, src string) error {
 	var doRemove bool
 	if err := huh.NewConfirm().
 		Title(fmt.Sprintf("Remove original file %s?", src)).
@@ -199,7 +198,7 @@ func offerRemoveOriginal(cmd *cobra.Command, src string) error {
 		if err := os.Remove(src); err != nil {
 			return fmt.Errorf("import: remove original: %w", err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s\n", ui.Missing("removed"), src)
+		cfg.log.Infof("%s  %s", ui.Missing("removed"), src)
 	}
 	return nil
 }
