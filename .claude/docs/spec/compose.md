@@ -86,15 +86,15 @@ dotd:
 dotd writes the composed output to:
 
 ```
-{dot-dagger config dir}/generated/<output-logical-name>
+{dot-dagger data dir}/generated/<output-logical-name>
 ```
 
-Default config dir: `~/.config/dot-dagger`.
+Default data dir: `~/.local/share/dot-dagger` (`$XDG_DATA_HOME/dot-dagger`).
 
 ```
-~/.config/dot-dagger/generated/aliases.sh
-~/.config/dot-dagger/generated/tmux.conf
-~/.config/dot-dagger/generated/my-tool
+~/.local/share/dot-dagger/generated/aliases.sh
+~/.local/share/dot-dagger/generated/tmux.conf
+~/.local/share/dot-dagger/generated/my-tool
 ```
 
 These files are what the linker symlinks or the init generator sources. The user never edits them directly.
