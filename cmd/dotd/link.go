@@ -75,7 +75,7 @@ func runLinkApply(cmd *cobra.Command, cfg *config) error {
 	if err := linker.Apply(links, cfg.force); err != nil {
 		return err
 	}
-	if cfg.verbose {
+	if cfg.verbose() {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d symlinks\n", ui.OK("applied"), len(links))
 	}
 	return nil
@@ -100,7 +100,7 @@ func runLinkCheck(cmd *cobra.Command, cfg *config) error {
 		return fmt.Errorf("linker plan: %w", err)
 	}
 	links = linker.Check(links, cfg.files)
-	linker.PrintCheckSummary(cmd.OutOrStdout(), links, cfg.verbose)
+	linker.PrintCheckSummary(cmd.OutOrStdout(), links, cfg.verbose())
 	return nil
 }
 
@@ -131,7 +131,7 @@ func runLinkRemove(cmd *cobra.Command, cfg *config) error {
 	if err := linker.Remove(links); err != nil {
 		return err
 	}
-	if cfg.verbose {
+	if cfg.verbose() {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d symlinks\n", ui.Missing("removed"), linker.CountOwned(links))
 	}
 	return nil

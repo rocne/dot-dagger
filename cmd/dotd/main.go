@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	chlog "github.com/charmbracelet/log"
 	"github.com/rocne/dot-dagger/internal/composer"
 	"github.com/rocne/dot-dagger/internal/dag"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -15,6 +16,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/initgen"
 	"github.com/rocne/dot-dagger/internal/linker"
+	dotlog "github.com/rocne/dot-dagger/internal/log"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/predicate"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -40,7 +42,16 @@ type config struct {
 	generatedDir string
 	dryRun       bool
 	force        bool
-	verbose      bool
+	logLevel     string
+	quiet        bool
+	log          *chlog.Logger
+}
+
+// verbose reports whether debug-level output is enabled.
+// Used as a bridge during output migration; will be removed once all
+// cfg.verbose() guards are replaced with direct logger calls.
+func (c *config) verbose() bool {
+	return c.log != nil && c.log.GetLevel() <= chlog.DebugLevel
 }
 
 func newRootCmd() *cobra.Command {
@@ -62,10 +73,14 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&cfg.generatedDir, "generated-dir", "", "path to write composed files (default: $DOTD_GENERATED_DIR → generated_dir in env.yaml → $XDG_DATA_HOME/dot-dagger/generated)")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
-	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
+	pf.StringVar(&cfg.logLevel, "log-level", "info", "log verbosity ("+dotlog.LevelNames()+")")
+	pf.BoolVar(&cfg.quiet, "quiet", false, "suppress all output except errors (shorthand for --log-level error)")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		return resolvePaths(cfg)
+		if err := resolvePaths(cfg); err != nil {
+			return err
+		}
+		return configureLogger(cfg, cmd)
 	}
 
 	ui.SetupCobraColors(root)
@@ -159,7 +174,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	if cfg.verbose {
+	if cfg.verbose() {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d keys resolved\n", ui.Header("env:"), len(resolved))
 	}
 
@@ -167,7 +182,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	if cfg.verbose {
+	if cfg.verbose() {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
 	}
 
@@ -180,7 +195,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return fmt.Errorf("compose: %w", err)
 	}
 	nodes.Nodes = append(nodes.Nodes, synthetic...)
-	if cfg.verbose && len(synthetic) > 0 {
+	if cfg.verbose() && len(synthetic) > 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d generated\n", ui.Header("compose:"), len(synthetic))
 	}
 
@@ -205,7 +220,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		if err := linker.Apply(links, cfg.force); err != nil {
 			return err
 		}
-		if cfg.verbose {
+		if cfg.verbose() {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s %d applied\n", ui.Header("symlinks:"), len(links))
 		}
 	}
@@ -224,7 +239,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		if err := initgen.WriteFile(cfg.initFile, content); err != nil {
 			return err
 		}
-		if cfg.verbose {
+		if cfg.verbose() {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s wrote %s (%d scripts)\n", ui.Header("init.sh:"), cfg.initFile, len(ordered))
 		}
 	}
@@ -300,7 +315,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 			fmt.Fprintf(cmd.OutOrStdout(), "  %s @require: %s (from %s)\n",
 				ui.HardMissing("MISSING"), req.Package, req.NodePath)
 			pkgMissing++
-		} else if cfg.verbose {
+		} else if cfg.verbose() {
 			var status string
 			if installed {
 				status = ui.Installed("installed")
@@ -343,7 +358,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		case linker.StateMissing:
 			missing++
 			hasIssues = true
-			if cfg.verbose {
+			if cfg.verbose() {
 				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), l.Dst)
 			}
 		case linker.StateWrongTarget:
@@ -451,5 +466,20 @@ func resolvePaths(cfg *config) error {
 		return err
 	}
 
+	return nil
+}
+
+// configureLogger initialises cfg.log from --log-level / --quiet.
+// --quiet overrides --log-level (sets level to error).
+func configureLogger(cfg *config, cmd *cobra.Command) error {
+	level := cfg.logLevel
+	if cfg.quiet {
+		level = "error"
+	}
+	logger, err := dotlog.New(cmd.ErrOrStderr(), level)
+	if err != nil {
+		return fmt.Errorf("--log-level: %w", err)
+	}
+	cfg.log = logger
 	return nil
 }

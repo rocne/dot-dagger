@@ -289,7 +289,7 @@ func TestMultipleAppliesIdempotent(t *testing.T) {
 // TestDAGVerboseOrder verifies the dag check output lists scripts in dependency order.
 func TestDAGVerboseOrder(t *testing.T) {
 	e := newIenv(t)
-	out := e.run(t, "dag", "check", "--verbose", "--env", "os=linux", "--env", "context=work")
+	out := e.run(t, "dag", "check", "--log-level", "debug", "--env", "os=linux", "--env", "context=work")
 
 	// Verbose output lists scripts numbered; verify ordering by finding line numbers.
 	lines := strings.Split(out, "\n")
