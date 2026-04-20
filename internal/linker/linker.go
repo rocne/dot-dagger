@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/annotation"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/fileset"
 	"github.com/rocne/dot-dagger/internal/ui"
 )
@@ -89,7 +90,11 @@ func Plan(nodes []fileset.Node, opts Options) ([]Link, error) {
 		opts.LinkRoot = home
 	}
 	if opts.BinDir == "" {
-		opts.BinDir = filepath.Join(opts.LinkRoot, ".local", "bin", "dot-dagger")
+		binDir, err := ecosystem.DefaultBinDir()
+		if err != nil {
+			return nil, fmt.Errorf("linker: default bin dir: %w", err)
+		}
+		opts.BinDir = binDir
 	}
 
 	var links []Link

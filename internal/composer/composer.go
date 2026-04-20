@@ -80,7 +80,7 @@ type TargetSummary struct {
 // Options configures the compose stage.
 type Options struct {
 	// GeneratedDir is the directory where assembled files are written.
-	// Default: ~/.config/dot-dagger/generated
+	// Default: ~/.local/share/dot-dagger/generated
 	GeneratedDir string
 	// DryRun skips file writes.
 	DryRun bool
