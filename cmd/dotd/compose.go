@@ -25,7 +25,7 @@ func newComposeCmd(cfg *config) *cobra.Command {
 			Use:   "check",
 			Short: "Validate compose targets — report stale or missing generated files",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				return runComposeCheck(cmd, cfg)
+				return runComposeCheck(cfg)
 			},
 		},
 		&cobra.Command{
@@ -56,19 +56,21 @@ func runComposeApply(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	if cfg.verbose() || cfg.dryRun {
+	if cfg.dryRun {
 		for _, n := range synthetic {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s %s %s %s\n",
 				ui.Header("compose:"), n.LogicalName, ui.Arrow("→"), n.Path)
 		}
+		return nil
 	}
-	if !cfg.dryRun {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %d generated\n", ui.Header("compose:"), len(synthetic))
+	for _, n := range synthetic {
+		cfg.log.Debugf("%s %s %s %s", ui.Header("compose:"), n.LogicalName, ui.Arrow("→"), n.Path)
 	}
+	cfg.log.Infof("%s %d generated", ui.Header("compose:"), len(synthetic))
 	return nil
 }
 
-func runComposeCheck(cmd *cobra.Command, cfg *config) error {
+func runComposeCheck(cfg *config) error {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
@@ -89,19 +91,16 @@ func runComposeCheck(cmd *cobra.Command, cfg *config) error {
 		switch s.State {
 		case composer.StateOK:
 			ok++
-			if cfg.verbose() {
-				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.OK("ok"), s.OutputPath)
-			}
+			cfg.log.Debug(s.OutputPath, "state", "ok")
 		case composer.StateMissing:
 			missing++
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), s.OutputPath)
+			cfg.log.Warn(s.OutputPath, "state", "missing")
 		case composer.StateStale:
 			stale++
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("stale"), s.OutputPath)
+			cfg.log.Warn(s.OutputPath, "state", "stale")
 		}
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d stale\n",
-		ui.Header("compose:"), ok, missing, stale)
+	cfg.log.Infof("%s %d ok, %d missing, %d stale", ui.Header("compose:"), ok, missing, stale)
 	return nil
 }
 

@@ -141,7 +141,6 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 	}
 
 	// Print actions.
-	fmt.Fprintln(cmd.OutOrStdout())
 	for _, act := range result.Actions {
 		var state string
 		if act.State == setup.StateCreated {
@@ -149,20 +148,19 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 		} else {
 			state = ui.Skip("exists ")
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s\n", state, act.Path)
+		rootCfg.log.Infof("  %s  %s", state, act.Path)
 	}
-	fmt.Fprintln(cmd.OutOrStdout())
 
 	// Shell hook.
-	if err := handleShellHook(cmd, detected, initFile, nonInteractive); err != nil {
+	if err := handleShellHook(rootCfg, detected, initFile, nonInteractive); err != nil {
 		return err
 	}
 
-	printNextSteps(cmd, dotfilesDir, initFile)
+	printNextSteps(rootCfg, dotfilesDir, initFile)
 	return nil
 }
 
-func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile string, nonInteractive bool) error {
+func handleShellHook(cfg *config, detected map[string]string, initFile string, nonInteractive bool) error {
 	shell := detected["shell"]
 	osName := detected["os"]
 
@@ -175,8 +173,7 @@ func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile st
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s unknown shell %q — add manually:\n  %s\n\n",
-			ui.Header("shell:"), shell, sourceLine)
+		cfg.log.Warnf("%s unknown shell %q — add manually:\n  %s", ui.Header("shell:"), shell, sourceLine)
 		return nil
 	}
 
@@ -200,7 +197,7 @@ func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile st
 		return err
 	}
 	if has {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s already configured\n\n", ui.Header("shell:"), sc.RCFile)
+		cfg.log.Infof("%s %s already configured", ui.Header("shell:"), sc.RCFile)
 		return nil
 	}
 
@@ -208,8 +205,7 @@ func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile st
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s add to %s:\n\n  echo '%s' >> %s\n\n",
-		ui.Header("shell:"), sc.RCFile, sourceLine, sc.RCFile)
+	cfg.log.Infof("%s add to %s:\n\n  echo '%s' >> %s\n", ui.Header("shell:"), sc.RCFile, sourceLine, sc.RCFile)
 
 	if nonInteractive {
 		return nil
@@ -228,21 +224,20 @@ func handleShellHook(cmd *cobra.Command, detected map[string]string, initFile st
 		if err := setup.AppendSourceLine(sc.RCFile, initFile); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "  %s appended to %s\n", ui.OK("ok"), sc.RCFile)
+		cfg.log.Infof("  %s appended to %s", ui.OK("ok"), sc.RCFile)
 	}
-	fmt.Fprintln(cmd.OutOrStdout())
 	return nil
 }
 
-func printNextSteps(cmd *cobra.Command, dotfilesDir, initFile string) {
+func printNextSteps(cfg *config, dotfilesDir, initFile string) {
 	sourceLine, _ := setup.SourceLine(initFile) // failure means home dir unknown; show raw path
 	if sourceLine == "" {
 		sourceLine = initFile
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", ui.Header("next steps:"))
-	fmt.Fprintf(cmd.OutOrStdout(), "  1. Add dotfiles to %s\n", dotfilesDir)
-	fmt.Fprintf(cmd.OutOrStdout(), "  2. Run: %s check\n", ecosystem.ToolD)
-	fmt.Fprintf(cmd.OutOrStdout(), "  3. Reload shell: %s\n", sourceLine)
+	cfg.log.Infof("%s", ui.Header("next steps:"))
+	cfg.log.Infof("  1. Add dotfiles to %s", dotfilesDir)
+	cfg.log.Infof("  2. Run: %s check", ecosystem.ToolD)
+	cfg.log.Infof("  3. Reload shell: %s", sourceLine)
 }
 
 func expandHome(path string) (string, error) {
