@@ -23,7 +23,7 @@ func newPackageCmd(cfg *config) *cobra.Command {
 			Use:   "check",
 			Short: "Report package status without installing",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				return runPackageCheck(cmd, cfg)
+				return runPackageCheck(cfg)
 			},
 		},
 		&cobra.Command{
@@ -109,7 +109,7 @@ func runPackageGenerate(cmd *cobra.Command, cfg *config, outputFile string) erro
 	return packages.GenerateScript(w, reqs, reg, exec.LookPath)
 }
 
-func runPackageCheck(cmd *cobra.Command, cfg *config) error {
+func runPackageCheck(cfg *config) error {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func runPackageCheck(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	if len(reqs) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "no package requirements found")
+		cfg.log.Info("no package requirements found")
 		return nil
 	}
 
@@ -140,18 +140,16 @@ func runPackageCheck(cmd *cobra.Command, cfg *config) error {
 		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
 		installable, _ := packages.Installable(req.Package, reg, exec.LookPath)
 
-		var status string
 		switch {
 		case installed:
-			status = ui.Installed("installed")
+			cfg.log.Debug(req.Package, "kind", kind, "state", ui.Installed("installed"))
 		case installable:
-			status = ui.Installable("installable")
+			cfg.log.Info(req.Package, "kind", kind, "state", ui.Installable("installable"))
 		case req.Hard:
-			status = ui.HardMissing("MISSING") + " (hard requirement)"
+			cfg.log.Error(req.Package, "kind", kind, "state", ui.HardMissing("MISSING"))
 		default:
-			status = ui.Missing("not available")
+			cfg.log.Warn(req.Package, "kind", kind, "state", ui.Missing("not available"))
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "  %-10s %-20s %s\n", kind, req.Package, status)
 	}
 	return nil
 }

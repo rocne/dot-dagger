@@ -8,14 +8,16 @@ import (
 	"testing"
 )
 
-// run executes the root command with the given args, capturing stdout.
-// Returns (stdout, error).
+// run executes the root command with the given args, capturing combined stdout+stderr.
+// Status/diagnostic output goes to stderr; data output (env show, files list) goes to stdout.
+// Tests checking either kind of output can use the combined string.
+// Returns (combined output, error).
 func run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	root := newRootCmd()
 	buf := &bytes.Buffer{}
 	root.SetOut(buf)
-	root.SetErr(&bytes.Buffer{})
+	root.SetErr(buf)
 	root.SetArgs(args)
 	err := root.Execute()
 	return buf.String(), err
