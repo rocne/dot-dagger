@@ -99,6 +99,10 @@ func RequireKeys(env map[string]string, keys ...string) error {
 type EnvFile struct {
 	Env          map[string]string `yaml:"env"`
 	DotfilesRepo string            `yaml:"dotfiles_repo"`
+	LinkRoot     string            `yaml:"link_root"`
+	BinDir       string            `yaml:"bin_dir"`
+	GeneratedDir string            `yaml:"generated_dir"`
+	InitFile     string            `yaml:"init_file"`
 }
 
 // LoadEnvFile parses an env.yaml from r.

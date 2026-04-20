@@ -130,6 +130,13 @@ func envYAML(opts Options) string {
 	if opts.DetectedShell != "" {
 		fmt.Fprintf(&sb, "# shell: %s\n", opts.DetectedShell)
 	}
+	sb.WriteString(`
+# dotfiles_repo: ~/dotfiles   # path to dotfiles repo (overrides $DOTFILES / cwd)
+# link_root: ~                # symlink root for conf/ files (default: $HOME)
+# bin_dir: ~/.local/bin/dot-dagger  # destination for bin/ files
+# generated_dir: ~/.local/share/dot-dagger/generated  # compose output directory
+# init_file: ~/.local/share/dot-dagger/init.sh        # generated shell init file
+`)
 	return sb.String()
 }
 

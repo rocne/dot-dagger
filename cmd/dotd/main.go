@@ -53,16 +53,20 @@ func newRootCmd() *cobra.Command {
 	}
 
 	pf := root.PersistentFlags()
-	pf.StringVarP(&cfg.files, "files", "f", defaultDotfiles(), "path to dotfiles repo")
-	pf.StringVar(&cfg.envFile, "env-file", defaultEnvFile(), "path to env.yaml")
+	pf.StringVarP(&cfg.files, "files", "f", "", "path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → dotfiles_repo in env.yaml → cwd)")
+	pf.StringVar(&cfg.envFile, "env-file", "", "path to env.yaml (default: $DOTD_ENV_FILE → $XDG_CONFIG_HOME/dot-dagger/env.yaml)")
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
-	pf.StringVar(&cfg.initFile, "init-file", defaultInitFile(), "path to write init.sh")
-	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
-	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
-	pf.StringVar(&cfg.generatedDir, "generated-dir", defaultGeneratedDir(), "path to write composed files")
+	pf.StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → init_file in env.yaml → $XDG_DATA_HOME/dot-dagger/init.sh)")
+	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $DOTD_LINK_ROOT → link_root in env.yaml → $HOME)")
+	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files (default: $DOTD_BIN_DIR → bin_dir in env.yaml → ~/.local/bin/dot-dagger)")
+	pf.StringVar(&cfg.generatedDir, "generated-dir", "", "path to write composed files (default: $DOTD_GENERATED_DIR → generated_dir in env.yaml → $XDG_DATA_HOME/dot-dagger/generated)")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
+
+	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		return resolvePaths(cfg)
+	}
 
 	ui.SetupCobraColors(root)
 
@@ -396,28 +400,56 @@ func loadPackageContext(cfg *config) (*packages.Registry, error) {
 	return packages.LoadFile(filepath.Join(cfg.files, "packages.yaml"))
 }
 
-func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }
+// resolvePaths populates all empty path fields in cfg using the precedence chain:
+// CLI arg → DOTD_* env var → env.yaml field → XDG/system default.
+// env-file itself is resolved first without consulting env.yaml (would be circular).
+func resolvePaths(cfg *config) error {
+	var err error
 
-func defaultGeneratedDir() string {
-	p, err := ecosystem.DefaultGeneratedDir()
+	// env-file: CLI → DOTD_ENV_FILE → XDG default (no env.yaml lookup — circular)
+	cfg.envFile, err = ecosystem.ResolvePath(cfg.envFile, "DOTD_ENV_FILE", "", ecosystem.DefaultEnvFile)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	return p
-}
 
-func defaultEnvFile() string {
-	p, err := ecosystem.DefaultEnvFile()
+	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	return p
-}
 
-func defaultInitFile() string {
-	p, err := ecosystem.DefaultInitFile()
-	if err != nil {
-		panic(err)
+	// Tilde-expand path fields read from env.yaml before using them as fallbacks.
+	for _, p := range []*string{&ef.DotfilesRepo, &ef.LinkRoot, &ef.BinDir, &ef.GeneratedDir, &ef.InitFile} {
+		if *p, err = expandHome(*p); err != nil {
+			return err
+		}
 	}
-	return p
+
+	cfg.files, err = ecosystem.ResolvePath(cfg.files, "DOTD_FILES", ef.DotfilesRepo, func() (string, error) {
+		return ecosystem.DefaultDotfiles(), nil
+	})
+	if err != nil {
+		return err
+	}
+
+	cfg.initFile, err = ecosystem.ResolvePath(cfg.initFile, "DOTD_INIT_FILE", ef.InitFile, ecosystem.DefaultInitFile)
+	if err != nil {
+		return err
+	}
+
+	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", ef.LinkRoot, ecosystem.DefaultLinkRoot)
+	if err != nil {
+		return err
+	}
+
+	cfg.binDir, err = ecosystem.ResolvePath(cfg.binDir, "DOTD_BIN_DIR", ef.BinDir, ecosystem.DefaultBinDir)
+	if err != nil {
+		return err
+	}
+
+	cfg.generatedDir, err = ecosystem.ResolvePath(cfg.generatedDir, "DOTD_GENERATED_DIR", ef.GeneratedDir, ecosystem.DefaultGeneratedDir)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
