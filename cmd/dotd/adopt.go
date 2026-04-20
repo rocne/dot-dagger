@@ -16,9 +16,8 @@ import (
 
 func newAdoptCmd(rootCfg *config) *cobra.Command {
 	var (
-		to            string
-		yes           bool
-		noInteractive bool
+		to  string
+		yes bool
 	)
 
 	cmd := &cobra.Command{
@@ -41,13 +40,11 @@ Examples:
   dotd adopt ~/.zshrc --yes                    # skip confirmation prompt`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			nonInteractive := yes || noInteractive
-			return runAdopt(cmd, rootCfg, args[0], to, nonInteractive)
+			return runAdopt(cmd, rootCfg, args[0], to, yes)
 		},
 	}
 	cmd.Flags().StringVar(&to, "to", "", "destination path relative to dotfiles root (overrides inference)")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "non-interactive: accept inferred destination")
-	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "non-interactive: accept inferred destination")
 	return cmd
 }
 

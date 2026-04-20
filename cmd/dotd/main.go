@@ -99,7 +99,7 @@ Stages run in order:
   4. links    — create symlinks for conf/ and bin/ files
   5. init.sh  — resolve @after DAG ordering, write init.sh
 
-To install packages declared with @require / @request, run: dotd package check
+To install packages declared with @require / @request, run: dotd package generate
 
 Examples:
   dotd apply
