@@ -18,9 +18,8 @@ import (
 
 func newSetupCmd(rootCfg *config) *cobra.Command {
 	var (
-		yes           bool
-		noInteractive bool
-		interactive   bool // explicit flag; default behavior, useful for alias overrides
+		yes         bool
+		interactive bool // explicit flag; default behavior, useful for alias overrides
 	)
 
 	cmd := &cobra.Command{
@@ -29,23 +28,21 @@ func newSetupCmd(rootCfg *config) *cobra.Command {
 		Long: `Walk through creating a dotfiles repo structure,
 writing env.yaml, and wiring up your shell init file.
 
-Run without flags for interactive mode (default). Use --no-interactive or
---yes to skip all prompts and accept defaults.`,
+Run without flags for interactive mode (default). Use --yes to skip all
+prompts and accept defaults.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			nonInteractive := yes || noInteractive
 			_ = interactive // explicit flag, no-op beyond enabling default behavior
-			return runSetup(cmd, rootCfg, nonInteractive)
+			return runSetup(cmd, rootCfg, yes)
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "non-interactive: accept all defaults")
-	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "non-interactive: accept all defaults")
 	cmd.Flags().BoolVar(&interactive, "interactive", false, "interactive mode (default; explicit override for aliases)")
 	return cmd
 }
 
 func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 	if !nonInteractive && !term.IsTerminal(os.Stdin.Fd()) {
-		return fmt.Errorf(ecosystem.ToolD+" setup: no TTY detected; run with --no-interactive to accept defaults")
+		return fmt.Errorf(ecosystem.ToolD + " setup: no TTY detected; run with --yes to accept defaults")
 	}
 
 	// Detect environment for pre-populating prompts and env.yaml comments.

@@ -12,37 +12,21 @@ import (
 )
 
 func newFilesCmd(cfg *config) *cobra.Command {
+	var showAll bool
+
 	cmd := &cobra.Command{
 		Use:   "files",
 		Short: "Inspect the active file set",
-	}
-
-	var showAll bool
-
-	listLong := `List files in the active set for the current environment.
+		Long: `List files in the active set for the current environment.
 
 By default only active shellrc/conf/bin files are shown. Use --all to
 include inactive or disabled files alongside their conditions, and files
-with no special kind (env.yaml, packages.yaml, etc.).`
-
-	list := &cobra.Command{
-		Use:   "list",
-		Short: "List files in the active set",
-		Long:  listLong,
+with no special kind (env.yaml, packages.yaml, etc.).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFilesList(cmd, cfg, showAll)
 		},
 	}
-	list.Flags().BoolVar(&showAll, "all", false, "include inactive and disabled files")
-
-	// Bare `dotd files` runs list.
-	cmd.Long = listLong
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return runFilesList(cmd, cfg, showAll)
-	}
 	cmd.Flags().BoolVar(&showAll, "all", false, "include inactive and disabled files")
-
-	cmd.AddCommand(list)
 	return cmd
 }
 

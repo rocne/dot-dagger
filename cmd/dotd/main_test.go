@@ -9,7 +9,7 @@ import (
 )
 
 // run executes the root command with the given args, capturing combined stdout+stderr.
-// Status/diagnostic output goes to stderr; data output (env show, files list) goes to stdout.
+// Status/diagnostic output goes to stderr; data output (env show, files) goes to stdout.
 // Tests checking either kind of output can use the combined string.
 // Returns (combined output, error).
 func run(t *testing.T, args ...string) (string, error) {
@@ -346,7 +346,7 @@ func TestApplyDryRunWithScript(t *testing.T) {
 	}
 }
 
-// --- dotd files list ---
+// --- dotd files ---
 
 func TestFilesListActiveOnly(t *testing.T) {
 	dotfiles := t.TempDir()
@@ -360,13 +360,13 @@ func TestFilesListActiveOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "files", "list",
+	out, err := run(t, "files",
 		"--env-file", emptyEnvFile(t),
 		"--files", dotfiles,
 		"--env", "os=linux",
 	)
 	if err != nil {
-		t.Fatalf("files list error = %v", err)
+		t.Fatalf("files error = %v", err)
 	}
 	if !strings.Contains(out, "linux.sh") {
 		t.Errorf("expected linux.sh in output: %q", out)
@@ -388,13 +388,13 @@ func TestFilesListAll(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "files", "list", "--all",
+	out, err := run(t, "files", "--all",
 		"--env-file", emptyEnvFile(t),
 		"--files", dotfiles,
 		"--env", "os=linux",
 	)
 	if err != nil {
-		t.Fatalf("files list --all error = %v", err)
+		t.Fatalf("files --all error = %v", err)
 	}
 	if !strings.Contains(out, "active") || !strings.Contains(out, "inactive") {
 		t.Errorf("expected both active and inactive entries: %q", out)
