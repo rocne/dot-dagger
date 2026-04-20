@@ -14,16 +14,17 @@
 package log
 
 import (
-	"os"
+	"io"
 
 	chlog "github.com/charmbracelet/log"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// New returns a logger writing to stderr at the given level name.
+// New returns a logger writing to w at the given level name.
+// Pass os.Stderr for production use; pass a test buffer for tests.
 // Valid level names: "debug", "info", "warn", "error".
 // Returns an error if the level name is unrecognised.
-func New(level string) (*chlog.Logger, error) {
+func New(w io.Writer, level string) (*chlog.Logger, error) {
 	lvl, err := chlog.ParseLevel(level)
 	if err != nil {
 		return nil, err
@@ -34,7 +35,7 @@ func New(level string) (*chlog.Logger, error) {
 	// message itself already serves that role, so "INFO" would be redundant.
 	styles.Levels[chlog.InfoLevel] = lipgloss.NewStyle()
 
-	logger := chlog.NewWithOptions(os.Stderr, chlog.Options{
+	logger := chlog.NewWithOptions(w, chlog.Options{
 		Level:           lvl,
 		ReportTimestamp: false,
 	})

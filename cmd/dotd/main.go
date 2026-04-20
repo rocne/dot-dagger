@@ -80,7 +80,7 @@ func newRootCmd() *cobra.Command {
 		if err := resolvePaths(cfg); err != nil {
 			return err
 		}
-		return configureLogger(cfg)
+		return configureLogger(cfg, cmd)
 	}
 
 	ui.SetupCobraColors(root)
@@ -471,12 +471,12 @@ func resolvePaths(cfg *config) error {
 
 // configureLogger initialises cfg.log from --log-level / --quiet.
 // --quiet overrides --log-level (sets level to error).
-func configureLogger(cfg *config) error {
+func configureLogger(cfg *config, cmd *cobra.Command) error {
 	level := cfg.logLevel
 	if cfg.quiet {
 		level = "error"
 	}
-	logger, err := dotlog.New(level)
+	logger, err := dotlog.New(cmd.ErrOrStderr(), level)
 	if err != nil {
 		return fmt.Errorf("--log-level: %w", err)
 	}
