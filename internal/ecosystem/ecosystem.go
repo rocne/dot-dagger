@@ -89,3 +89,28 @@ func DefaultDotfiles() string {
 	dir, _ := os.Getwd()
 	return dir
 }
+
+// DefaultLinkRoot returns the default symlink root: $HOME.
+func DefaultLinkRoot() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+	}
+	return home, nil
+}
+
+// ResolvePath returns the first non-empty value from: cliArg, os.Getenv(envVar),
+// envFileVal, then the result of defaultFn. Tilde expansion is not applied here —
+// callers are responsible for expanding paths from env.yaml if needed.
+func ResolvePath(cliArg, envVar, envFileVal string, defaultFn func() (string, error)) (string, error) {
+	if cliArg != "" {
+		return cliArg, nil
+	}
+	if v := os.Getenv(envVar); v != "" {
+		return v, nil
+	}
+	if envFileVal != "" {
+		return envFileVal, nil
+	}
+	return defaultFn()
+}

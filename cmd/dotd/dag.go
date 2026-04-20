@@ -22,7 +22,7 @@ func newDAGCmd(cfg *config) *cobra.Command {
 			return runDAGApply(cmd, cfg)
 		},
 	}
-	apply.Flags().StringVar(&cfg.initFile, "init-file", defaultInitFile(), "path to write init.sh")
+	apply.Flags().StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → init_file in env.yaml → $XDG_DATA_HOME/dot-dagger/init.sh)")
 	apply.Flags().StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
 
 	check := &cobra.Command{

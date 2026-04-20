@@ -53,9 +53,10 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 	detected, _ := r.Resolve(nil)
 
 	// Defaults — shown as pre-filled values in interactive mode.
-	dotfilesDir := defaultDotfiles()
+	// All paths are already resolved by PersistentPreRunE.
+	dotfilesDir := rootCfg.files
 	envFile := rootCfg.envFile
-	initFile := defaultInitFile()
+	initFile := rootCfg.initFile
 
 	// Detect installed package managers for pre-selection.
 	installedMgrs := packages.DetectInstalled()
