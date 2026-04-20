@@ -69,7 +69,7 @@ func runEnvShow(cmd *cobra.Command, cfg *config) error {
 	}
 	sort.Strings(keys)
 
-	if !cfg.verbose {
+	if !cfg.verbose() {
 		for _, k := range keys {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", ui.Key(k), resolved[k])
 		}
@@ -176,7 +176,7 @@ func runEnvSet(cmd *cobra.Command, cfg *config, kv string) error {
 	if err := env.SaveEnvFileToPath(cfg.envFile, ef); err != nil {
 		return err
 	}
-	if cfg.verbose {
+	if cfg.verbose() {
 		fmt.Fprintf(cmd.OutOrStdout(), "set %s=%s in %s\n", key, val, cfg.envFile)
 	}
 	return nil

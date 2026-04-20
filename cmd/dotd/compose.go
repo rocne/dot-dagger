@@ -56,7 +56,7 @@ func runComposeApply(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	if cfg.verbose || cfg.dryRun {
+	if cfg.verbose() || cfg.dryRun {
 		for _, n := range synthetic {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s %s %s %s\n",
 				ui.Header("compose:"), n.LogicalName, ui.Arrow("→"), n.Path)
@@ -89,7 +89,7 @@ func runComposeCheck(cmd *cobra.Command, cfg *config) error {
 		switch s.State {
 		case composer.StateOK:
 			ok++
-			if cfg.verbose {
+			if cfg.verbose() {
 				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.OK("ok"), s.OutputPath)
 			}
 		case composer.StateMissing:
@@ -125,7 +125,7 @@ func runComposeList(cmd *cobra.Command, cfg *config) error {
 	for _, s := range summaries {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %s %s %s (%d fragments)\n",
 			ui.Header("compose:"), s.Dir, ui.Arrow("→"), s.OutputName, len(s.Fragments))
-		if cfg.verbose {
+		if cfg.verbose() {
 			for _, f := range s.Fragments {
 				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", f.Path)
 			}
