@@ -27,6 +27,19 @@ func newEnvCmd(cfg *config) *cobra.Command {
 		&cobra.Command{
 			Use:   "show",
 			Short: "Display all resolved env key-value pairs",
+			Long: `Print all resolved env keys and their effective values.
+
+Resolution order (last wins): auto-detected → env.yaml → --env flags.
+
+With --log-level debug, each value is annotated with its source:
+  detected   — auto-detected from the current machine
+  env.yaml   — overridden in env.yaml
+  --env flag — overridden via --env on this invocation
+
+Examples:
+  dotd env show
+  dotd env show --log-level debug        # show source of each value
+  dotd env show --env os=macos           # preview with a flag override`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runEnvShow(cmd, cfg)
 			},
@@ -34,7 +47,12 @@ func newEnvCmd(cfg *config) *cobra.Command {
 		&cobra.Command{
 			Use:   "get <key>",
 			Short: "Get a specific env key",
-			Args:  cobra.ExactArgs(1),
+			Long: `Print the resolved value for a single env key. Exits non-zero if the key is not found.
+
+Examples:
+  dotd env get os
+  dotd env get context`,
+			Args: cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runEnvGet(cmd, cfg, args[0])
 			},
@@ -42,7 +60,12 @@ func newEnvCmd(cfg *config) *cobra.Command {
 		&cobra.Command{
 			Use:   "set <key=value>",
 			Short: "Set a key in env.yaml",
-			Args:  cobra.ExactArgs(1),
+			Long: `Write a key=value pair to env.yaml, creating the file if it does not exist.
+
+Examples:
+  dotd env set context=work
+  dotd env set os=macos`,
+			Args: cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runEnvSet(cmd, cfg, args[0])
 			},
@@ -50,6 +73,14 @@ func newEnvCmd(cfg *config) *cobra.Command {
 		&cobra.Command{
 			Use:   "diff",
 			Short: "Show keys where env.yaml overrides auto-detected values",
+			Long: `Compare env.yaml against auto-detected values and print keys that diverge.
+
+Useful for auditing which values you have pinned and why. Keys where the
+env.yaml value matches auto-detection are not shown.
+
+Examples:
+  dotd env diff
+  dotd env diff --env-file ~/work/env.yaml   # diff a different env file`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runEnvDiff(cmd, cfg)
 			},
