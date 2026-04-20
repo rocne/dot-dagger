@@ -19,6 +19,9 @@ const (
 	KindConf     = walk.KindConf
 	KindBin      = walk.KindBin
 	KindManifest = walk.KindManifest
+	// KindCompose is a fragment file inside a compose target directory.
+	// Fragments are never linked or sourced directly; the compose stage assembles them.
+	KindCompose = walk.KindCompose
 )
 
 // Node is an active file in the FileSet.
@@ -39,6 +42,14 @@ type Node struct {
 	// the nearest ancestor .dotd.yaml with link.link_root set.
 	// Empty means use the linker's default (Options.LinkRoot).
 	LinkRoot string
+
+	// ComposeTarget is the absolute path to the compose target directory.
+	// Non-empty only for KindCompose fragment nodes.
+	ComposeTarget string
+
+	// ComposeTargetKind is the convention kind of the compose target directory
+	// (KindScript, KindConf, or KindBin). Non-zero only for KindCompose nodes.
+	ComposeTargetKind Kind
 }
 
 // Set is the shared in-memory context passed to all downstream stages.
@@ -80,6 +91,9 @@ func (s *Set) Bin() []Node { return s.byKind(KindBin) }
 // Manifests returns all package manifest nodes (KindManifest).
 func (s *Set) Manifests() []Node { return s.byKind(KindManifest) }
 
+// Compose returns all fragment nodes (KindCompose).
+func (s *Set) Compose() []Node { return s.byKind(KindCompose) }
+
 func (s *Set) byKind(k Kind) []Node {
 	var result []Node
 	for _, n := range s.Nodes {
@@ -108,11 +122,13 @@ func BuildUnfiltered(nodes []walk.Node) *Set {
 			continue
 		}
 		active = append(active, Node{
-			Path:        n.Path,
-			Kind:        n.Kind,
-			LogicalName: n.LogicalName,
-			Annotations: n.Annotations,
-			LinkRoot:    n.LinkRoot,
+			Path:              n.Path,
+			Kind:              n.Kind,
+			LogicalName:       n.LogicalName,
+			Annotations:       n.Annotations,
+			LinkRoot:          n.LinkRoot,
+			ComposeTarget:     n.ComposeTarget,
+			ComposeTargetKind: n.ComposeTargetKind,
 		})
 	}
 	return &Set{Nodes: active}
@@ -142,11 +158,13 @@ func Build(nodes []walk.Node, env map[string]string, opts *Options) (*Set, error
 		}
 		if ok {
 			active = append(active, Node{
-				Path:        n.Path,
-				Kind:        n.Kind,
-				LogicalName: n.LogicalName,
-				Annotations: n.Annotations,
-				LinkRoot:    n.LinkRoot,
+				Path:              n.Path,
+				Kind:              n.Kind,
+				LogicalName:       n.LogicalName,
+				Annotations:       n.Annotations,
+				LinkRoot:          n.LinkRoot,
+				ComposeTarget:     n.ComposeTarget,
+				ComposeTargetKind: n.ComposeTargetKind,
 			})
 		}
 	}

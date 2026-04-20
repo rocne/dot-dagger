@@ -47,6 +47,14 @@ dotd <command> [options]
 | `dotd env set <key=value>` | Set a key in `env.yaml` |
 | `dotd env diff` | Show keys where `env.yaml` overrides auto-detected values |
 
+### `dotd compose` subcommands
+
+| Command | Description |
+|---------|-------------|
+| `dotd compose apply` | Generate all composed files and register for linking |
+| `dotd compose check` | Validate compose targets — report stale or missing generated files |
+| `dotd compose list` | List all compose targets and their active fragments |
+
 ### `dotd package` subcommands
 
 | Command | Description |

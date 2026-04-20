@@ -109,6 +109,7 @@ All packages implemented and tested.
 | `internal/initgen` | ✅ Implemented |
 | `internal/packages` | ✅ Implemented |
 | `internal/manifest` | ✅ Implemented — parses `dotd-packages.yaml` files, evaluates block predicates |
+| `internal/composer` | ✅ Implemented — compose target detection, fragment ordering, file generation |
 | `internal/setup` | ✅ Implemented |
 | `internal/ecosystem` | ✅ Implemented |
 | `internal/ui` | ✅ Implemented |
@@ -130,3 +131,8 @@ None — all design decisions resolved.
 | Package manifests excluded from DAG | They declare desired state, not shell behaviour. No ordering, no sourcing, no logical name. |
 | Block-level `when`, no file-level `when` | File-level predicate is handled by directory `.dotd.yaml` `when` — same mechanism as all other files. No new concept needed. |
 | Manifests contribute to same package catalog as `@request` | Single unified source for `dotd package` commands regardless of declaration location. |
+| Compose targets require explicit `compose: true` | No implicit detection. Prevents accidental misclassification. Enables validation of fragment annotations. |
+| Compose generates to managed dir, downstream stages unaware | Generated file is a synthetic node of the appropriate kind (`KindScript`, `KindConf`, `KindBin`). Linker, init generator, drift detection all work identically. |
+| Compose works in any convention dir | Not conf/-specific. Output kind determined by parent context — shellrc → sourced, conf → symlinked, bin → symlinked + executable. |
+| `dotd.name` overrides compose target logical name | Consistent with `@name` for annotatable files. Directory-level `.dotd.yaml` is the established mechanism for metadata on non-annotatable nodes. |
+| Compose pipeline stage between fileset and links | Generated files must exist before the linker runs. Compose produces synthetic `KindConf` nodes for the linker. |
