@@ -24,10 +24,16 @@ type EnvSection struct {
 // DotdSection holds dotd-owned config: directory-level when, cascading defaults,
 // and per-file metadata for files that cannot carry annotations.
 type DotdSection struct {
-	When        string              `yaml:"when"`
-	Defaults    DotdDefaults        `yaml:"defaults"`
-	Files       []FileEntry         `yaml:"files"`
-	Conventions ConventionsSection  `yaml:"conventions"`
+	When        string             `yaml:"when"`
+	Defaults    DotdDefaults       `yaml:"defaults"`
+	Files       []FileEntry        `yaml:"files"`
+	Conventions ConventionsSection `yaml:"conventions"`
+	// Compose marks this directory as a compose target. Fragments are concatenated
+	// into a single generated file; downstream behavior is determined by parent
+	// convention dir (shellrc → sourced, conf → symlinked, bin → symlinked+executable).
+	Compose bool   `yaml:"compose"`
+	// Name overrides the output logical name for a compose target (raw; no dot- transform).
+	Name    string `yaml:"name"`
 }
 
 // ConventionsSection holds optional overrides for convention directory names.

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/rocne/dot-dagger/internal/composer"
 	"github.com/rocne/dot-dagger/internal/dag"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
@@ -30,15 +31,16 @@ func main() {
 }
 
 type config struct {
-	files    string
-	envFile  string
-	env      []string
-	initFile string
-	linkRoot string
-	binDir   string
-	dryRun   bool
-	force    bool
-	verbose  bool
+	files        string
+	envFile      string
+	env          []string
+	initFile     string
+	linkRoot     string
+	binDir       string
+	generatedDir string
+	dryRun       bool
+	force        bool
+	verbose      bool
 }
 
 func newRootCmd() *cobra.Command {
@@ -57,6 +59,7 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&cfg.initFile, "init-file", defaultInitFile(), "path to write init.sh")
 	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $HOME)")
 	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files")
+	pf.StringVar(&cfg.generatedDir, "generated-dir", defaultGeneratedDir(), "path to write composed files")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.BoolVar(&cfg.verbose, "verbose", false, "detailed output")
@@ -75,8 +78,9 @@ Stages run in order:
   1. env      — detect os/distro/shell, merge env.yaml and --env overrides
   2. fileset  — walk the repo, evaluate @when predicates, build the active set
   3. packages — install packages declared with @require / @request
-  4. links    — create symlinks for conf/ and bin/ files
-  5. init.sh  — resolve @after DAG ordering, write init.sh
+  4. compose  — assemble compose targets into generated files
+  5. links    — create symlinks for conf/ and bin/ files
+  6. init.sh  — resolve @after DAG ordering, write init.sh
 
 Examples:
   dotd apply
@@ -108,6 +112,7 @@ Examples:
 		newFilesCmd(cfg),
 		newDAGCmd(cfg),
 		newLinkCmd(cfg),
+		newComposeCmd(cfg),
 		newPackageCmd(cfg),
 		newCompletionCmd(),
 	)
@@ -159,6 +164,19 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	}
 	if cfg.verbose {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
+	}
+
+	composeOpts := composer.Options{
+		GeneratedDir: cfg.generatedDir,
+		DryRun:       cfg.dryRun,
+	}
+	synthetic, err := composer.Apply(nodes.Compose(), composeOpts)
+	if err != nil {
+		return fmt.Errorf("compose: %w", err)
+	}
+	nodes.Nodes = append(nodes.Nodes, synthetic...)
+	if cfg.verbose && len(synthetic) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d generated\n", ui.Header("compose:"), len(synthetic))
 	}
 
 	opts := linker.Options{
@@ -219,6 +237,36 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s %d active nodes\n", ui.Header("fileset:"), len(nodes.Nodes))
+
+	composeStatuses, err := composer.Check(nodes.Compose(), composer.Options{GeneratedDir: cfg.generatedDir})
+	if err != nil {
+		return fmt.Errorf("compose: %w", err)
+	}
+	{
+		var ok, missing, stale int
+		for _, s := range composeStatuses {
+			switch s.State {
+			case composer.StateOK:
+				ok++
+			case composer.StateMissing:
+				missing++
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Missing("missing"), s.OutputPath)
+			case composer.StateStale:
+				stale++
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-12s %s\n", ui.Wrong("stale"), s.OutputPath)
+			}
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d ok, %d missing, %d stale\n",
+			ui.Header("compose:"), ok, missing, stale)
+		// Add synthetic nodes so linker and initgen see the generated files.
+		synthetic, err := composer.Apply(nodes.Compose(), composer.Options{
+			GeneratedDir: cfg.generatedDir,
+			DryRun:       true, // check mode — do not write
+		})
+		if err == nil {
+			nodes.Nodes = append(nodes.Nodes, synthetic...)
+		}
+	}
 
 	scripts := nodes.Scripts()
 	ordered, err := dag.Build(scripts)
@@ -335,6 +383,14 @@ func loadPackageContext(cfg *config) (*packages.Registry, error) {
 }
 
 func defaultDotfiles() string { return ecosystem.DefaultDotfiles() }
+
+func defaultGeneratedDir() string {
+	p, err := ecosystem.DefaultGeneratedDir()
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
 
 func defaultEnvFile() string {
 	p, err := ecosystem.DefaultEnvFile()

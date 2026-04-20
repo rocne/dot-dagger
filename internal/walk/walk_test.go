@@ -459,3 +459,90 @@ func TestWalkManifestCascadeWhen(t *testing.T) {
 	}
 	t.Error("no manifest node found")
 }
+
+func TestWalkComposeTarget_ShellrcKind(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		"shellrc/dot-aliases.sh.d/.dotd.yaml": "dotd:\n  compose: true\n",
+		"shellrc/dot-aliases.sh.d/base.sh":    "echo hello\n",
+		"shellrc/dot-aliases.sh.d/work.sh":    "# @when context=work\necho work\n",
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	var composeNodes []Node
+	for _, n := range nodes {
+		if n.Kind == KindCompose {
+			composeNodes = append(composeNodes, n)
+		}
+	}
+
+	if len(composeNodes) != 2 {
+		t.Fatalf("want 2 KindCompose nodes, got %d", len(composeNodes))
+	}
+
+	targetDir := composeNodes[0].ComposeTarget
+	if targetDir == "" {
+		t.Error("ComposeTarget should be set")
+	}
+	for _, n := range composeNodes {
+		if n.ComposeTarget != targetDir {
+			t.Errorf("ComposeTarget mismatch: %s vs %s", n.ComposeTarget, targetDir)
+		}
+		if n.ComposeTargetKind != KindScript {
+			t.Errorf("ComposeTargetKind = %v, want KindScript", n.ComposeTargetKind)
+		}
+	}
+}
+
+func TestWalkComposeTarget_ConfKind(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		"conf/dot-tmux.conf.d/.dotd.yaml": "dotd:\n  compose: true\n",
+		"conf/dot-tmux.conf.d/base.conf":  "set -g default-terminal tmux-256color\n",
+	})
+
+	nodes, err := Walk(root)
+	if err != nil {
+		t.Fatalf("Walk() error = %v", err)
+	}
+
+	var composeNodes []Node
+	for _, n := range nodes {
+		if n.Kind == KindCompose {
+			composeNodes = append(composeNodes, n)
+		}
+	}
+
+	if len(composeNodes) != 1 {
+		t.Fatalf("want 1 KindCompose node, got %d", len(composeNodes))
+	}
+	if composeNodes[0].ComposeTargetKind != KindConf {
+		t.Errorf("ComposeTargetKind = %v, want KindConf", composeNodes[0].ComposeTargetKind)
+	}
+}
+
+func TestWalkComposeTarget_OutsideConventionDir_Error(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		"other/dot-tool.sh.d/.dotd.yaml": "dotd:\n  compose: true\n",
+		"other/dot-tool.sh.d/base.sh":    "echo hi\n",
+	})
+
+	_, err := Walk(root)
+	if err == nil {
+		t.Error("want error for compose target outside convention dir, got nil")
+	}
+}
+
+func TestWalkComposeTarget_SubdirError(t *testing.T) {
+	root := mkTree(t, map[string]string{
+		"shellrc/dot-aliases.sh.d/.dotd.yaml":     "dotd:\n  compose: true\n",
+		"shellrc/dot-aliases.sh.d/subdir/base.sh": "echo hi\n",
+	})
+
+	_, err := Walk(root)
+	if err == nil {
+		t.Error("want error for subdirectory inside compose target, got nil")
+	}
+}

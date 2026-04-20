@@ -34,6 +34,7 @@ const (
 	KindConf          // under conf/
 	KindBin           // under bin/
 	KindManifest      // dotd-packages.yaml or *.dotd-packages.yaml
+	KindCompose       // fragment inside a compose target directory
 )
 
 func (k Kind) String() string {
@@ -46,6 +47,8 @@ func (k Kind) String() string {
 		return "bin"
 	case KindManifest:
 		return "manifest"
+	case KindCompose:
+		return "compose"
 	default:
 		return "other"
 	}
@@ -75,6 +78,14 @@ type Node struct {
 	// the nearest ancestor .dotd.yaml with link.link_root set.
 	// Empty means use the linker's default (Options.LinkRoot).
 	LinkRoot string
+
+	// ComposeTarget is the absolute path to the compose target directory.
+	// Non-empty only for KindCompose fragment nodes.
+	ComposeTarget string
+
+	// ComposeTargetKind is the convention kind inherited by the compose target
+	// (KindScript, KindConf, or KindBin). Non-zero only for KindCompose nodes.
+	ComposeTargetKind Kind
 }
 
 // Default convention directory names. Override via dotd.conventions in root .dotd.yaml.
@@ -138,6 +149,22 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 		return err
 	}
 
+	// link_root cascade: inner .dotd.yaml overrides outer. Expand ~/ at walk time.
+	linkRoot := cascadeLinkRoot
+	if cfg.Link.LinkRoot != "" {
+		expanded, err := expandTilde(cfg.Link.LinkRoot)
+		if err != nil {
+			return err
+		}
+		linkRoot = expanded
+	}
+
+	// Compose target: if this directory declares compose: true, walk its files as
+	// KindCompose fragments and return without normal traversal.
+	if cfg.Dotd.Compose {
+		return walkComposeTarget(root, dir, inheritedKind, cascadeWhen, linkRoot, nodes)
+	}
+
 	// Gate traversal: if directory.when is set and doesn't match, skip entirely.
 	// (Predicate evaluation happens in fileset; here we only track the expression.)
 	// We pass the directory-level when upward — if it's set, stop traversal for
@@ -145,15 +172,7 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 	// and let fileset filter. But we do combine cascading defaults.
 	dirDefaultWhen := combineWhen(cascadeWhen, cfg.Dotd.Defaults.When)
 
-	// link_root cascade: inner .dotd.yaml overrides outer. Expand ~/ at walk time.
-	effectiveLinkRoot := cascadeLinkRoot
-	if cfg.Link.LinkRoot != "" {
-		expanded, err := expandTilde(cfg.Link.LinkRoot)
-		if err != nil {
-			return err
-		}
-		effectiveLinkRoot = expanded
-	}
+	effectiveLinkRoot := linkRoot
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -360,6 +379,77 @@ func fileWhenExpr(anns []annotation.Annotation) string {
 		}
 		return strings.Join(parts, " AND ")
 	}
+}
+
+// walkComposeTarget walks a compose target directory, emitting KindCompose fragment nodes.
+// All files (except .dotd.yaml) become fragments. Subdirectories are an error.
+func walkComposeTarget(root, dir string, inheritedKind Kind, cascadeWhen, linkRoot string, nodes *[]Node) error {
+	if inheritedKind == KindOther {
+		return fmt.Errorf("walk: compose target %s is outside all convention dirs (shellrc/, conf/, bin/)", dir)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := daggeryaml.LoadFile(filepath.Join(dir, ecosystem.ConfigFile))
+	if err != nil {
+		return err
+	}
+	dirDefaultWhen := combineWhen(cascadeWhen, cfg.Dotd.Defaults.When)
+
+	fileOverrides := make(map[string]*daggeryaml.FileEntry)
+	for i := range cfg.Dotd.Files {
+		fe := &cfg.Dotd.Files[i]
+		fileOverrides[fe.Path] = fe
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == ecosystem.ConfigFile {
+			continue
+		}
+		fullPath := filepath.Join(dir, name)
+
+		if entry.IsDir() {
+			// Check if the subdir is itself a compose target — that's a nesting error.
+			subCfg, _ := daggeryaml.LoadFile(filepath.Join(fullPath, ecosystem.ConfigFile))
+			if subCfg != nil && subCfg.Dotd.Compose {
+				return fmt.Errorf("walk: nested compose target %s inside %s", fullPath, dir)
+			}
+			return fmt.Errorf("walk: subdirectory %s inside compose target %s", fullPath, dir)
+		}
+
+		anns, err := readAnnotations(fullPath)
+		if err != nil {
+			continue
+		}
+		if override, ok := fileOverrides[name]; ok {
+			anns = applyFileEntryOverrides(anns, override)
+		}
+
+		fileWhen := fileWhenExpr(anns)
+		effectiveWhen := combineWhen(dirDefaultWhen, fileWhen)
+
+		_, retainPrefix := annotation.First(anns, annotation.KeyRetainPrefix)
+		logicalName := logicalNameFor(root, fullPath, retainPrefix)
+		if nameAnn, ok := annotation.First(anns, annotation.KeyName); ok && nameAnn.Value != "" {
+			logicalName = nameAnn.Value
+		}
+
+		*nodes = append(*nodes, Node{
+			Path:              fullPath,
+			Kind:              KindCompose,
+			LogicalName:       logicalName,
+			Annotations:       anns,
+			EffectiveWhen:     effectiveWhen,
+			LinkRoot:          linkRoot,
+			ComposeTarget:     dir,
+			ComposeTargetKind: inheritedKind,
+		})
+	}
+	return nil
 }
 
 // combineWhen joins two @when expressions with AND, wrapping each in parens.

@@ -104,6 +104,10 @@ An optional metadata file that can appear in any directory. Its primary purpose 
 
 **`dotd.files`** — per-file metadata for specific files that cannot carry annotations.
 
+**`dotd.compose`** — marks this directory as a compose target. Files inside become `KindCompose` fragments, concatenated in DAG order into a single generated file. See [compose.md](compose.md).
+
+**`dotd.name`** — overrides the output logical name of a compose target. Equivalent to `@name` for annotatable files. Only meaningful when `dotd.compose: true`.
+
 **`link.link_root`** — overrides the symlink destination root for this subtree. Cascades to subdirectories unless overridden by a closer `.dotd.yaml`.
 
 ```yaml

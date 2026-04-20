@@ -60,6 +60,16 @@ func DefaultInitFile() (string, error) {
 	return filepath.Join(base, Name, "init.sh"), nil
 }
 
+// DefaultGeneratedDir returns the default path to the compose generated-files directory:
+// $XDG_CONFIG_HOME/dot-dagger/generated.
+func DefaultGeneratedDir() (string, error) {
+	base, err := xdgConfigHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, Name, "generated"), nil
+}
+
 // DefaultDotfiles returns the default path to the dotfiles repo.
 // Reads $DOTFILES env var; falls back to the current working directory.
 func DefaultDotfiles() string {
