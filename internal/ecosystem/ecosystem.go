@@ -60,10 +60,20 @@ func DefaultInitFile() (string, error) {
 	return filepath.Join(base, Name, "init.sh"), nil
 }
 
+// DefaultBinDir returns the default path for user-managed binaries: ~/.local/bin/dot-dagger.
+// This follows the FHS convention for user-local executables (not an XDG path).
+func DefaultBinDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+	}
+	return filepath.Join(home, ".local", "bin", Name), nil
+}
+
 // DefaultGeneratedDir returns the default path to the compose generated-files directory:
-// $XDG_CONFIG_HOME/dot-dagger/generated.
+// $XDG_DATA_HOME/dot-dagger/generated.
 func DefaultGeneratedDir() (string, error) {
-	base, err := xdgConfigHome()
+	base, err := xdgDataHome()
 	if err != nil {
 		return "", err
 	}

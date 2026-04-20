@@ -16,7 +16,7 @@ func newComposeCmd(cfg *config) *cobra.Command {
 	cmd.AddCommand(
 		&cobra.Command{
 			Use:   "apply",
-			Short: "Generate all composed files and register synthetic nodes for downstream stages",
+			Short: "Generate all composed files",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runComposeApply(cmd, cfg)
 			},

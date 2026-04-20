@@ -32,7 +32,12 @@ func DetectShellConfig(shell, osName string) (ShellConfig, bool, error) {
 	case "zsh":
 		return ShellConfig{Shell: "zsh", RCFile: filepath.Join(home, ".zshrc")}, true, nil
 	case "fish":
-		return ShellConfig{Shell: "fish", RCFile: filepath.Join(home, ".config", "fish", "config.fish")}, true, nil
+		// Fish respects $XDG_CONFIG_HOME; default to ~/.config if unset or not absolute.
+		xdgConfig := os.Getenv("XDG_CONFIG_HOME")
+		if xdgConfig == "" || !filepath.IsAbs(xdgConfig) {
+			xdgConfig = filepath.Join(home, ".config")
+		}
+		return ShellConfig{Shell: "fish", RCFile: filepath.Join(xdgConfig, "fish", "config.fish")}, true, nil
 	default:
 		return ShellConfig{}, false, nil
 	}
