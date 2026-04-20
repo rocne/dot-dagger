@@ -3,9 +3,9 @@ name: Auto patch release
 # Triggers on every push to main (i.e. after every PR merge).
 # Bumps the patch version of dotd when cmd/dotd/** or internal/** changes.
 #
-# Tags are created via `gh release create` (not git push), so this workflow
-# does NOT trigger the manual release workflow. That remains available for
-# controlled releases.
+# Tags are created by GoReleaser as part of publishing the release.
+# That does NOT trigger the manual release workflow (push.tags trigger
+# only fires on direct git pushes, not API-created tags).
 
 on:
   push:
@@ -86,18 +86,11 @@ jobs:
             exit 0
           fi
 
-          # Build archives (no publish — gh handles the release)
           GORELEASER_CURRENT_TAG="$NEW_TAG" VERSION="$NEW_TAG" goreleaser release \
             --config ".goreleaser/dotd.yaml" \
             --clean \
-            --skip=validate,publish
-
-          # Create GitHub release and tag atomically
-          gh release create "$NEW_TAG" \
-            --title "dotd $NEW_TAG" \
-            --generate-notes \
-            --target "${{ github.sha }}" \
-            dist/*.tar.gz \
-            dist/*_checksums.txt
+            --skip=validate
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

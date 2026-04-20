@@ -24,21 +24,13 @@ jobs:
         run: |
           echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
-      - name: Build archives
+      - name: Release
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --config .goreleaser/dotd.yaml --clean --skip=validate,publish
+          args: release --config .goreleaser/dotd.yaml --clean --skip=validate
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.VERSION }}
-
-      - name: Publish release
-        run: |
-          gh release create "${VERSION}" \
-            --title "dotd ${VERSION}" \
-            --generate-notes \
-            dist/*.tar.gz \
-            dist/*_checksums.txt
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

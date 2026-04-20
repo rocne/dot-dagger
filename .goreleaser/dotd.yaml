@@ -30,6 +30,21 @@ archives:
       - goos: windows
         format: zip
 
+brews:
+  - name: dotd
+    ids: [dotd]
+    repository:
+      owner: rocne
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/rocne/dot-dagger
+    description: Dotfiles manager — env resolution, DAG, symlinks, and packages
+    license: MIT
+    install: |
+      bin.install "dotd"
+    test: |
+      system "#{bin}/dotd", "--version"
+
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Tag }}_checksums.txt"
 
