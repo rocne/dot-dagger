@@ -133,6 +133,7 @@ Examples:
 		newLinkCmd(cfg),
 		newComposeCmd(cfg),
 		newPackageCmd(cfg),
+		newBundleCmd(cfg),
 		newCompletionCmd(),
 	)
 	return root
