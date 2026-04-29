@@ -82,6 +82,11 @@ type Options struct {
 	// GeneratedDir is the directory where assembled files are written.
 	// Default: ~/.local/share/dot-dagger/generated
 	GeneratedDir string
+	// LinkRoot is the default symlink root for conf/ targets whose fragments
+	// carry no explicit link_root. Mirrors linker.Options.LinkRoot so that
+	// the baked @symlink annotation in the synthetic node points to the same
+	// base as the linker would use. When empty, falls back to os.UserHomeDir().
+	LinkRoot string
 	// DryRun skips file writes.
 	DryRun bool
 }
@@ -96,7 +101,7 @@ type Options struct {
 //
 // Targets with no active fragments are skipped entirely.
 func Apply(fragments []fileset.Node, opts Options) ([]fileset.Node, error) {
-	targets, err := groupTargets(fragments, opts.GeneratedDir)
+	targets, err := groupTargets(fragments, opts.GeneratedDir, opts.LinkRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +138,7 @@ func Apply(fragments []fileset.Node, opts Options) ([]fileset.Node, error) {
 
 // Check reports the drift state for each compose target without writing anything.
 func Check(fragments []fileset.Node, opts Options) ([]TargetStatus, error) {
-	targets, err := groupTargets(fragments, opts.GeneratedDir)
+	targets, err := groupTargets(fragments, opts.GeneratedDir, opts.LinkRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +176,7 @@ func Check(fragments []fileset.Node, opts Options) ([]TargetStatus, error) {
 
 // List returns a summary of compose targets without executing them.
 func List(fragments []fileset.Node, generatedDir string) ([]TargetSummary, error) {
-	targets, err := groupTargets(fragments, generatedDir)
+	targets, err := groupTargets(fragments, generatedDir, "")
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +194,7 @@ func List(fragments []fileset.Node, generatedDir string) ([]TargetSummary, error
 
 // groupTargets groups KindCompose nodes by ComposeTarget directory, resolves output
 // names, validates fragment annotations, and checks for duplicate output names.
-func groupTargets(fragments []fileset.Node, generatedDir string) ([]Target, error) {
+func groupTargets(fragments []fileset.Node, generatedDir, defaultLinkRoot string) ([]Target, error) {
 	// Build ordered target list (preserve deterministic order by first-seen target).
 	var order []string
 	groups := make(map[string][]fileset.Node)
@@ -249,7 +254,11 @@ func groupTargets(fragments []fileset.Node, generatedDir string) ([]Target, erro
 			linkRoot:   linkRoot,
 		}
 		if kind == fileset.KindConf {
-			t.symlinkDest = confDest(dir, linkRoot, cfg.Dotd.Name)
+			effectiveLinkRoot := linkRoot
+			if effectiveLinkRoot == "" {
+				effectiveLinkRoot = defaultLinkRoot
+			}
+			t.symlinkDest = confDest(dir, effectiveLinkRoot, cfg.Dotd.Name)
 		}
 		targets = append(targets, t)
 	}

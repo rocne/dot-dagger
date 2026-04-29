@@ -50,6 +50,7 @@ func runComposeApply(cmd *cobra.Command, cfg *config) error {
 	}
 	opts := composer.Options{
 		GeneratedDir: cfg.generatedDir,
+		LinkRoot:     cfg.linkRoot,
 		DryRun:       cfg.dryRun,
 	}
 	synthetic, err := composer.Apply(nodes.Compose(), opts)
@@ -81,6 +82,7 @@ func runComposeCheck(cfg *config) error {
 	}
 	statuses, err := composer.Check(nodes.Compose(), composer.Options{
 		GeneratedDir: cfg.generatedDir,
+		LinkRoot:     cfg.linkRoot,
 	})
 	if err != nil {
 		return err
