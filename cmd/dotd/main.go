@@ -184,6 +184,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 
 	composeOpts := composer.Options{
 		GeneratedDir: cfg.generatedDir,
+		LinkRoot:     cfg.linkRoot,
 		DryRun:       cfg.dryRun,
 	}
 	synthetic, err := composer.Apply(nodes.Compose(), composeOpts)
@@ -252,7 +253,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 
 	var hasIssues bool
 
-	composeStatuses, err := composer.Check(nodes.Compose(), composer.Options{GeneratedDir: cfg.generatedDir})
+	composeStatuses, err := composer.Check(nodes.Compose(), composer.Options{GeneratedDir: cfg.generatedDir, LinkRoot: cfg.linkRoot})
 	if err != nil {
 		return fmt.Errorf("compose: %w", err)
 	}
@@ -277,6 +278,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	// Add synthetic nodes so linker and initgen see the generated files.
 	synthetic, err := composer.Apply(nodes.Compose(), composer.Options{
 		GeneratedDir: cfg.generatedDir,
+		LinkRoot:     cfg.linkRoot,
 		DryRun:       true, // check mode — do not write
 	})
 	if err == nil {

@@ -17,10 +17,11 @@ import (
 
 // ienv holds isolated paths for one integration test run.
 type ienv struct {
-	dotfiles string // copy of the fixture (writable)
-	home     string // fake $HOME for symlinks
-	initFile string // where init.sh is written
-	binDir   string // fake bin directory
+	dotfiles     string // copy of the fixture (writable)
+	home         string // fake $HOME for symlinks
+	initFile     string // where init.sh is written
+	binDir       string // fake bin directory
+	generatedDir string // where compose-generated files are written
 }
 
 // newIenv copies the fixture into a temp dir and returns isolated paths.
@@ -36,11 +37,17 @@ func newIenv(t *testing.T) *ienv {
 		t.Fatalf("mkdir home: %v", err)
 	}
 
+	generatedDir := filepath.Join(tmp, "generated")
+	if err := os.MkdirAll(generatedDir, 0o755); err != nil {
+		t.Fatalf("mkdir generated: %v", err)
+	}
+
 	return &ienv{
-		dotfiles: dotfiles,
-		home:     home,
-		initFile: filepath.Join(tmp, "init.sh"),
-		binDir:   filepath.Join(tmp, "bin"),
+		dotfiles:     dotfiles,
+		home:         home,
+		initFile:     filepath.Join(tmp, "init.sh"),
+		binDir:       filepath.Join(tmp, "bin"),
+		generatedDir: generatedDir,
 	}
 }
 
@@ -65,6 +72,7 @@ func (e *ienv) runMayFail(t *testing.T, args ...string) (string, error) {
 		"--link-root", e.home,
 		"--bin-dir", e.binDir,
 		"--init-file", e.initFile,
+		"--generated-dir", e.generatedDir,
 	}
 	var buf bytes.Buffer
 	cmd := newRootCmd()
@@ -425,4 +433,88 @@ func TestPackageDryRun(t *testing.T) {
 	e := newIenv(t)
 	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal", "--dry-run")
 	// If we reached here without error, dry-run handled packages correctly.
+}
+
+// ----------------------------------------------------------------------------
+// Compose tests
+// ----------------------------------------------------------------------------
+
+// TestComposeApply verifies that apply assembles compose targets:
+//   - shellrc compose target generates a file that is sourced in init.sh
+//   - conf compose target generates a file and creates a symlink
+func TestComposeApply(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+
+	// shellrc compose target: generated file sourced in init.sh
+	init := readFile(t, e.initFile)
+	assertInInit(t, init, "shellrc-extras.sh")
+
+	// conf compose target: generated file exists
+	generatedTmux := filepath.Join(e.generatedDir, "tmux.conf")
+	if _, err := os.Stat(generatedTmux); err != nil {
+		t.Errorf("compose: generated tmux.conf missing: %v", err)
+	}
+	// conf compose target: symlink ~/.tmux.conf → generatedDir/tmux.conf
+	assertSymlink(t, filepath.Join(e.home, ".tmux.conf"), generatedTmux)
+}
+
+// TestComposePredicateGating verifies that inactive fragments are excluded from
+// the generated file and active ones are included.
+func TestComposePredicateGating(t *testing.T) {
+	// context=personal: nosync-work.sh inactive
+	ep := newIenv(t)
+	ep.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+	personal := readFile(t, filepath.Join(ep.generatedDir, "shellrc-extras.sh"))
+	if strings.Contains(personal, "EXTRAS_WORK") {
+		t.Error("work fragment should not appear in personal context")
+	}
+	if !strings.Contains(personal, "EXTRAS_BASE") {
+		t.Error("base fragment should appear in personal context")
+	}
+
+	// context=work: nosync-work.sh active
+	ew := newIenv(t)
+	ew.run(t, "apply", "--env", "os=linux", "--env", "context=work")
+	work := readFile(t, filepath.Join(ew.generatedDir, "shellrc-extras.sh"))
+	if !strings.Contains(work, "EXTRAS_WORK") {
+		t.Error("work fragment should appear in work context")
+	}
+}
+
+// TestComposeList verifies that dotd compose list reports active compose targets.
+func TestComposeList(t *testing.T) {
+	e := newIenv(t)
+	out := e.run(t, "compose", "list", "--env", "os=linux", "--env", "context=personal")
+
+	if !strings.Contains(out, "shellrc-extras.sh") {
+		t.Errorf("compose list: missing shellrc-extras.sh target\noutput: %s", out)
+	}
+	if !strings.Contains(out, "tmux.conf") {
+		t.Errorf("compose list: missing tmux.conf target\noutput: %s", out)
+	}
+}
+
+// TestComposeCheck_AfterApply verifies that compose check exits cleanly after apply.
+func TestComposeCheck_AfterApply(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+	e.run(t, "compose", "check", "--env", "os=linux", "--env", "context=personal")
+}
+
+// TestComposeCheck_Stale verifies that compose check detects a stale generated file.
+func TestComposeCheck_Stale(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+
+	// Overwrite the generated file with stale content.
+	stalePath := filepath.Join(e.generatedDir, "shellrc-extras.sh")
+	if err := os.WriteFile(stalePath, []byte("stale content\n"), 0o644); err != nil {
+		t.Fatalf("write stale file: %v", err)
+	}
+
+	out := e.run(t, "compose", "check", "--env", "os=linux", "--env", "context=personal")
+	if !strings.Contains(out, "stale") {
+		t.Errorf("compose check: expected stale report\noutput: %s", out)
+	}
 }
