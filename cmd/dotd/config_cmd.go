@@ -96,7 +96,7 @@ func newConfigSetCmd() *cobra.Command {
 func newConfigEditCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
-		Short: "Open config.yaml in $EDITOR",
+		Short: "Open dotcfg.yaml in $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configYamlPath()
 			if err != nil {

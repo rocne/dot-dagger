@@ -196,6 +196,33 @@ func TestCheckEmptyRepo(t *testing.T) {
 	}
 }
 
+func TestCheckAfterApply_Unit(t *testing.T) {
+	dotfiles := t.TempDir()
+	dir := t.TempDir()
+	initFile := filepath.Join(dir, "init.sh")
+
+	// Apply first so init.sh exists.
+	_, err := run(t, "apply",
+		"--env-file", emptyEnvFile(t),
+		"--files", dotfiles,
+		"--init-file", initFile,
+	)
+	if err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// check should succeed since init.sh was created.
+	_, err = run(t, "check",
+		"--env-file", emptyEnvFile(t),
+		"--files", dotfiles,
+		"--init-file", initFile,
+	)
+	if err != nil {
+		t.Fatalf("check after apply error = %v", err)
+	}
+}
+
+
 // --- dotd apply --dry-run ---
 
 func TestApplyDryRunEmptyRepo(t *testing.T) {
@@ -287,5 +314,117 @@ func TestApplyWritesInitSh(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "base.sh") {
 		t.Errorf("init.sh missing base.sh: %s", string(content))
+	}
+}
+
+// --- dotd list ---
+
+func TestListEmpty(t *testing.T) {
+	_, err := run(t, "list",
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+}
+
+func TestListActiveNodes(t *testing.T) {
+	dotfiles := t.TempDir()
+	shellrcDir := filepath.Join(dotfiles, "shellrc")
+	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, ".dagger"), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, "base.sh"), []byte("export X=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, "macos.sh"), []byte("# @when(os=macos)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "list",
+		"--env-file", emptyEnvFile(t),
+		"--files", dotfiles,
+		"--env", "os=linux",
+	)
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+	if !strings.Contains(out, "shellrc.base") {
+		t.Errorf("expected shellrc.base in list output: %q", out)
+	}
+	if strings.Contains(out, "shellrc.macos") {
+		t.Errorf("shellrc.macos should be inactive and not shown: %q", out)
+	}
+}
+
+func TestListInactiveFlag(t *testing.T) {
+	dotfiles := t.TempDir()
+	shellrcDir := filepath.Join(dotfiles, "shellrc")
+	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, ".dagger"), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, "macos.sh"), []byte("# @when(os=macos)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "list", "--inactive",
+		"--env-file", emptyEnvFile(t),
+		"--files", dotfiles,
+		"--env", "os=linux",
+	)
+	if err != nil {
+		t.Fatalf("list --inactive error = %v", err)
+	}
+	if !strings.Contains(out, "shellrc.macos") {
+		t.Errorf("expected shellrc.macos in --inactive output: %q", out)
+	}
+	if !strings.Contains(out, "inactive") {
+		t.Errorf("expected 'inactive' tag in output: %q", out)
+	}
+}
+
+// --- dotd bundle ---
+
+func TestBundleNoFile(t *testing.T) {
+	_, err := run(t, "bundle",
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+		"nonexistent.sh",
+	)
+	if err == nil {
+		t.Error("expected error for nonexistent file")
+	}
+}
+
+func TestBundleSimple(t *testing.T) {
+	dotfiles := t.TempDir()
+	shellrcDir := filepath.Join(dotfiles, "shellrc")
+	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, ".dagger"), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, "base.sh"), []byte("export BASE=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "bundle",
+		"--env-file", emptyEnvFile(t),
+		"--files", dotfiles,
+		"shellrc/base.sh",
+	)
+	if err != nil {
+		t.Fatalf("bundle error = %v", err)
+	}
+	if !strings.Contains(out, "export BASE=1") {
+		t.Errorf("expected file content in bundle output: %q", out)
 	}
 }

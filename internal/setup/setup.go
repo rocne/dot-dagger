@@ -140,18 +140,25 @@ func envYAML(opts Options) string {
 }
 
 func daggerYAML() string {
-	return `# Per-directory config for non-annotatable files.
+	return `# Per-directory config for this directory.
+# All fields are optional.
 
-dotd:
-  # when: "os == linux"
-  # defaults:
-  #   when: "os == linux"
+# when: "os=linux"           # predicate: include this dir only when true
+# link_root: "~"             # symlink base for link actions (relative extends parent)
+# actions:
+#   - source                 # default action for files in this dir
+#   - no-source
 
-link:
-  # link_root: ~/.config/nvim
+# defaults:                  # cascades to all files in this dir
+#   when: "context=work"
+#   actions:
+#     - source
 
-env:
-  # env overrides for this directory subtree
+# files:                     # explicit config for non-annotatable files (JSON, Lua, etc.)
+#   settings.json:
+#     name: nvim.settings
+#     actions:
+#       - link(~/.config/nvim/settings.json)
 `
 }
 

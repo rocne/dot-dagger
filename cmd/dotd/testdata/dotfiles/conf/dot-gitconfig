@@ -1,4 +1,5 @@
 # @when(context=personal)
+# @link(~/.gitconfig)
 [user]
 	name = Test User
 	email = test@personal.example.com
