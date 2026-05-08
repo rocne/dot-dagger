@@ -397,7 +397,7 @@ func TestPackageRequireHardFail(t *testing.T) {
 	e := newIenv(t)
 
 	// Write a script with a hard requirement that can never be met.
-	script := "#!/bin/bash\n# @require not-installable\necho hi\n"
+	script := "#!/bin/bash\n# @require(not-installable)\necho hi\n"
 	path := filepath.Join(e.dotfiles, "shellrc", "hard-fail.sh")
 	if err := os.WriteFile(path, []byte(script), 0o644); err != nil {
 		t.Fatalf("write hard-fail.sh: %v", err)
