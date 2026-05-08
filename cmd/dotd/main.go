@@ -1,26 +1,20 @@
-// Command dotd manages dotfiles — env resolution, DAG, symlinks, and packages.
+// Command dotd manages dotfiles — env resolution, DAG, symlinks, and init.sh generation.
 package main
 
 import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
+	"strings"
 
 	chlog "github.com/charmbracelet/log"
-	"github.com/rocne/dot-dagger/internal/composer"
-	"github.com/rocne/dot-dagger/internal/dag"
+	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
-	"github.com/rocne/dot-dagger/internal/fileset"
-	"github.com/rocne/dot-dagger/internal/initgen"
-	"github.com/rocne/dot-dagger/internal/linker"
 	dotlog "github.com/rocne/dot-dagger/internal/log"
-	"github.com/rocne/dot-dagger/internal/packages"
+	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/rocne/dot-dagger/internal/predicate"
 	"github.com/rocne/dot-dagger/internal/ui"
-	"github.com/rocne/dot-dagger/internal/walk"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +26,7 @@ func main() {
 	}
 }
 
-type config struct {
+type appConfig struct {
 	files        string
 	envFile      string
 	env          []string
@@ -47,33 +41,30 @@ type config struct {
 	log          *chlog.Logger
 }
 
-// verbose reports whether debug-level output is enabled.
-// Used for callers that need a bool (io.Writer-based printers, stdout data detail).
-func (c *config) verbose() bool {
-	return c.log != nil && c.log.GetLevel() <= chlog.DebugLevel
-}
+// config is a type alias so sub-command constructors can use the short name.
+type config = appConfig
 
 func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
 		Use:     ecosystem.ToolD,
-		Short:   "Dotfiles manager — env resolution, DAG, symlinks, and packages",
+		Short:   "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
 		Version: version,
 	}
 
 	pf := root.PersistentFlags()
-	pf.StringVarP(&cfg.files, "files", "f", "", "path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → dotfiles_repo in env.yaml → cwd)")
-	pf.StringVar(&cfg.envFile, "env-file", "", "path to env.yaml (default: $DOTD_ENV_FILE → $XDG_CONFIG_HOME/dot-dagger/env.yaml)")
+	pf.StringVarP(&cfg.files, "files", "f", "", "path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → config.yaml dotfiles → cwd)")
+	pf.StringVar(&cfg.envFile, "env-file", "", "path to env.yaml (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/env.yaml)")
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
-	pf.StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → init_file in env.yaml → $XDG_DATA_HOME/dot-dagger/init.sh)")
-	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root for conf/ files (default: $DOTD_LINK_ROOT → link_root in env.yaml → $HOME)")
-	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory for bin/ files (default: $DOTD_BIN_DIR → bin_dir in env.yaml → ~/.local/bin/dot-dagger)")
-	pf.StringVar(&cfg.generatedDir, "generated-dir", "", "path to write composed files (default: $DOTD_GENERATED_DIR → generated_dir in env.yaml → $XDG_DATA_HOME/dot-dagger/generated)")
+	pf.StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → ~/.local/share/dot-dagger/init.sh)")
+	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root override (default: config.yaml link_root → $HOME)")
+	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory override (default: config.yaml bin_dir → ~/.local/bin/dot-dagger)")
+	pf.StringVar(&cfg.generatedDir, "generated-dir", "", "generated files directory (default: config.yaml generated_dir → ~/.local/share/dot-dagger/generated)")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.StringVar(&cfg.logLevel, "log-level", "info", "log verbosity ("+dotlog.LevelNames()+")")
-	pf.BoolVar(&cfg.quiet, "quiet", false, "suppress all output except errors (shorthand for --log-level error)")
+	pf.BoolVar(&cfg.quiet, "quiet", false, "suppress all output except errors")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		if err := resolvePaths(cfg); err != nil {
@@ -102,67 +93,20 @@ func newRootCmd() *cobra.Command {
 		newConfigCmd(),
 		newSetupCmd(cfg),
 		newAdoptCmd(cfg),
-		&cobra.Command{
-			Use:   "apply",
-			Short: "Full reconciliation: env → fileset → compose → links → init.sh",
-			Long: `Reconcile the dotfiles repo against the current machine in one shot.
-
-Stages run in order:
-  1. env      — detect os/distro/shell, merge env.yaml and --env overrides
-  2. fileset  — walk the repo, evaluate @when predicates, build the active set
-  3. compose  — assemble compose targets into generated files
-  4. links    — create symlinks for conf/ and bin/ files
-  5. init.sh  — resolve @after DAG ordering, write init.sh
-
-To install packages declared with @require / @request, run: dotd package generate
-
-Examples:
-  dotd apply
-  dotd apply --dry-run              # preview without making any changes
-  dotd apply --env context=work     # override a single env key for this run
-  dotd apply --log-level debug      # show per-stage and per-item detail`,
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runApply(cmd, cfg)
-			},
-		},
-		&cobra.Command{
-			Use:   "check",
-			Short: "Validate all stages without making changes",
-			Long: `Validate the dotfiles repo against the current machine without changing anything.
-
-Runs the same evaluation as apply — env resolution, predicate filtering, compose
-drift, package status, symlink state — and prints a summary of each stage.
-Exits non-zero if any stage reports issues.
-
-Examples:
-  dotd check
-  dotd check --log-level debug   # include per-item symlink status
-  dotd check --env os=macos      # preview for a different environment`,
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runCheck(cmd, cfg)
-			},
-		},
+		newApplyCmd(cfg),
+		newCheckCmd(cfg),
 		newEnvCmd(cfg),
-		newFilesCmd(cfg),
-		newDAGCmd(cfg),
-		newLinkCmd(cfg),
-		newComposeCmd(cfg),
-		newPackageCmd(cfg),
 		newBundleCmd(cfg),
+		newPackageCmd(cfg),
 		newCompletionCmd(),
 	)
 	return root
 }
 
 func newCompletionCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "completion <shell>",
-		Short: "Generate shell completion script",
-		Long: `Output a shell completion script to source in your shell profile.
-
-  bash:  source <(dotd completion bash)
-  zsh:   source <(dotd completion zsh)
-  fish:  dotd completion fish | source`,
+	return &cobra.Command{
+		Use:       "completion <shell>",
+		Short:     "Generate shell completion script",
 		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
 		Args:      cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -181,292 +125,77 @@ func newCompletionCmd() *cobra.Command {
 			}
 		},
 	}
-	return cmd
 }
 
-func runApply(cmd *cobra.Command, cfg *config) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return err
-	}
-	cfg.log.Debugf("%s %d keys resolved", ui.Header("env:"), len(resolved))
-
-	nodes, err := buildFileSet(cfg, resolved)
-	if err != nil {
-		return err
-	}
-	cfg.log.Debugf("%s %d active nodes", ui.Header("fileset:"), len(nodes.Nodes))
-
-	composeOpts := composer.Options{
-		GeneratedDir: cfg.generatedDir,
-		LinkRoot:     cfg.linkRoot,
-		DryRun:       cfg.dryRun,
-	}
-	synthetic, err := composer.Apply(nodes.Compose(), composeOpts)
-	if err != nil {
-		return fmt.Errorf("compose: %w", err)
-	}
-	nodes.Nodes = append(nodes.Nodes, synthetic...)
-	if len(synthetic) > 0 {
-		cfg.log.Debugf("%s %d generated", ui.Header("compose:"), len(synthetic))
-	}
-
-	opts := linker.Options{
-		RepoRoot: cfg.files,
-		LinkRoot: cfg.linkRoot,
-		BinDir:   cfg.binDir,
-	}
-	links, err := linker.Plan(nodes.Nodes, opts)
-	if err != nil {
-		return fmt.Errorf("linker plan: %w", err)
-	}
-	links = linker.Check(links, cfg.files)
-
-	if cfg.dryRun {
-		for _, l := range links {
-			if l.State != linker.StateOK {
-				fmt.Fprintf(cmd.OutOrStdout(), "# symlink %s %s %s\n", l.Src, ui.Arrow("→"), l.Dst)
-			}
-		}
-	} else {
-		if err := linker.Apply(links, cfg.force); err != nil {
-			return err
-		}
-		cfg.log.Infof("%s %d applied", ui.Header("symlinks:"), len(links))
-	}
-
-	scripts := nodes.Scripts()
-	ordered, err := dag.Build(scripts)
-	if err != nil {
-		return fmt.Errorf("dag: %w", err)
-	}
-	content := initgen.Generate(ordered, cfg.binDir)
-
-	if cfg.dryRun {
-		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s (%d scripts)\n", cfg.initFile, len(ordered))
-		fmt.Fprint(cmd.OutOrStdout(), string(content))
-	} else {
-		if err := initgen.WriteFile(cfg.initFile, content); err != nil {
-			return err
-		}
-		cfg.log.Infof("%s wrote %s (%d scripts)", ui.Header("init.sh:"), cfg.initFile, len(ordered))
-	}
-	return nil
-}
-
-func runCheck(cmd *cobra.Command, cfg *config) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return err
-	}
-
-	nodes, err := buildFileSet(cfg, resolved)
-	if err != nil {
-		return err
-	}
-	cfg.log.Infof("%s %d active nodes", ui.Header("fileset:"), len(nodes.Nodes))
-
-	var hasIssues bool
-
-	composeStatuses, err := composer.Check(nodes.Compose(), composer.Options{GeneratedDir: cfg.generatedDir, LinkRoot: cfg.linkRoot})
-	if err != nil {
-		return fmt.Errorf("compose: %w", err)
-	}
-	if len(composeStatuses) > 0 {
-		var ok, missing, stale int
-		for _, s := range composeStatuses {
-			switch s.State {
-			case composer.StateOK:
-				ok++
-			case composer.StateMissing:
-				missing++
-				hasIssues = true
-				cfg.log.Warn(s.OutputPath, "state", "missing")
-			case composer.StateStale:
-				stale++
-				hasIssues = true
-				cfg.log.Warn(s.OutputPath, "state", "stale")
-			}
-		}
-		cfg.log.Infof("%s %d ok, %d missing, %d stale", ui.Header("compose:"), ok, missing, stale)
-	}
-	// Add synthetic nodes so linker and initgen see the generated files.
-	synthetic, err := composer.Apply(nodes.Compose(), composer.Options{
-		GeneratedDir: cfg.generatedDir,
-		LinkRoot:     cfg.linkRoot,
-		DryRun:       true, // check mode — do not write
-	})
-	if err == nil {
-		nodes.Nodes = append(nodes.Nodes, synthetic...)
-	}
-
-	scripts := nodes.Scripts()
-	ordered, err := dag.Build(scripts)
-	if err != nil {
-		return fmt.Errorf("dag: %w", err)
-	}
-	cfg.log.Infof("%s %d active, %s", ui.Header("shellrc:"), len(ordered), ui.OK("DAG OK"))
-
-	reg, err := loadPackageContext(cfg)
-	if err != nil {
-		return err
-	}
-	reqs, err := collectAllRequests(nodes)
-	if err != nil {
-		return err
-	}
-	var pkgMissing int
-	for _, req := range reqs {
-		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
-		installable, _ := packages.Installable(req.Package, reg, exec.LookPath)
-		kind := "@request"
-		if req.Hard {
-			kind = "@require"
-		}
-		if !installed && !installable && req.Hard {
-			cfg.log.Error(req.Package, "kind", kind, "state", ui.HardMissing("MISSING"), "from", req.NodePath)
-			pkgMissing++
-		} else {
-			var status string
-			if installed {
-				status = ui.Installed("installed")
-			} else if installable {
-				status = ui.Installable("installable")
-			} else {
-				status = ui.Missing("not available")
-			}
-			cfg.log.Debug(req.Package, "kind", kind, "state", status)
-		}
-	}
-	if pkgMissing > 0 {
-		hasIssues = true
-		cfg.log.Errorf("%s %s", ui.Header("packages:"), ui.Conflict(fmt.Sprintf("%d hard requirements unmet", pkgMissing)))
-	} else {
-		cfg.log.Infof("%s %d requirements, %s", ui.Header("packages:"), len(reqs), ui.OK("all OK"))
-	}
-
-	opts := linker.Options{
-		RepoRoot: cfg.files,
-		LinkRoot: cfg.linkRoot,
-		BinDir:   cfg.binDir,
-	}
-	links, err := linker.Plan(nodes.Nodes, opts)
-	if err != nil {
-		return fmt.Errorf("linker plan: %w", err)
-	}
-	links = linker.Check(links, cfg.files)
-
-	var ok, missing, wrong, conflict int
-	for _, l := range links {
-		switch l.State {
-		case linker.StateOK:
-			ok++
-			cfg.log.Debug(l.Dst, "state", "ok")
-		case linker.StateMissing:
-			missing++
-			hasIssues = true
-			cfg.log.Warn(l.Dst, "state", "missing")
-		case linker.StateWrongTarget:
-			wrong++
-			hasIssues = true
-			cfg.log.Warn(l.Dst, "state", "wrong-target")
-		case linker.StateConflict:
-			conflict++
-			hasIssues = true
-			cfg.log.Error(l.Dst, "state", "conflict")
-		}
-	}
-	cfg.log.Infof("%s %d ok, %d missing, %d wrong-target, %d conflict",
-		ui.Header("symlinks:"), ok, missing, wrong, conflict)
-
-	if hasIssues {
-		cmd.SilenceErrors = true // output already printed; suppress cobra's "Error: ..." line
-		return errors.New("check: issues found")
-	}
-	return nil
-}
-
-// --- helpers ---
-
+// resolveEnv builds the runtime env map for predicate evaluation.
+// Precedence: --env flags > DOTD_* shell vars > env.yaml (expanded).
 func resolveEnv(cfg *config) (map[string]string, error) {
-	return env.ResolveWithOverrides(cfg.envFile, cfg.env)
-}
-
-func buildFileSet(cfg *config, resolved map[string]string) (*fileset.Set, error) {
-	walked, err := walk.Walk(cfg.files)
+	raw, err := env.Load(cfg.envFile)
 	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
+		return nil, fmt.Errorf("env: load %s: %w", cfg.envFile, err)
 	}
-	return buildFileSetFromWalked(walked, resolved)
-}
-
-func buildFileSetFromWalked(walked []walk.Node, resolved map[string]string) (*fileset.Set, error) {
-	set, err := fileset.Build(walked, resolved, nil)
+	expanded, err := env.Expand(raw)
 	if err != nil {
-		return nil, annotateKeyError(err)
+		return nil, fmt.Errorf("env: expand: %w", err)
 	}
-	return set, nil
-}
+	shellVars := env.ShellVars(os.Environ())
 
-func annotateKeyError(err error) error {
-	var mke *predicate.MissingKeyError
-	if errors.As(err, &mke) {
-		return fmt.Errorf("%w\n\nHint: set it with --env %s=<value> or: dotd env set %s=<value>", err, mke.Key, mke.Key)
+	cliFlags := map[string]string{}
+	for _, e := range cfg.env {
+		idx := strings.IndexByte(e, '=')
+		if idx <= 0 {
+			return nil, fmt.Errorf("--env: invalid format %q (want key=value)", e)
+		}
+		cliFlags[e[:idx]] = e[idx+1:]
 	}
-	return err
+
+	return env.Resolve(cliFlags, shellVars, expanded), nil
 }
 
-func loadPackageContext(cfg *config) (*packages.Registry, error) {
-	return packages.LoadFile(filepath.Join(cfg.files, "packages.yaml"))
-}
-
-// resolvePaths populates all empty path fields in cfg using the precedence chain:
-// CLI arg → DOTD_* env var → env.yaml field → XDG/system default.
-// env-file itself is resolved first without consulting env.yaml (would be circular).
+// resolvePaths fills in all empty path fields in cfg.
+// Precedence: CLI flag > DOTD_* env var > config.yaml field > XDG/system default.
 func resolvePaths(cfg *config) error {
 	var err error
 
-	// env-file: CLI → DOTD_ENV_FILE → XDG default (no env.yaml lookup — circular)
-	cfg.envFile, err = ecosystem.ResolvePath(cfg.envFile, "DOTD_ENV_FILE", "", ecosystem.DefaultEnvFile)
+	// env-file first — no config.yaml lookup (would be circular).
+	cfg.envFile, err = ecosystem.ResolvePath(cfg.envFile, "DOTD_ENV_FILE", "", env.DefaultPath)
 	if err != nil {
 		return err
 	}
 
-	ef, err := env.LoadEnvFileFromPath(cfg.envFile)
+	// Tool preferences from config.yaml.
+	configPath, err := dotcfg.DefaultPath()
+	if err != nil {
+		return err
+	}
+	toolCfg, err := dotcfg.Load(configPath)
 	if err != nil {
 		return err
 	}
 
-	// Tilde-expand path fields read from env.yaml before using them as fallbacks.
-	for _, p := range []*string{&ef.DotfilesRepo, &ef.LinkRoot, &ef.BinDir, &ef.GeneratedDir, &ef.InitFile} {
-		if *p, err = expandHome(*p); err != nil {
-			return err
-		}
-	}
-
-	cfg.files, err = ecosystem.ResolvePath(cfg.files, "DOTD_FILES", ef.DotfilesRepo, func() (string, error) {
+	cfg.files, err = ecosystem.ResolvePath(cfg.files, "DOTD_FILES", toolCfg.Dotfiles, func() (string, error) {
 		return ecosystem.DefaultDotfiles(), nil
 	})
 	if err != nil {
 		return err
 	}
 
-	cfg.initFile, err = ecosystem.ResolvePath(cfg.initFile, "DOTD_INIT_FILE", ef.InitFile, ecosystem.DefaultInitFile)
+	cfg.initFile, err = ecosystem.ResolvePath(cfg.initFile, "DOTD_INIT_FILE", "", ecosystem.DefaultInitFile)
 	if err != nil {
 		return err
 	}
 
-	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", ef.LinkRoot, ecosystem.DefaultLinkRoot)
+	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", toolCfg.LinkRoot, ecosystem.DefaultLinkRoot)
 	if err != nil {
 		return err
 	}
 
-	cfg.binDir, err = ecosystem.ResolvePath(cfg.binDir, "DOTD_BIN_DIR", ef.BinDir, ecosystem.DefaultBinDir)
+	cfg.binDir, err = ecosystem.ResolvePath(cfg.binDir, "DOTD_BIN_DIR", toolCfg.BinDir, ecosystem.DefaultBinDir)
 	if err != nil {
 		return err
 	}
 
-	cfg.generatedDir, err = ecosystem.ResolvePath(cfg.generatedDir, "DOTD_GENERATED_DIR", ef.GeneratedDir, ecosystem.DefaultGeneratedDir)
+	cfg.generatedDir, err = ecosystem.ResolvePath(cfg.generatedDir, "DOTD_GENERATED_DIR", toolCfg.GeneratedDir, ecosystem.DefaultGeneratedDir)
 	if err != nil {
 		return err
 	}
@@ -474,9 +203,6 @@ func resolvePaths(cfg *config) error {
 	return nil
 }
 
-// configureLogger initialises cfg.log from --log-level / --quiet.
-// Uses cmd.ErrOrStderr() so tests can capture output via cobra's SetErr().
-// --quiet overrides --log-level (sets level to error).
 func configureLogger(cfg *config, cmd *cobra.Command) error {
 	level := cfg.logLevel
 	if cfg.quiet {
@@ -489,3 +215,170 @@ func configureLogger(cfg *config, cmd *cobra.Command) error {
 	cfg.log = logger
 	return nil
 }
+
+func annotateKeyError(err error) error {
+	var mke *predicate.MissingKeyError
+	if errors.As(err, &mke) {
+		return fmt.Errorf("%w\n\nHint: set it with --env %s=<value> or add it to env.yaml", err, mke.Key)
+	}
+	return err
+}
+
+func newApplyCmd(cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "apply",
+		Short: "Reconcile dotfiles: walk → filter → order → act → init.sh",
+		Long: `Reconcile the dotfiles repo against the current machine.
+
+Stages run in order:
+  1. env    — load env.yaml, merge DOTD_* shell vars and --env overrides
+  2. walk   — traverse dotfiles repo, load .dagger configs, produce raw nodes
+  3. filter — evaluate @when predicates against resolved env
+  4. order  — topological sort via @after annotations (alphabetical tie-break)
+  5. act    — create symlinks, collect source list
+  6. init   — write init.sh from sourced nodes in DAG order
+
+Examples:
+  dotd apply
+  dotd apply --dry-run            # preview without making changes
+  dotd apply --env context=work   # override a single env key`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runApply(cmd, cfg)
+		},
+	}
+}
+
+func newCheckCmd(cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "check",
+		Short: "Validate pipeline stages without writing anything",
+		Long: `Run the full pipeline in dry-run mode and report filesystem state.
+
+Exits non-zero if any stage reports issues (missing symlinks, missing init.sh, etc.).
+
+Examples:
+  dotd check
+  dotd check --env os=macos   # preview for a different environment`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCheck(cmd, cfg)
+		},
+	}
+}
+
+func runApply(cmd *cobra.Command, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
+	if err != nil {
+		return annotateKeyError(err)
+	}
+	cfg.log.Debugf("%s %d keys", ui.Header("env:"), len(resolved))
+
+	nodes, err := pipeline.Walk(cfg.files)
+	if err != nil {
+		return fmt.Errorf("walk %s: %w", cfg.files, err)
+	}
+
+	active, err := pipeline.Filter(nodes, resolved)
+	if err != nil {
+		return annotateKeyError(err)
+	}
+	cfg.log.Debugf("%s %d active / %d total", ui.Header("filter:"), len(active), len(nodes))
+
+	ordered, err := pipeline.Order(active)
+	if err != nil {
+		return fmt.Errorf("order: %w", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	res, err := pipeline.Act(ordered, pipeline.ActOptions{HomeDir: home, DryRun: cfg.dryRun})
+	if err != nil {
+		return fmt.Errorf("act: %w", err)
+	}
+
+	if cfg.dryRun {
+		for _, lnk := range res.Links {
+			fmt.Fprintf(cmd.OutOrStdout(), "# link %s %s %s\n", lnk.Src, ui.Arrow("→"), lnk.Dest)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s (%d sourced nodes)\n", cfg.initFile, len(res.Sourced))
+		return nil
+	}
+
+	cfg.log.Infof("%s %d symlinks applied", ui.Header("links:"), len(res.Links))
+
+	if err := pipeline.Generate(cfg.initFile, res.Sourced); err != nil {
+		return fmt.Errorf("generate init.sh: %w", err)
+	}
+	cfg.log.Infof("%s wrote %s (%d nodes)", ui.Header("init.sh:"), cfg.initFile, len(res.Sourced))
+	return nil
+}
+
+func runCheck(cmd *cobra.Command, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
+	if err != nil {
+		return annotateKeyError(err)
+	}
+
+	nodes, err := pipeline.Walk(cfg.files)
+	if err != nil {
+		return fmt.Errorf("walk %s: %w", cfg.files, err)
+	}
+
+	active, err := pipeline.Filter(nodes, resolved)
+	if err != nil {
+		return annotateKeyError(err)
+	}
+	cfg.log.Infof("%s %d active / %d total", ui.Header("filter:"), len(active), len(nodes))
+
+	ordered, err := pipeline.Order(active)
+	if err != nil {
+		return fmt.Errorf("order: %w", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	res, err := pipeline.Act(ordered, pipeline.ActOptions{HomeDir: home, DryRun: true})
+	if err != nil {
+		return fmt.Errorf("act: %w", err)
+	}
+
+	var hasIssues bool
+
+	var ok, missing, wrong int
+	for _, lnk := range res.Links {
+		target, lerr := os.Readlink(lnk.Dest)
+		if os.IsNotExist(lerr) {
+			missing++
+			hasIssues = true
+			cfg.log.Warn(lnk.Dest, "state", "missing")
+		} else if lerr != nil {
+			wrong++
+			hasIssues = true
+			cfg.log.Warn(lnk.Dest, "state", "not-a-symlink")
+		} else if target != lnk.Src {
+			wrong++
+			hasIssues = true
+			cfg.log.Warn(lnk.Dest, "state", "wrong-target", "want", lnk.Src, "got", target)
+		} else {
+			ok++
+		}
+	}
+	cfg.log.Infof("%s %d ok, %d missing, %d wrong", ui.Header("symlinks:"), ok, missing, wrong)
+
+	if _, serr := os.Stat(cfg.initFile); os.IsNotExist(serr) {
+		cfg.log.Warn(cfg.initFile, "state", "missing")
+		hasIssues = true
+	} else {
+		cfg.log.Infof("%s %s present (%d sourced nodes)", ui.Header("init.sh:"), cfg.initFile, len(res.Sourced))
+	}
+
+	if hasIssues {
+		cmd.SilenceErrors = true
+		return errors.New("check: issues found")
+	}
+	return nil
+}
+

@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/x/term"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
-	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -45,9 +45,16 @@ func runSetup(cmd *cobra.Command, rootCfg *config, nonInteractive bool) error {
 		return fmt.Errorf(ecosystem.ToolD + " setup: no TTY detected; run with --yes to accept defaults")
 	}
 
-	// Detect environment for pre-populating prompts and env.yaml comments.
-	r := env.NewResolver()
-	detected, _ := r.Resolve(nil)
+	// Detect basic environment for pre-populating prompts.
+	detectedOS := runtime.GOOS
+	if detectedOS == "darwin" {
+		detectedOS = "macos"
+	}
+	hostname, _ := os.Hostname()
+	detected := map[string]string{
+		"os":       detectedOS,
+		"hostname": hostname,
+	}
 
 	// Defaults — shown as pre-filled values in interactive mode.
 	// All paths are already resolved by PersistentPreRunE.

@@ -13,9 +13,6 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
-
-	"github.com/rocne/dot-dagger/internal/annotation"
-	"github.com/rocne/dot-dagger/internal/fileset"
 )
 
 // PackageManagerDef defines the command templates for a package manager.
@@ -209,40 +206,12 @@ func Installable(pkg string, reg *Registry, lookPath func(string) (string, error
 	return false, nil
 }
 
-// PackageRequest records a package requirement from a file annotation.
-type PackageRequest struct {
-	// Package is the logical package name.
-	Package string
-	// Hard is true for @require (gates file), false for @request (soft ask).
-	Hard bool
-	// NodePath is the source file declaring the requirement.
-	NodePath string
-}
 
-// CollectRequests gathers @require and @request annotations from all nodes.
-func CollectRequests(nodes []fileset.Node) []PackageRequest {
-	var reqs []PackageRequest
-	for _, n := range nodes {
-		for _, a := range annotation.Get(n.Annotations, "require") {
-			if a.Args != "" {
-				reqs = append(reqs, PackageRequest{
-					Package:  strings.TrimSpace(a.Args),
-					Hard:     true,
-					NodePath: n.Path,
-				})
-			}
-		}
-		for _, a := range annotation.Get(n.Annotations, "request") {
-			if a.Args != "" {
-				reqs = append(reqs, PackageRequest{
-					Package:  strings.TrimSpace(a.Args),
-					Hard:     false,
-					NodePath: n.Path,
-				})
-			}
-		}
-	}
-	return reqs
+// PackageRequest records a package requirement from a file or manifest.
+type PackageRequest struct {
+	Package  string // logical package name
+	Hard     bool   // true for @require (hard gate), false for @request (soft)
+	NodePath string // source file declaring the requirement
 }
 
 // InstallCmd returns the install command for a package using the given manager.
@@ -339,3 +308,4 @@ func GenerateScript(w io.Writer, reqs []PackageRequest, reg *Registry, lookPath 
 	}
 	return nil
 }
+
