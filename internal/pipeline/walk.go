@@ -63,6 +63,15 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 		return nil, err
 	}
 
+	// Build set of files declared in .dagger files: dicts.
+	// These are skipped in the main walk and added separately below.
+	filesWithDaggerEntry := map[string]bool{}
+	for dirPath, cfg := range daggerMap {
+		for fname := range cfg.Files {
+			filesWithDaggerEntry[filepath.Join(dirPath, fname)] = true
+		}
+	}
+
 	var nodes []RawNode
 
 	// Walk to emit both compose-target directory nodes and file nodes.
@@ -120,6 +129,10 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 		if base == ".dagger" || base == ".dotd.yaml" {
 			return nil
 		}
+		// Files declared in a .dagger files: dict are handled below.
+		if filesWithDaggerEntry[path] {
+			return nil
+		}
 
 		rel, err := filepath.Rel(dotfilesRoot, path)
 		if err != nil {
@@ -150,9 +163,15 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 			}
 		}
 
+		// Apply @name override if present.
+		logicalName := node.DeriveName(rel)
+		if a, ok := annotation.First(anns, "name"); ok && a.Args != "" {
+			logicalName = a.Args
+		}
+
 		n := RawNode{
 			Path:          path,
-			LogicalName:   node.DeriveName(rel),
+			LogicalName:   logicalName,
 			EffectiveWhen: effectiveWhen,
 			Actions:       actions,
 			After:         after,
@@ -165,6 +184,51 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	// Process .dagger files: dict entries.
+	// These cover files that cannot carry annotations (binary, JSON, Lua, etc.).
+	for dirPath, cfg := range daggerMap {
+		for fname, fileNode := range cfg.Files {
+			filePath := filepath.Join(dirPath, fname)
+			if _, statErr := os.Stat(filePath); statErr != nil {
+				continue // file doesn't exist, skip silently
+			}
+			rel, relErr := filepath.Rel(dotfilesRoot, filePath)
+			if relErr != nil {
+				return nil, relErr
+			}
+			state := cascadeState(dotfilesRoot, rel, daggerMap)
+
+			logicalName := node.DeriveName(rel)
+			if fileNode.Name != "" {
+				logicalName = fileNode.Name
+			}
+
+			fileWhen := ""
+			if fileNode.When != "" {
+				fileWhen = "(" + fileNode.When + ")"
+			}
+			effectiveWhen := combineWhen(state.when, fileWhen)
+
+			var fileActions []Action
+			seen := map[string]bool{}
+			for _, actStr := range fileNode.Actions {
+				act := parseActionString(actStr)
+				if !seen[act.Type] {
+					fileActions = append(fileActions, act)
+					seen[act.Type] = true
+				}
+			}
+
+			nodes = append(nodes, RawNode{
+				Path:          filePath,
+				LogicalName:   logicalName,
+				EffectiveWhen: effectiveWhen,
+				Actions:       fileActions,
+				LinkRoot:      state.linkRoot,
+			})
+		}
 	}
 
 	return nodes, nil
@@ -270,6 +334,23 @@ func scanFileAnnotations(path string) ([]annotation.Annotation, error) {
 	return annotation.Scan(f)
 }
 
+// parseActionString converts an action string like "link(~/.gitconfig)" or "source"
+// into an Action. Handles the "type(dest)" function-call syntax from .dagger files.
+func parseActionString(s string) Action {
+	s = strings.TrimSpace(s)
+	i := strings.IndexByte(s, '(')
+	if i < 0 {
+		return Action{Type: s}
+	}
+	typ := strings.TrimSpace(s[:i])
+	rest := s[i+1:]
+	j := strings.LastIndexByte(rest, ')')
+	if j < 0 {
+		return Action{Type: s} // malformed, treat whole string as type
+	}
+	return Action{Type: typ, Dest: strings.TrimSpace(rest[:j])}
+}
+
 // mergeActions produces the final Action list for a node.
 // It starts from inherited default action types, then applies file-level annotations.
 // File-level @link / @source / @no-source annotations add or replace.
@@ -277,10 +358,11 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 	// Collect defaults into Action structs.
 	var actions []Action
 	seen := map[string]bool{}
-	for _, typ := range defaultActions {
-		if !seen[typ] {
-			actions = append(actions, Action{Type: typ})
-			seen[typ] = true
+	for _, actStr := range defaultActions {
+		act := parseActionString(actStr)
+		if !seen[act.Type] {
+			actions = append(actions, act)
+			seen[act.Type] = true
 		}
 	}
 

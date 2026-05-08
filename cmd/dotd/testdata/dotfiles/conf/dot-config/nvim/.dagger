@@ -1,0 +1,4 @@
+files:
+  init.lua:
+    actions:
+      - link(~/.config/nvim/init.lua)

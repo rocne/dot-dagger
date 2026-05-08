@@ -12,7 +12,7 @@ import (
 const Name = "dot-dagger"
 
 // ConfigFile is the per-directory config filename placed inside dotfiles repos.
-const ConfigFile = "." + ToolD + ".yaml" // .dotd.yaml
+const ConfigFile = ".dagger"
 
 // ToolD is the CLI binary name.
 const ToolD = "dotd"
