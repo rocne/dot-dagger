@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/rocne/dot-dagger/internal/config"
+	configpkg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -24,15 +24,15 @@ func newConfigCmd() *cobra.Command {
 }
 
 func configYamlPath() (string, error) {
-	return config.DefaultPath()
+	return configpkg.DefaultPath()
 }
 
-func loadConfig() (*config.Config, string, error) {
+func loadConfig() (*configpkg.Config, string, error) {
 	path, err := configYamlPath()
 	if err != nil {
 		return nil, "", err
 	}
-	cfg, err := config.Load(path)
+	cfg, err := configpkg.Load(path)
 	return cfg, path, err
 }
 
@@ -88,7 +88,7 @@ func newConfigSetCmd() *cobra.Command {
 			if err := cfg.Set(args[0], args[1]); err != nil {
 				return err
 			}
-			return config.Save(path, cfg)
+			return configpkg.Save(path, cfg)
 		},
 	}
 }
@@ -96,7 +96,7 @@ func newConfigSetCmd() *cobra.Command {
 func newConfigEditCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
-		Short: "Open config.yaml in $EDITOR",
+		Short: "Open configpkg.yaml in $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := configYamlPath()
 			if err != nil {

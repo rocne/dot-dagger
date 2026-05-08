@@ -34,7 +34,7 @@ func emptyEnvFile(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "env.yaml")
-	if err := os.WriteFile(path, []byte("env: {}\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -62,7 +62,7 @@ func TestEnvListShowsBuiltins(t *testing.T) {
 func TestEnvListShowsFileKeys(t *testing.T) {
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, "env.yaml")
-	if err := os.WriteFile(envFile, []byte("env:\n  context: work\n"), 0o644); err != nil {
+	if err := os.WriteFile(envFile, []byte("context: work\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -122,7 +122,7 @@ func TestEnvGetMissingKey(t *testing.T) {
 func TestEnvSetWritesKey(t *testing.T) {
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, "env.yaml")
-	if err := os.WriteFile(envFile, []byte("env: {}\n"), 0o644); err != nil {
+	if err := os.WriteFile(envFile, []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -150,7 +150,7 @@ func TestEnvSetWritesKey(t *testing.T) {
 func TestEnvSetDryRun(t *testing.T) {
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, "env.yaml")
-	if err := os.WriteFile(envFile, []byte("env: {}\n"), 0o644); err != nil {
+	if err := os.WriteFile(envFile, []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -202,7 +202,7 @@ func TestEnvDiffShowsOverrides(t *testing.T) {
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, "env.yaml")
 	// Override "os" to a value that differs from detected.
-	if err := os.WriteFile(envFile, []byte("env:\n  os: testplatform\n"), 0o644); err != nil {
+	if err := os.WriteFile(envFile, []byte("os: testplatform\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,7 +234,7 @@ func TestEnvDiffMatchingOverrideNotShown(t *testing.T) {
 	detectedOS := strings.TrimSpace(osOut)
 
 	// Write env.yaml with the same OS value as detected.
-	if err := os.WriteFile(envFile, []byte("env:\n  os: "+detectedOS+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(envFile, []byte("os: "+detectedOS+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
