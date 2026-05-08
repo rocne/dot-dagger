@@ -1,181 +1,207 @@
 package env
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestResolveBuiltins(t *testing.T) {
-	r := NewResolver()
-	env, err := r.Resolve(nil)
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	for _, key := range []string{"os", "shell"} {
-		if env[key] == "" {
-			t.Errorf("Resolve() key %q is empty", key)
-		}
-	}
-}
-
-func TestResolveOverride(t *testing.T) {
-	r := NewResolver()
-	// Replace detectors with stubs for determinism.
-	r.Detectors["os"] = func() (string, error) { return "linux", nil }
-	r.Detectors["shell"] = func() (string, error) { return "bash", nil }
-	delete(r.Detectors, "distro")
-
-	env, err := r.Resolve(map[string]string{"os": "macos"})
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	if env["os"] != "macos" {
-		t.Errorf("override: os = %q, want %q", env["os"], "macos")
-	}
-	if env["shell"] != "bash" {
-		t.Errorf("detected: shell = %q, want %q", env["shell"], "bash")
-	}
-}
-
-func TestResolveDetectorError(t *testing.T) {
-	r := NewResolver()
-	r.Detectors = map[string]Detector{
-		"os":  func() (string, error) { return "linux", nil },
-		"bad": func() (string, error) { return "", errors.New("fail") },
-	}
-
-	env, err := r.Resolve(nil)
-	if err == nil {
-		t.Fatal("Resolve() error = nil, want error for failing detector")
-	}
-	// Partial env still populated.
-	if env["os"] != "linux" {
-		t.Errorf("partial env: os = %q, want linux", env["os"])
-	}
-	if _, ok := env["bad"]; ok {
-		t.Error("partial env: bad key should be absent")
-	}
-}
-
-func TestRequireKeys(t *testing.T) {
-	env := map[string]string{"os": "linux", "shell": "zsh"}
-
-	if err := RequireKeys(env, "os", "shell"); err != nil {
-		t.Errorf("RequireKeys() unexpected error: %v", err)
-	}
-
-	err := RequireKeys(env, "os", "context")
-	if err == nil {
-		t.Fatal("RequireKeys() error = nil, want error for missing key")
-	}
-	var mke *MissingKeysError
-	if !errors.As(err, &mke) {
-		t.Fatalf("RequireKeys() error type = %T, want *MissingKeysError", err)
-	}
-	if len(mke.Keys) != 1 || mke.Keys[0] != "context" {
-		t.Errorf("MissingKeysError.Keys = %v, want [context]", mke.Keys)
-	}
-}
-
-func TestLoadEnvFile(t *testing.T) {
-	input := `
-env:
-  context: work
-  role: desktop
-dotfiles_repo: ~/dotfiles
-`
-	ef, err := LoadEnvFile(strings.NewReader(input))
-	if err != nil {
-		t.Fatalf("LoadEnvFile() error = %v", err)
-	}
-	if ef.Env["context"] != "work" {
-		t.Errorf("context = %q, want work", ef.Env["context"])
-	}
-	if ef.DotfilesRepo != "~/dotfiles" {
-		t.Errorf("dotfiles_repo = %q, want ~/dotfiles", ef.DotfilesRepo)
-	}
-}
-
-func TestLoadEnvFileEmpty(t *testing.T) {
-	ef, err := LoadEnvFile(strings.NewReader(""))
-	if err != nil {
-		t.Fatalf("LoadEnvFile() error = %v", err)
-	}
-	if ef.Env == nil {
-		t.Error("Env map is nil for empty file")
-	}
-}
-
-func TestLoadEnvFileFromPathMissing(t *testing.T) {
-	ef, err := LoadEnvFileFromPath("/nonexistent/env.yaml")
-	if err != nil {
-		t.Fatalf("LoadEnvFileFromPath() error = %v for missing file", err)
-	}
-	if ef.Env == nil {
-		t.Error("Env map is nil for missing file")
-	}
-}
-
-func TestSaveEnvFileToPath(t *testing.T) {
+func TestLoad_Empty(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "sub", "env.yaml")
-
-	ef := &EnvFile{
-		Env:          map[string]string{"context": "work", "role": "desktop"},
-		DotfilesRepo: "~/dotfiles",
-	}
-	if err := SaveEnvFileToPath(path, ef); err != nil {
-		t.Fatalf("SaveEnvFileToPath() error = %v", err)
-	}
-
-	// Round-trip: reload and verify.
-	got, err := LoadEnvFileFromPath(path)
+	m, err := Load(filepath.Join(dir, "missing.yaml"))
 	if err != nil {
-		t.Fatalf("LoadEnvFileFromPath() error = %v", err)
+		t.Fatal(err)
 	}
-	if got.Env["context"] != "work" {
-		t.Errorf("context = %q, want work", got.Env["context"])
-	}
-	if got.Env["role"] != "desktop" {
-		t.Errorf("role = %q, want desktop", got.Env["role"])
-	}
-	if got.DotfilesRepo != "~/dotfiles" {
-		t.Errorf("dotfiles_repo = %q, want ~/dotfiles", got.DotfilesRepo)
+	if len(m) != 0 {
+		t.Errorf("want empty map, got %v", m)
 	}
 }
 
-func TestSaveEnvFileToPathAtomic(t *testing.T) {
+func TestLoad_StaticValues(t *testing.T) {
+	dir := t.TempDir()
+	content := "os: linux\ncontext: work\nhostname: mybox\n"
+	path := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["os"] != "linux" || m["context"] != "work" || m["hostname"] != "mybox" {
+		t.Errorf("got %v", m)
+	}
+}
+
+func TestLoad_ShellExpressionRaw(t *testing.T) {
+	dir := t.TempDir()
+	content := "os: $(uname -s)\ncontext: work\n"
+	path := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["os"] != "$(uname -s)" {
+		t.Errorf("Load should return raw unexpanded value, got %q", m["os"])
+	}
+}
+
+func TestExpand_StaticPassThrough(t *testing.T) {
+	raw := map[string]string{"context": "work", "os": "linux"}
+	got, err := Expand(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["context"] != "work" || got["os"] != "linux" {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestExpand_ShellExpression(t *testing.T) {
+	raw := map[string]string{"greeting": "$(echo hello)"}
+	got, err := Expand(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["greeting"] != "hello" {
+		t.Errorf("Expand greeting = %q, want %q", got["greeting"], "hello")
+	}
+}
+
+func TestExpand_FailedCommand_EmptyString(t *testing.T) {
+	raw := map[string]string{"bad": "$(exit 1)"}
+	got, err := Expand(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["bad"] != "" {
+		t.Errorf("failed command should produce empty string, got %q", got["bad"])
+	}
+}
+
+func TestExpand_NotAnExpression(t *testing.T) {
+	raw := map[string]string{"key": "$(incomplete"}
+	got, err := Expand(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["key"] != "$(incomplete" {
+		t.Errorf("got %q", got["key"])
+	}
+}
+
+func TestResolve_Precedence(t *testing.T) {
+	expanded := map[string]string{"os": "linux", "context": "personal"}
+	shellVars := map[string]string{"context": "work"}
+	cliFlags := map[string]string{"os": "macos"}
+
+	got := Resolve(cliFlags, shellVars, expanded)
+
+	if got["os"] != "macos" {
+		t.Errorf("cliFlags should win for os, got %q", got["os"])
+	}
+	if got["context"] != "work" {
+		t.Errorf("shellVars should win over expanded for context, got %q", got["context"])
+	}
+}
+
+func TestResolve_MergesAll(t *testing.T) {
+	expanded := map[string]string{"hostname": "mybox"}
+	shellVars := map[string]string{"context": "work"}
+	cliFlags := map[string]string{}
+
+	got := Resolve(cliFlags, shellVars, expanded)
+
+	if got["hostname"] != "mybox" || got["context"] != "work" {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestParseFlags_Valid(t *testing.T) {
+	m, err := ParseFlags("context=work,os=linux")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["context"] != "work" || m["os"] != "linux" {
+		t.Errorf("got %v", m)
+	}
+}
+
+func TestParseFlags_Empty(t *testing.T) {
+	m, err := ParseFlags("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 0 {
+		t.Errorf("want empty map, got %v", m)
+	}
+}
+
+func TestParseFlags_Invalid(t *testing.T) {
+	_, err := ParseFlags("noequalssign")
+	if err == nil {
+		t.Error("want error for missing =, got nil")
+	}
+}
+
+func TestParseFlags_ValueWithEquals(t *testing.T) {
+	m, err := ParseFlags("expr=a=b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["expr"] != "a=b" {
+		t.Errorf("got %q", m["expr"])
+	}
+}
+
+func TestShellVars_ExtractsDOTD(t *testing.T) {
+	environ := []string{
+		"DOTD_CONTEXT=work",
+		"DOTD_OS=macos",
+		"HOME=/home/user",
+		"DOTD_=ignored",
+	}
+	got := ShellVars(environ)
+	if got["context"] != "work" {
+		t.Errorf("context = %q", got["context"])
+	}
+	if got["os"] != "macos" {
+		t.Errorf("os = %q", got["os"])
+	}
+	if _, ok := got["home"]; ok {
+		t.Error("HOME should not be extracted")
+	}
+	if _, ok := got[""]; ok {
+		t.Error("DOTD_ with empty suffix should be ignored")
+	}
+}
+
+func TestSave_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "env.yaml")
-
-	// Write initial content.
-	ef := &EnvFile{Env: map[string]string{"a": "1"}}
-	if err := SaveEnvFileToPath(path, ef); err != nil {
-		t.Fatalf("first save error = %v", err)
+	raw := map[string]string{"os": "$(dotd get-os)", "context": "work"}
+	if err := Save(path, raw); err != nil {
+		t.Fatal(err)
 	}
-
-	// Overwrite.
-	ef.Env["a"] = "2"
-	if err := SaveEnvFileToPath(path, ef); err != nil {
-		t.Fatalf("second save error = %v", err)
-	}
-
-	got, err := LoadEnvFileFromPath(path)
+	got, err := Load(path)
 	if err != nil {
-		t.Fatalf("load error = %v", err)
+		t.Fatal(err)
 	}
-	if got.Env["a"] != "2" {
-		t.Errorf("a = %q, want 2", got.Env["a"])
+	if got["os"] != "$(dotd get-os)" || got["context"] != "work" {
+		t.Errorf("round-trip failed: got %v", got)
 	}
+}
 
-	// No leftover temp files.
-	entries, _ := os.ReadDir(dir)
-	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".tmp") {
-			t.Errorf("leftover temp file: %s", e.Name())
-		}
+func TestDefaultPath(t *testing.T) {
+	path, err := DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(path, "dot-dagger/env.yaml") {
+		t.Errorf("unexpected default path: %q", path)
 	}
 }
