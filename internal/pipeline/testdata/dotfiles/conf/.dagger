@@ -1,0 +1,4 @@
+link_root: "~"
+defaults:
+  actions:
+    - link

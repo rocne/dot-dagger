@@ -1,0 +1,4 @@
+# @when(context=work)
+# @link(~/.gitconfig)
+[user]
+    email = work@example.com
