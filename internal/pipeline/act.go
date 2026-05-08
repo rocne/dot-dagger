@@ -102,23 +102,11 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			// Determine generated file path.
 			genPath := ""
 			if opts.GeneratedDir != "" {
-				genPath = filepath.Join(opts.GeneratedDir, filepath.Base(n.Path)+".generated")
-				// Use logical name to derive filename: e.g. "shellrc.shellrc-extras.sh" → "shellrc-extras.sh"
-				parts := strings.Split(n.LogicalName, ".")
-				genName := parts[len(parts)-1]
-				// Restore extension: logical name strips trailing extension from dirs too.
-				// The dir name is like "dot-shellrc-extras.sh.d" → logical "shellrc-extras.sh"
-				// node.DeriveName strips trailing ".d" for dirs — hmm, let's use the dir basename.
-				dirBase := filepath.Base(n.Path)
+				// Derive filename from the compose dir basename:
 				// "dot-shellrc-extras.sh.d" → "shellrc-extras.sh"
-				if strings.HasPrefix(dirBase, "dot-") {
-					dirBase = dirBase[4:]
-				}
-				if strings.HasSuffix(dirBase, ".d") {
-					dirBase = dirBase[:len(dirBase)-2]
-				}
-				genName = dirBase
-				genPath = filepath.Join(opts.GeneratedDir, genName)
+				dirBase := strings.TrimPrefix(filepath.Base(n.Path), "dot-")
+				dirBase = strings.TrimSuffix(dirBase, ".d")
+				genPath = filepath.Join(opts.GeneratedDir, dirBase)
 			}
 
 			gen := Generated{Path: genPath, Content: assembled, Node: n}
@@ -251,10 +239,6 @@ func expandDest(path, homeDir, binDir string) string {
 	return path
 }
 
-// expandTilde is kept for backward compatibility in initgen.
-func expandTilde(path, home string) string {
-	return expandDest(path, home, "")
-}
 
 func createSymlink(src, dest string, force bool) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {

@@ -8,17 +8,6 @@ func makeOrderNode(name string) RawNode {
 	return RawNode{Path: "/dots/" + name, LogicalName: name}
 }
 
-func makeAfterNode(name string, after ...string) RawNode {
-	n := makeOrderNode(name)
-	for _, a := range after {
-		n.Actions = append(n.Actions, Action{Type: "_after_test_" + a})
-	}
-	// We embed after deps as a special field for the test.
-	// Actually we need to use the After field on RawNode.
-	// Let's just set it via a helper that sets After.
-	_ = after
-	return n
-}
 
 func namesOf(nodes []RawNode) []string {
 	names := make([]string, len(nodes))

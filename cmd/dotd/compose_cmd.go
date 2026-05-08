@@ -130,12 +130,6 @@ func composeGenName(n pipeline.RawNode) string {
 // genNameFromDir derives the generated filename from a compose target dir path.
 // "dot-shellrc-extras.sh.d" → "shellrc-extras.sh", "dot-tmux.conf.d" → "tmux.conf"
 func genNameFromDir(dirPath string) string {
-	base := filepath.Base(dirPath)
-	if s := strings.TrimPrefix(base, "dot-"); s != base {
-		base = s
-	}
-	if strings.HasSuffix(base, ".d") {
-		base = base[:len(base)-2]
-	}
-	return base
+	base := strings.TrimPrefix(filepath.Base(dirPath), "dot-")
+	return strings.TrimSuffix(base, ".d")
 }
