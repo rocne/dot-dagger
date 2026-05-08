@@ -24,7 +24,8 @@ type RawNode struct {
 	LogicalName   string // derived via node.DeriveName
 	EffectiveWhen string // merged from ancestor defaults + file @when
 	Actions       []Action
-	LinkRoot      string // from nearest ancestor .dagger with link_root set
+	After         []string // logical names (or prefix/) this node must come after
+	LinkRoot      string   // from nearest ancestor .dagger with link_root set
 	IsCompose     bool
 	ComposeTarget string
 }
@@ -94,11 +95,20 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 		// Compute actions: start from defaults, apply file overrides.
 		actions := mergeActions(state.actions, anns)
 
+		// Collect @after dependencies.
+		var after []string
+		for _, a := range annotation.Get(anns, "after") {
+			if a.Args != "" {
+				after = append(after, a.Args)
+			}
+		}
+
 		n := RawNode{
 			Path:          path,
 			LogicalName:   node.DeriveName(rel),
 			EffectiveWhen: effectiveWhen,
 			Actions:       actions,
+			After:         after,
 			LinkRoot:      state.linkRoot,
 		}
 		nodes = append(nodes, n)
