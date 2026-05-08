@@ -10,7 +10,6 @@ import (
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/packages"
-	"github.com/rocne/dot-dagger/internal/walk"
 )
 
 // Options configures the scaffold operation.
@@ -61,7 +60,7 @@ func Scaffold(opts Options) (*Result, error) {
 	var res Result
 
 	// Repo directories owned by suite tools.
-	for _, sub := range []string{walk.DirShellrc, walk.DirConf, walk.DirBin} {
+	for _, sub := range []string{"shellrc", "conf", "bin"} {
 		act, err := ensureDir(filepath.Join(opts.DotfilesDir, sub))
 		if err != nil {
 			return nil, err

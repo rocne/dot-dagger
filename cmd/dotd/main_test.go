@@ -9,9 +9,6 @@ import (
 )
 
 // run executes the root command with the given args, capturing combined stdout+stderr.
-// Status/diagnostic output goes to stderr; data output (env show, files) goes to stdout.
-// Tests checking either kind of output can use the combined string.
-// Returns (combined output, error).
 func run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	root := newRootCmd()
@@ -29,7 +26,7 @@ func emptyDotfiles(t *testing.T) string {
 	return t.TempDir()
 }
 
-// emptyEnvFile creates a temp env.yaml that is empty (no overrides).
+// emptyEnvFile creates a temp env.yaml that is empty (flat v2 format).
 func emptyEnvFile(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -40,28 +37,22 @@ func emptyEnvFile(t *testing.T) string {
 	return path
 }
 
-// --- dotd env list ---
+// --- dotd env show ---
 
-func TestEnvListShowsBuiltins(t *testing.T) {
-	out, err := run(t, "env", "show",
+func TestEnvShowEmpty(t *testing.T) {
+	_, err := run(t, "env", "show",
 		"--env-file", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("env show error = %v", err)
 	}
-	// Built-in detectors always populate os and shell.
-	if !strings.Contains(out, "os=") {
-		t.Errorf("output missing os=: %q", out)
-	}
-	if !strings.Contains(out, "shell=") {
-		t.Errorf("output missing shell=: %q", out)
-	}
 }
 
-func TestEnvListShowsFileKeys(t *testing.T) {
+func TestEnvShowFileKeys(t *testing.T) {
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, "env.yaml")
+	// v2 env.yaml is a flat map[string]string
 	if err := os.WriteFile(envFile, []byte("context: work\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +69,7 @@ func TestEnvListShowsFileKeys(t *testing.T) {
 	}
 }
 
-func TestEnvListEnvFlagOverride(t *testing.T) {
+func TestEnvShowEnvFlagOverride(t *testing.T) {
 	out, err := run(t, "env", "show",
 		"--env-file", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
@@ -95,15 +86,21 @@ func TestEnvListEnvFlagOverride(t *testing.T) {
 // --- dotd env get ---
 
 func TestEnvGetExistingKey(t *testing.T) {
-	out, err := run(t, "env", "get", "os",
-		"--env-file", emptyEnvFile(t),
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(envFile, []byte("mykey: myval\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "env", "get", "mykey",
+		"--env-file", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("env get error = %v", err)
 	}
-	if strings.TrimSpace(out) == "" {
-		t.Error("expected non-empty value for os")
+	if strings.TrimSpace(out) != "myval" {
+		t.Errorf("env get mykey = %q, want %q", strings.TrimSpace(out), "myval")
 	}
 }
 
@@ -126,7 +123,7 @@ func TestEnvSetWritesKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := run(t, "env", "set", "context=work",
+	_, err := run(t, "env", "set", "context", "work",
 		"--env-file", envFile,
 		"--files", emptyDotfiles(t),
 	)
@@ -134,7 +131,6 @@ func TestEnvSetWritesKey(t *testing.T) {
 		t.Fatalf("env set error = %v", err)
 	}
 
-	// Verify key is readable back.
 	out, err := run(t, "env", "get", "context",
 		"--env-file", envFile,
 		"--files", emptyDotfiles(t),
@@ -147,106 +143,13 @@ func TestEnvSetWritesKey(t *testing.T) {
 	}
 }
 
-func TestEnvSetDryRun(t *testing.T) {
-	dir := t.TempDir()
-	envFile := filepath.Join(dir, "env.yaml")
-	if err := os.WriteFile(envFile, []byte("{}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := run(t, "env", "set", "context=work",
-		"--env-file", envFile,
-		"--files", emptyDotfiles(t),
-		"--dry-run",
-	)
-	if err != nil {
-		t.Fatalf("env set --dry-run error = %v", err)
-	}
-	if !strings.Contains(out, "would set") {
-		t.Errorf("expected 'would set' in dry-run output: %q", out)
-	}
-
-	// File must not be modified.
-	data, _ := os.ReadFile(envFile)
-	if strings.Contains(string(data), "context") {
-		t.Error("dry-run must not write to env file")
-	}
-}
-
-func TestEnvSetInvalidArg(t *testing.T) {
-	_, err := run(t, "env", "set", "no-equals",
+func TestEnvSetInvalidArgs(t *testing.T) {
+	_, err := run(t, "env", "set",
 		"--env-file", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err == nil {
-		t.Error("expected error for missing = in set arg")
-	}
-}
-
-// --- dotd env diff ---
-
-func TestEnvDiffNoOverrides(t *testing.T) {
-	out, err := run(t, "env", "diff",
-		"--env-file", emptyEnvFile(t),
-		"--files", emptyDotfiles(t),
-	)
-	if err != nil {
-		t.Fatalf("env diff error = %v", err)
-	}
-	if !strings.Contains(out, "no overrides") {
-		t.Errorf("expected 'no overrides' with empty env file: %q", out)
-	}
-}
-
-func TestEnvDiffShowsOverrides(t *testing.T) {
-	dir := t.TempDir()
-	envFile := filepath.Join(dir, "env.yaml")
-	// Override "os" to a value that differs from detected.
-	if err := os.WriteFile(envFile, []byte("os: testplatform\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := run(t, "env", "diff",
-		"--env-file", envFile,
-		"--files", emptyDotfiles(t),
-	)
-	if err != nil {
-		t.Fatalf("env diff error = %v", err)
-	}
-	if !strings.Contains(out, "os") || !strings.Contains(out, "testplatform") {
-		t.Errorf("expected os override in diff output: %q", out)
-	}
-}
-
-func TestEnvDiffMatchingOverrideNotShown(t *testing.T) {
-	// If env.yaml sets a value that happens to match what's detected, no diff.
-	dir := t.TempDir()
-	envFile := filepath.Join(dir, "env.yaml")
-
-	// Detect real OS value first.
-	osOut, err := run(t, "env", "get", "os",
-		"--env-file", emptyEnvFile(t),
-		"--files", emptyDotfiles(t),
-	)
-	if err != nil {
-		t.Fatalf("env get os: %v", err)
-	}
-	detectedOS := strings.TrimSpace(osOut)
-
-	// Write env.yaml with the same OS value as detected.
-	if err := os.WriteFile(envFile, []byte("os: "+detectedOS+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := run(t, "env", "diff",
-		"--env-file", envFile,
-		"--files", emptyDotfiles(t),
-	)
-	if err != nil {
-		t.Fatalf("env diff error = %v", err)
-	}
-	if !strings.Contains(out, "no overrides") {
-		t.Errorf("matching override should not appear in diff: %q", out)
+		t.Error("expected error for wrong number of args")
 	}
 }
 
@@ -282,18 +185,14 @@ func TestCompletionInvalidShell(t *testing.T) {
 // --- dotd check ---
 
 func TestCheckEmptyRepo(t *testing.T) {
-	out, err := run(t, "check",
+	// check on a fresh repo always reports init.sh missing — exit code non-zero is expected.
+	// What we care about: it runs without panicking and produces symlink/init.sh summary.
+	out, _ := run(t, "check",
 		"--env-file", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
-	if err != nil {
-		t.Fatalf("check error = %v", err)
-	}
-	if !strings.Contains(out, "shellrc: 0 active") {
-		t.Errorf("expected 'shellrc: 0 active': %q", out)
-	}
 	if !strings.Contains(out, "symlinks:") {
-		t.Errorf("expected 'symlinks:' summary: %q", out)
+		t.Errorf("expected symlinks summary in output: %q", out)
 	}
 }
 
@@ -320,12 +219,18 @@ func TestApplyDryRunEmptyRepo(t *testing.T) {
 	}
 }
 
-func TestApplyDryRunWithScript(t *testing.T) {
+func TestApplyDryRunWithActiveNode(t *testing.T) {
 	dotfiles := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
+	shellrcDir := filepath.Join(dotfiles, "shellrc")
+	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "base.sh"), []byte("# @when(os=linux)\nexport X=1\n"), 0o644); err != nil {
+	// v2 annotation syntax: @when(os=linux), .dagger defaults source action
+	daggerFile := filepath.Join(shellrcDir, ".dagger")
+	if err := os.WriteFile(daggerFile, []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, "base.sh"), []byte("# @when(os=linux)\nexport X=1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -341,65 +246,46 @@ func TestApplyDryRunWithScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apply --dry-run error = %v", err)
 	}
-	if !strings.Contains(out, "base.sh") {
-		t.Errorf("expected base.sh in dry-run output: %q", out)
+	// Dry-run reports the number of sourced nodes including the file name.
+	if !strings.Contains(out, "would write") {
+		t.Errorf("expected 'would write' in dry-run output: %q", out)
+	}
+	// init.sh must not be created.
+	if _, err := os.Stat(initFile); !os.IsNotExist(err) {
+		t.Error("dry-run must not create init.sh")
 	}
 }
 
-// --- dotd files ---
-
-func TestFilesListActiveOnly(t *testing.T) {
+func TestApplyWritesInitSh(t *testing.T) {
 	dotfiles := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
+	shellrcDir := filepath.Join(dotfiles, "shellrc")
+	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "linux.sh"), []byte("# @when(os=linux)\n"), 0o644); err != nil {
+	daggerFile := filepath.Join(shellrcDir, ".dagger")
+	if err := os.WriteFile(daggerFile, []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "macos.sh"), []byte("# @when(os=macos)\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(shellrcDir, "base.sh"), []byte("export X=1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := run(t, "files",
+	dir := t.TempDir()
+	initFile := filepath.Join(dir, "init.sh")
+
+	_, err := run(t, "apply",
 		"--env-file", emptyEnvFile(t),
 		"--files", dotfiles,
-		"--env", "os=linux",
+		"--init-file", initFile,
 	)
 	if err != nil {
-		t.Fatalf("files error = %v", err)
+		t.Fatalf("apply error = %v", err)
 	}
-	if !strings.Contains(out, "linux.sh") {
-		t.Errorf("expected linux.sh in output: %q", out)
-	}
-	if strings.Contains(out, "macos.sh") {
-		t.Errorf("macos.sh should not appear in active-only output: %q", out)
-	}
-}
-
-func TestFilesListAll(t *testing.T) {
-	dotfiles := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "linux.sh"), []byte("# @when(os=linux)\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "macos.sh"), []byte("# @when(os=macos)\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := run(t, "files", "--all",
-		"--env-file", emptyEnvFile(t),
-		"--files", dotfiles,
-		"--env", "os=linux",
-	)
+	content, err := os.ReadFile(initFile)
 	if err != nil {
-		t.Fatalf("files --all error = %v", err)
+		t.Fatalf("init.sh not created: %v", err)
 	}
-	if !strings.Contains(out, "active") || !strings.Contains(out, "inactive") {
-		t.Errorf("expected both active and inactive entries: %q", out)
-	}
-	if !strings.Contains(out, "linux.sh") || !strings.Contains(out, "macos.sh") {
-		t.Errorf("expected both files in --all output: %q", out)
+	if !strings.Contains(string(content), "base.sh") {
+		t.Errorf("init.sh missing base.sh: %s", string(content))
 	}
 }

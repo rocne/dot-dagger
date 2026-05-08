@@ -4,181 +4,136 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
-	"github.com/rocne/dot-dagger/internal/fileset"
-	"github.com/rocne/dot-dagger/internal/manifest"
+	"github.com/rocne/dot-dagger/internal/annotation"
 	"github.com/rocne/dot-dagger/internal/packages"
-	"github.com/rocne/dot-dagger/internal/ui"
+	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
 func newPackageCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "package",
-		Short: "Package management — filtered by active predicates",
+		Use:    "package",
+		Short:  "Package management — filtered by active predicates",
+		Hidden: true,
 	}
 	cmd.AddCommand(
+		newPackageCheckCmd(cfg),
 		newPackageGenerateCmd(cfg),
-		&cobra.Command{
-			Use:   "check",
-			Short: "Report package status without installing",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runPackageCheck(cfg)
-			},
-		},
-		&cobra.Command{
-			Use:   "list",
-			Short: "List all packages declared in active nodes",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runPackageList(cmd, cfg)
-			},
-		},
 	)
 	return cmd
 }
 
-func newPackageGenerateCmd(cfg *config) *cobra.Command {
-	var outputFile string
-	cmd := &cobra.Command{
-		Use:   "generate",
-		Short: "Generate a shell install script for active package requirements",
-		Long: `Generate a shell install script for active package requirements.
-
-Only packages not already installed are included. Package managers and
-commands are resolved from packages.yaml — no built-in defaults are used.
-
-Preview packages to install:
-  dotd package generate
-
-Install packages:
-  dotd package generate | sudo sh
-
-Write install script to file:
-  dotd package generate -o packages-install.sh
-  sudo sh packages-install.sh`,
+func newPackageCheckCmd(cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "check",
+		Short: "Report install status for all referenced packages",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPackageGenerate(cmd, cfg, outputFile)
+			resolved, err := resolveEnv(cfg)
+			if err != nil {
+				return annotateKeyError(err)
+			}
+			nodes, err := pipeline.Walk(cfg.files)
+			if err != nil {
+				return fmt.Errorf("walk: %w", err)
+			}
+			active, err := pipeline.Filter(nodes, resolved)
+			if err != nil {
+				return annotateKeyError(err)
+			}
+
+			reg, regErr := loadRegistry(cfg)
+			if regErr != nil {
+				return regErr
+			}
+
+			reqs := collectPackageRequests(active)
+			seen := map[string]bool{}
+			for _, r := range reqs {
+				if seen[r.Package] {
+					continue
+				}
+				seen[r.Package] = true
+				installed, _ := packages.Installed(r.Package, reg, exec.LookPath)
+				status := "not installed"
+				if installed {
+					status = "installed"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %s\n", r.Package, status)
+			}
+			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "write script to file instead of stdout")
-	return cmd
 }
 
-// collectAllRequests merges annotation-based and manifest-based package requests.
-func collectAllRequests(nodes *fileset.Set) ([]packages.PackageRequest, error) {
-	reqs := packages.CollectRequests(nodes.Nodes)
-	var paths []string
-	for _, n := range nodes.Manifests() {
-		paths = append(paths, n.Path)
+func newPackageGenerateCmd(cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "generate",
+		Short: "Generate install script for required packages",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved, err := resolveEnv(cfg)
+			if err != nil {
+				return annotateKeyError(err)
+			}
+			nodes, err := pipeline.Walk(cfg.files)
+			if err != nil {
+				return fmt.Errorf("walk: %w", err)
+			}
+			active, err := pipeline.Filter(nodes, resolved)
+			if err != nil {
+				return annotateKeyError(err)
+			}
+
+			reg, regErr := loadRegistry(cfg)
+			if regErr != nil {
+				return regErr
+			}
+
+			reqs := collectPackageRequests(active)
+			return packages.GenerateScript(cmd.OutOrStdout(), reqs, reg, exec.LookPath)
+		},
 	}
-	mreqs, err := manifest.CollectFromPaths(paths, nodes.Env)
+}
+
+func loadRegistry(cfg *config) (*packages.Registry, error) {
+	pkgsFile := filepath.Join(cfg.files, "packages.yaml")
+	reg, err := packages.LoadFile(pkgsFile)
+	if err != nil {
+		return nil, fmt.Errorf("packages: load %s: %w", pkgsFile, err)
+	}
+	return reg, nil
+}
+
+func collectPackageRequests(nodes []pipeline.RawNode) []packages.PackageRequest {
+	var reqs []packages.PackageRequest
+	for _, n := range nodes {
+		if n.IsCompose {
+			continue
+		}
+		anns, err := scanAnnotations(n.Path)
+		if err != nil {
+			continue
+		}
+		for _, a := range annotation.Get(anns, "require") {
+			if a.Args != "" {
+				reqs = append(reqs, packages.PackageRequest{Package: a.Args, Hard: true, NodePath: n.Path})
+			}
+		}
+		for _, a := range annotation.Get(anns, "request") {
+			if a.Args != "" {
+				reqs = append(reqs, packages.PackageRequest{Package: a.Args, Hard: false, NodePath: n.Path})
+			}
+		}
+	}
+	return reqs
+}
+
+func scanAnnotations(path string) ([]annotation.Annotation, error) {
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	return append(reqs, mreqs...), nil
-}
-
-func runPackageGenerate(cmd *cobra.Command, cfg *config, outputFile string) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return err
-	}
-	nodes, err := buildFileSet(cfg, resolved)
-	if err != nil {
-		return err
-	}
-	reg, err := loadPackageContext(cfg)
-	if err != nil {
-		return err
-	}
-	reqs, err := collectAllRequests(nodes)
-	if err != nil {
-		return err
-	}
-
-	w := cmd.OutOrStdout()
-	if outputFile != "" {
-		f, err := os.Create(outputFile)
-		if err != nil {
-			return fmt.Errorf("package generate: %w", err)
-		}
-		defer func() { _ = f.Close() }()
-		w = f
-	}
-
-	return packages.GenerateScript(w, reqs, reg, exec.LookPath)
-}
-
-func runPackageCheck(cfg *config) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return err
-	}
-	nodes, err := buildFileSet(cfg, resolved)
-	if err != nil {
-		return err
-	}
-	reg, err := loadPackageContext(cfg)
-	if err != nil {
-		return err
-	}
-
-	reqs, err := collectAllRequests(nodes)
-	if err != nil {
-		return err
-	}
-	if len(reqs) == 0 {
-		cfg.log.Info("no package requirements found")
-		return nil
-	}
-
-	for _, req := range reqs {
-		kind := "@request"
-		if req.Hard {
-			kind = "@require"
-		}
-		installed, _ := packages.Installed(req.Package, reg, exec.LookPath)
-		installable, _ := packages.Installable(req.Package, reg, exec.LookPath)
-
-		switch {
-		case installed:
-			cfg.log.Info(req.Package, "kind", kind, "state", ui.Installed("installed"))
-		case installable:
-			cfg.log.Info(req.Package, "kind", kind, "state", ui.Installable("installable"))
-		case req.Hard:
-			cfg.log.Error(req.Package, "kind", kind, "state", ui.HardMissing("MISSING"))
-		default:
-			cfg.log.Warn(req.Package, "kind", kind, "state", ui.Missing("not available"))
-		}
-	}
-	return nil
-}
-
-func runPackageList(cmd *cobra.Command, cfg *config) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return err
-	}
-	nodes, err := buildFileSet(cfg, resolved)
-	if err != nil {
-		return err
-	}
-
-	reqs, err := collectAllRequests(nodes)
-	if err != nil {
-		return err
-	}
-	if len(reqs) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "no package requirements found")
-		return nil
-	}
-
-	for _, req := range reqs {
-		kind := "@request"
-		if req.Hard {
-			kind = "@require"
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%-10s %s  (%s)\n", kind, req.Package, req.NodePath)
-	}
-	return nil
+	defer func() { _ = f.Close() }()
+	return annotation.Scan(f)
 }

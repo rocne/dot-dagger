@@ -1,0 +1,4 @@
+defaults:
+  actions:
+    - source
+  when: "context=work"

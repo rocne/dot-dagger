@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rocne/dot-dagger/internal/annotation"
-	"github.com/rocne/dot-dagger/internal/fileset"
 )
 
 const sampleYAML = `
@@ -350,76 +348,6 @@ func TestInstallCmdUnknownManager(t *testing.T) {
 	_, err := InstallCmd("fzf", "cargo", reg)
 	if err == nil {
 		t.Error("expected error for unknown manager")
-	}
-}
-
-// --- CollectRequests ---
-
-func TestCollectRequestsRequire(t *testing.T) {
-	nodes := []fileset.Node{
-		{
-			Path: "/a.sh",
-			Annotations: []annotation.Annotation{
-				{Key: "require", Args:"fzf"},
-			},
-		},
-	}
-	reqs := CollectRequests(nodes)
-	if len(reqs) != 1 {
-		t.Fatalf("len = %d, want 1", len(reqs))
-	}
-	if reqs[0].Package != "fzf" || !reqs[0].Hard {
-		t.Errorf("got %+v, want {Package:fzf Hard:true}", reqs[0])
-	}
-}
-
-func TestCollectRequestsRequest(t *testing.T) {
-	nodes := []fileset.Node{
-		{
-			Path: "/b.sh",
-			Annotations: []annotation.Annotation{
-				{Key: "request", Args:"ripgrep"},
-			},
-		},
-	}
-	reqs := CollectRequests(nodes)
-	if len(reqs) != 1 {
-		t.Fatalf("len = %d, want 1", len(reqs))
-	}
-	if reqs[0].Package != "ripgrep" || reqs[0].Hard {
-		t.Errorf("got %+v, want {Package:ripgrep Hard:false}", reqs[0])
-	}
-}
-
-func TestCollectRequestsMultipleNodes(t *testing.T) {
-	nodes := []fileset.Node{
-		{
-			Path: "/a.sh",
-			Annotations: []annotation.Annotation{
-				{Key: "require", Args:"fzf"},
-				{Key: "request", Args:"ripgrep"},
-			},
-		},
-		{
-			Path: "/b.sh",
-			Annotations: []annotation.Annotation{
-				{Key: "require", Args:"some-tool"},
-			},
-		},
-	}
-	reqs := CollectRequests(nodes)
-	if len(reqs) != 3 {
-		t.Fatalf("len = %d, want 3", len(reqs))
-	}
-}
-
-func TestCollectRequestsEmpty(t *testing.T) {
-	nodes := []fileset.Node{
-		{Path: "/a.sh", Annotations: []annotation.Annotation{{Key: "when", Args:"os=linux"}}},
-	}
-	reqs := CollectRequests(nodes)
-	if len(reqs) != 0 {
-		t.Errorf("expected no requests, got %d", len(reqs))
 	}
 }
 
