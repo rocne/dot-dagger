@@ -91,7 +91,7 @@ func newRootCmd() *cobra.Command {
 				sub.Hidden = false
 			}
 		}
-		cmd.Usage()
+		_ = cmd.Usage()
 	})
 
 	ui.SetupCobraColors(root)
