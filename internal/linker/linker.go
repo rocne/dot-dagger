@@ -207,8 +207,8 @@ func destFor(n fileset.Node, opts Options) (string, error) {
 	}
 
 	// @symlink annotation takes precedence.
-	if a, ok := annotation.First(n.Annotations, annotation.KeySymlink); ok && a.Value != "" {
-		return resolveSymlinkDest(a.Value, linkRoot), nil
+	if a, ok := annotation.First(n.Annotations, "symlink"); ok && a.Args != "" {
+		return resolveSymlinkDest(a.Args, linkRoot), nil
 	}
 
 	switch n.Kind {

@@ -238,10 +238,10 @@ func walkDir(root, dir string, inheritedKind Kind, inSpecialDir bool, cascadeWhe
 		fileWhen := fileWhenExpr(anns)
 		effectiveWhen := combineWhen(dirDefaultWhen, fileWhen)
 
-		_, retainPrefix := annotation.First(anns, annotation.KeyRetainPrefix)
+		_, retainPrefix := annotation.First(anns, "retain-prefix")
 		logicalName := logicalNameFor(root, fullPath, retainPrefix)
-		if nameAnn, ok := annotation.First(anns, annotation.KeyName); ok && nameAnn.Value != "" {
-			logicalName = nameAnn.Value
+		if nameAnn, ok := annotation.First(anns, "name"); ok && nameAnn.Args != "" {
+			logicalName = nameAnn.Args
 		}
 
 		*nodes = append(*nodes, Node{
@@ -268,7 +268,7 @@ func readAnnotations(path string) ([]annotation.Annotation, error) {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	return annotation.ScanHeader(f)
+	return annotation.Scan(f)
 }
 
 // applyFileEntryOverrides synthesises annotations from a .dotd.yaml FileEntry,
@@ -277,16 +277,16 @@ func applyFileEntryOverrides(anns []annotation.Annotation, fe *daggeryaml.FileEn
 	// Remove existing entries for keys we are about to set.
 	keysToSet := map[string]string{}
 	if fe.When != "" {
-		keysToSet[annotation.KeyWhen] = fe.When
+		keysToSet["when"] = fe.When
 	}
 	if fe.After != "" {
-		keysToSet[annotation.KeyAfter] = fe.After
+		keysToSet["after"] = fe.After
 	}
 	if fe.Name != "" {
-		keysToSet[annotation.KeyName] = fe.Name
+		keysToSet["name"] = fe.Name
 	}
 	if fe.Symlink != "" {
-		keysToSet[annotation.KeySymlink] = fe.Symlink
+		keysToSet["symlink"] = fe.Symlink
 	}
 
 	var result []annotation.Annotation
@@ -296,19 +296,19 @@ func applyFileEntryOverrides(anns []annotation.Annotation, fe *daggeryaml.FileEn
 		}
 	}
 	for k, v := range keysToSet {
-		result = append(result, annotation.Annotation{Key: k, Value: v})
+		result = append(result, annotation.Annotation{Key: k, Args: v})
 	}
 	if fe.RetainPrefix {
-		result = append(result, annotation.Annotation{Key: annotation.KeyRetainPrefix})
+		result = append(result, annotation.Annotation{Key: "retain-prefix"})
 	}
 	if fe.Disable {
-		result = append(result, annotation.Annotation{Key: annotation.KeyDisable})
+		result = append(result, annotation.Annotation{Key: "disable"})
 	}
 	if fe.NoSource {
-		result = append(result, annotation.Annotation{Key: annotation.KeyNoSource})
+		result = append(result, annotation.Annotation{Key: "no-source"})
 	}
 	if fe.Source {
-		result = append(result, annotation.Annotation{Key: annotation.KeySource})
+		result = append(result, annotation.Annotation{Key: "source"})
 	}
 	return result
 }
@@ -360,11 +360,11 @@ func stripExt(s string) string {
 // Single values are returned as-is (no wrapping parens).
 // Multiple values are each wrapped in parens for correct precedence.
 func fileWhenExpr(anns []annotation.Annotation) string {
-	whens := annotation.Get(anns, annotation.KeyWhen)
+	whens := annotation.Get(anns, "when")
 	var vals []string
 	for _, a := range whens {
-		if a.Value != "" {
-			vals = append(vals, a.Value)
+		if a.Args != "" {
+			vals = append(vals, a.Args)
 		}
 	}
 	switch len(vals) {
@@ -432,10 +432,10 @@ func walkComposeTarget(root, dir string, inheritedKind Kind, cascadeWhen, linkRo
 		fileWhen := fileWhenExpr(anns)
 		effectiveWhen := combineWhen(dirDefaultWhen, fileWhen)
 
-		_, retainPrefix := annotation.First(anns, annotation.KeyRetainPrefix)
+		_, retainPrefix := annotation.First(anns, "retain-prefix")
 		logicalName := logicalNameFor(root, fullPath, retainPrefix)
-		if nameAnn, ok := annotation.First(anns, annotation.KeyName); ok && nameAnn.Value != "" {
-			logicalName = nameAnn.Value
+		if nameAnn, ok := annotation.First(anns, "name"); ok && nameAnn.Args != "" {
+			logicalName = nameAnn.Args
 		}
 
 		*nodes = append(*nodes, Node{

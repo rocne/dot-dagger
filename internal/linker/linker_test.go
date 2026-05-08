@@ -168,7 +168,7 @@ func TestPlanSymlinkAnnotationOverrides(t *testing.T) {
 			Path: "/repo/conf/dot-zshrc",
 			Kind: fileset.KindConf,
 			Annotations: []annotation.Annotation{
-				{Key: annotation.KeySymlink, Value: "/custom/dest"},
+				{Key: "symlink", Args: "/custom/dest"},
 			},
 		},
 	}

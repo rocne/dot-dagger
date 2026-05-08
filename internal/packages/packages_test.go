@@ -360,7 +360,7 @@ func TestCollectRequestsRequire(t *testing.T) {
 		{
 			Path: "/a.sh",
 			Annotations: []annotation.Annotation{
-				{Key: annotation.KeyRequire, Value: "fzf"},
+				{Key: "require", Args:"fzf"},
 			},
 		},
 	}
@@ -378,7 +378,7 @@ func TestCollectRequestsRequest(t *testing.T) {
 		{
 			Path: "/b.sh",
 			Annotations: []annotation.Annotation{
-				{Key: annotation.KeyRequest, Value: "ripgrep"},
+				{Key: "request", Args:"ripgrep"},
 			},
 		},
 	}
@@ -396,14 +396,14 @@ func TestCollectRequestsMultipleNodes(t *testing.T) {
 		{
 			Path: "/a.sh",
 			Annotations: []annotation.Annotation{
-				{Key: annotation.KeyRequire, Value: "fzf"},
-				{Key: annotation.KeyRequest, Value: "ripgrep"},
+				{Key: "require", Args:"fzf"},
+				{Key: "request", Args:"ripgrep"},
 			},
 		},
 		{
 			Path: "/b.sh",
 			Annotations: []annotation.Annotation{
-				{Key: annotation.KeyRequire, Value: "some-tool"},
+				{Key: "require", Args:"some-tool"},
 			},
 		},
 	}
@@ -415,7 +415,7 @@ func TestCollectRequestsMultipleNodes(t *testing.T) {
 
 func TestCollectRequestsEmpty(t *testing.T) {
 	nodes := []fileset.Node{
-		{Path: "/a.sh", Annotations: []annotation.Annotation{{Key: "when", Value: "os=linux"}}},
+		{Path: "/a.sh", Annotations: []annotation.Annotation{{Key: "when", Args:"os=linux"}}},
 	}
 	reqs := CollectRequests(nodes)
 	if len(reqs) != 0 {

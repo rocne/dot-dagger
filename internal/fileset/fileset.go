@@ -70,11 +70,11 @@ type Set struct {
 func (s *Set) Scripts() []Node {
 	var result []Node
 	for _, n := range s.Nodes {
-		_, hasNoSource := annotation.First(n.Annotations, annotation.KeyNoSource)
+		_, hasNoSource := annotation.First(n.Annotations, "no-source")
 		if hasNoSource {
 			continue
 		}
-		_, hasSource := annotation.First(n.Annotations, annotation.KeySource)
+		_, hasSource := annotation.First(n.Annotations, "source")
 		if n.Kind == KindScript || hasSource {
 			result = append(result, n)
 		}
@@ -118,7 +118,7 @@ type Options struct {
 func BuildUnfiltered(nodes []walk.Node) *Set {
 	active := make([]Node, 0, len(nodes))
 	for _, n := range nodes {
-		if _, ok := annotation.First(n.Annotations, annotation.KeyDisable); ok {
+		if _, ok := annotation.First(n.Annotations, "disable"); ok {
 			continue
 		}
 		active = append(active, Node{
@@ -149,7 +149,7 @@ func Build(nodes []walk.Node, env map[string]string, opts *Options) (*Set, error
 
 	var active []Node
 	for _, n := range nodes {
-		if _, ok := annotation.First(n.Annotations, annotation.KeyDisable); ok {
+		if _, ok := annotation.First(n.Annotations, "disable"); ok {
 			continue
 		}
 		ok, err := evaluate(ev, n.EffectiveWhen)

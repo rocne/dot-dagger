@@ -117,7 +117,7 @@ func TestApply_InvalidAnnotation(t *testing.T) {
 		LogicalName:       "shellrc.aliases.sh.d.bad",
 		ComposeTarget:     targetDotD,
 		ComposeTargetKind: fileset.KindScript,
-		Annotations: []annotation.Annotation{{Key: "symlink", Value: "~/.foo"}},
+		Annotations: []annotation.Annotation{{Key: "symlink", Args: "~/.foo"}},
 	}}
 
 	_, err := Apply(frags, Options{GeneratedDir: t.TempDir()})

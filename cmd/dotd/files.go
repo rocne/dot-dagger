@@ -96,7 +96,7 @@ func kindLabel(k fileset.Kind) string {
 }
 
 func nodeStatus(n walk.Node, activePaths map[string]bool) string {
-	if _, ok := annotation.First(n.Annotations, annotation.KeyDisable); ok {
+	if _, ok := annotation.First(n.Annotations, "disable"); ok {
 		return "disabled"
 	}
 	if activePaths[n.Path] {

@@ -1,4 +1,4 @@
-# @when context=personal
+# @when(context=personal)
 [user]
 	name = Test User
 	email = test@personal.example.com

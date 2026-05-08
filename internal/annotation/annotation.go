@@ -1,5 +1,5 @@
-// Package annotation scans files for @key value annotations in comment lines
-// and provides a handler registry for dispatching tool-owned annotation keys.
+// Package annotation scans files for @key and @key(args) annotations
+// in comment lines at the top of a file.
 package annotation
 
 import (
@@ -9,87 +9,85 @@ import (
 	"strings"
 )
 
-// Core annotation keys handled directly by suite internals.
-// These are read from the annotations slice by callers and are not dispatched
-// through a Registry.
-const (
-	KeyWhen         = "when"
-	KeyName         = "name"
-	KeyAfter        = "after"
-	KeySymlink      = "symlink"
-	KeyRetainPrefix = "retain-prefix"
-	KeyRequire      = "require"
-	KeyRequest      = "request"
-
-	// KeyDisable excludes a file from all processing — no DAG, no sourcing, no symlinking.
-	KeyDisable = "disable"
-	// KeyNoSource keeps a file in the DAG for ordering purposes but omits it from init.sh.
-	// Only meaningful for KindScript nodes (or nodes with @source).
-	KeyNoSource = "no-source"
-	// KeySource forces a file into init.sh sourcing regardless of which directory it lives in.
-	KeySource = "source"
-)
-
-// IsCoreKey reports whether key is a built-in annotation key handled directly
-// by the suite rather than through a handler Registry.
-func IsCoreKey(key string) bool {
-	switch key {
-	case KeyWhen, KeyName, KeyAfter, KeySymlink, KeyRetainPrefix,
-		KeyDisable, KeyNoSource, KeySource:
-		return true
-	}
-	return false
-}
-
-// Annotation is a single @key value pair found in a comment line.
+// Annotation is a single @key or @key(args) found in a comment line.
 type Annotation struct {
-	Key   string
-	Value string
-	Line  int
+	Key  string
+	Args string // content inside parens; empty for zero-arg annotations
+	Line int
 }
 
-// Scan reads r and returns all @key value annotations found in comment lines.
-// Lines beginning with # or // (after optional leading whitespace) are treated
-// as comments. Each annotation has the form @key or @key value within a comment.
+// Scan reads r and returns all @key/(args) annotations found in the header block.
+//
+// Scanner rules:
+//  1. If the first line is a shebang (#!), skip it.
+//  2. Read comment lines (# or //).
+//  3. The first non-comment, non-blank line stops the scan.
+//  4. Non-@ comment lines are ignored without stopping the scan.
+//  5. Blank lines do not stop the scan.
 func Scan(r io.Reader) ([]Annotation, error) {
 	var anns []Annotation
 	scanner := bufio.NewScanner(r)
 	lineNum := 0
+
 	for scanner.Scan() {
 		lineNum++
-		line := strings.TrimSpace(scanner.Text())
+		raw := scanner.Text()
+		line := strings.TrimSpace(raw)
 
-		var content string
-		switch {
-		case strings.HasPrefix(line, "//"):
-			content = strings.TrimSpace(line[2:])
-		case strings.HasPrefix(line, "#"):
-			content = strings.TrimSpace(line[1:])
-		default:
+		// Skip shebang on line 1.
+		if lineNum == 1 && strings.HasPrefix(line, "#!") {
 			continue
 		}
 
-		if !strings.HasPrefix(content, "@") {
+		// Blank lines are allowed in the annotation block.
+		if line == "" {
 			continue
+		}
+
+		var content string
+		if strings.HasPrefix(line, "//") {
+			content = strings.TrimSpace(line[2:])
+		} else if strings.HasPrefix(line, "#") {
+			content = strings.TrimSpace(line[1:])
+		} else {
+			// Non-comment, non-blank line: stop scanning.
+			break
+		}
+
+		if content == "" || !strings.HasPrefix(content, "@") {
+			continue // non-@ comment: ignore, keep scanning
 		}
 
 		rest := content[1:] // strip leading @
-		parts := strings.SplitN(rest, " ", 2)
-		key := parts[0]
+
+		key, args := parseKeyArgs(rest)
 		if key == "" {
 			continue
 		}
-		value := ""
-		if len(parts) == 2 {
-			value = strings.TrimSpace(parts[1])
-		}
-
-		anns = append(anns, Annotation{Key: key, Value: value, Line: lineNum})
+		anns = append(anns, Annotation{Key: key, Args: args, Line: lineNum})
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("annotation: scan: %w", err)
 	}
 	return anns, nil
+}
+
+// parseKeyArgs splits "key(args)" into key and args.
+// For "key" with no parens, args is "".
+func parseKeyArgs(s string) (key, args string) {
+	i := strings.IndexByte(s, '(')
+	if i < 0 {
+		return strings.TrimSpace(s), ""
+	}
+	key = strings.TrimSpace(s[:i])
+	rest := s[i+1:]
+	j := strings.LastIndexByte(rest, ')')
+	if j < 0 {
+		// Malformed — treat whole thing as key, no args.
+		return strings.TrimSpace(s), ""
+	}
+	args = strings.TrimSpace(rest[:j])
+	return key, args
 }
 
 // Get returns all annotations with the given key.
@@ -114,81 +112,14 @@ func First(anns []Annotation, key string) (Annotation, bool) {
 	return Annotation{}, false
 }
 
-// ScanHeader reads annotations from the header block of a file, following §5 rules:
-//  1. If the first line is a shebang (#!), skip it and allow one blank line.
-//  2. Read contiguous comment lines (# or //).
-//  3. Non-@ comment lines are ignored without stopping the scan.
-//  4. A blank line or non-comment line stops the scan.
-func ScanHeader(r io.Reader) ([]Annotation, error) {
-	var anns []Annotation
-	scanner := bufio.NewScanner(r)
-	lineNum := 0
-	pastShebang := false
-	allowBlank := false // one blank line permitted immediately after shebang
-
-scan:
-	for scanner.Scan() {
-		lineNum++
-		raw := scanner.Text()
-		line := strings.TrimSpace(raw)
-
-		// Shebang on first line: skip and permit one following blank line.
-		if lineNum == 1 && strings.HasPrefix(line, "#!") {
-			pastShebang = true
-			allowBlank = true
-			continue
-		}
-
-		// One blank line after shebang is allowed.
-		if line == "" {
-			if allowBlank && pastShebang {
-				allowBlank = false
-				continue
-			}
-			break // blank line ends header
-		}
-		allowBlank = false
-
-		var content string
-		switch {
-		case strings.HasPrefix(line, "//"):
-			content = strings.TrimSpace(line[2:])
-		case strings.HasPrefix(line, "#"):
-			content = strings.TrimSpace(line[1:])
-		default:
-			break scan // non-comment line ends header
-		}
-
-		if content == "" || !strings.HasPrefix(content, "@") {
-			continue // non-@ comment: ignore but keep scanning
-		}
-
-		rest := content[1:]
-		parts := strings.SplitN(rest, " ", 2)
-		key := parts[0]
-		if key == "" {
-			continue
-		}
-		value := ""
-		if len(parts) == 2 {
-			value = strings.TrimSpace(parts[1])
-		}
-		anns = append(anns, Annotation{Key: key, Value: value, Line: lineNum})
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("annotation: scan header: %w", err)
-	}
-	return anns, nil
-}
-
 // CombineWhen returns a combined @when expression from all @when annotations,
-// joining them with AND. Each individual expression is wrapped in parentheses.
+// joining them with AND. Each expression is wrapped in parentheses.
 // Returns an empty string if no @when annotations are present.
 func CombineWhen(anns []Annotation) string {
 	var parts []string
 	for _, a := range anns {
-		if a.Key == KeyWhen && a.Value != "" {
-			parts = append(parts, "("+a.Value+")")
+		if a.Key == "when" && a.Args != "" {
+			parts = append(parts, "("+a.Args+")")
 		}
 	}
 	return strings.Join(parts, " AND ")

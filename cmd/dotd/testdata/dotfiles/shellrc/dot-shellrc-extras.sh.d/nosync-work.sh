@@ -1,3 +1,3 @@
 #!/bin/sh
-# @when context=work
+# @when(context=work)
 export EXTRAS_WORK=1

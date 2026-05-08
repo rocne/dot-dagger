@@ -27,7 +27,7 @@ Every file or directory in the dotfiles repo is a **node**. Nodes form a DAG, id
 
 ```
 tmux/shellrc/helpers.sh        → tmux.shellrc.helpers
-conf/dot-tmux.conf             → conf.tmux.conf
+conf/dot-tmux.conf             → conf.tmux
 nosync-work/shellrc/aliases.sh → work.shellrc.aliases
 ```
 

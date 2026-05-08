@@ -10,7 +10,7 @@ import (
 func node(name string, afters ...string) fileset.Node {
 	var anns []annotation.Annotation
 	for _, a := range afters {
-		anns = append(anns, annotation.Annotation{Key: annotation.KeyAfter, Value: a})
+		anns = append(anns, annotation.Annotation{Key: "after", Args:a})
 	}
 	return fileset.Node{LogicalName: name, Annotations: anns}
 }
@@ -149,7 +149,7 @@ func TestBuildPathPrefixAfter(t *testing.T) {
 	// "tmux/" prefix should match all nodes with logical names starting "tmux."
 	nodes := []fileset.Node{
 		{LogicalName: "base", Annotations: []annotation.Annotation{
-			{Key: annotation.KeyAfter, Value: "tmux/"},
+			{Key: "after", Args: "tmux/"},
 		}},
 		{LogicalName: "tmux.a"},
 		{LogicalName: "tmux.b"},

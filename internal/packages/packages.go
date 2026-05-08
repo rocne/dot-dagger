@@ -223,19 +223,19 @@ type PackageRequest struct {
 func CollectRequests(nodes []fileset.Node) []PackageRequest {
 	var reqs []PackageRequest
 	for _, n := range nodes {
-		for _, a := range annotation.Get(n.Annotations, annotation.KeyRequire) {
-			if a.Value != "" {
+		for _, a := range annotation.Get(n.Annotations, "require") {
+			if a.Args != "" {
 				reqs = append(reqs, PackageRequest{
-					Package:  strings.TrimSpace(a.Value),
+					Package:  strings.TrimSpace(a.Args),
 					Hard:     true,
 					NodePath: n.Path,
 				})
 			}
 		}
-		for _, a := range annotation.Get(n.Annotations, annotation.KeyRequest) {
-			if a.Value != "" {
+		for _, a := range annotation.Get(n.Annotations, "request") {
+			if a.Args != "" {
 				reqs = append(reqs, PackageRequest{
-					Package:  strings.TrimSpace(a.Value),
+					Package:  strings.TrimSpace(a.Args),
 					Hard:     false,
 					NodePath: n.Path,
 				})

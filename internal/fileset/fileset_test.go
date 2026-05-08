@@ -56,7 +56,7 @@ func TestBuildPartitionsByKind(t *testing.T) {
 }
 
 func TestBuildPreservesAnnotations(t *testing.T) {
-	anns := []annotation.Annotation{{Key: "after", Value: "base"}}
+	anns := []annotation.Annotation{{Key: "after", Args: "base"}}
 	nodes := []walk.Node{
 		{Path: "/a.sh", Kind: KindScript, LogicalName: "a", Annotations: anns},
 	}
