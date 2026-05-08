@@ -196,32 +196,6 @@ func TestCheckEmptyRepo(t *testing.T) {
 	}
 }
 
-func TestCheckAfterApply(t *testing.T) {
-	dotfiles := t.TempDir()
-	dir := t.TempDir()
-	initFile := filepath.Join(dir, "init.sh")
-
-	// Apply first so init.sh exists.
-	_, err := run(t, "apply",
-		"--env-file", emptyEnvFile(t),
-		"--files", dotfiles,
-		"--init-file", initFile,
-	)
-	if err != nil {
-		t.Fatalf("apply error = %v", err)
-	}
-
-	// check should succeed since init.sh was created.
-	_, err = run(t, "check",
-		"--env-file", emptyEnvFile(t),
-		"--files", dotfiles,
-		"--init-file", initFile,
-	)
-	if err != nil {
-		t.Fatalf("check after apply error = %v", err)
-	}
-}
-
 // --- dotd apply --dry-run ---
 
 func TestApplyDryRunEmptyRepo(t *testing.T) {

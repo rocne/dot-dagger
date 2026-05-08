@@ -26,15 +26,19 @@ type RawNode struct {
 	Actions       []Action
 	After         []string // logical names (or prefix/) this node must come after
 	LinkRoot      string   // from nearest ancestor .dagger with link_root set
-	IsCompose     bool
-	ComposeTarget string
+	LinkRootDir   string   // abs path of dir where link_root was declared
+	IsCompose     bool     // true if this file is a compose fragment
+	ComposeTarget string   // abs path of compose target dir
 }
 
 // dirState is the accumulated defaults for a directory at walk time.
 type dirState struct {
-	when     string   // from defaults.when; ANDed with parent
-	linkRoot string   // from link_root; nearest non-empty wins
-	actions  []string // from defaults.actions; outermost accumulate
+	when        string   // from defaults.when; ANDed with parent
+	linkRoot    string   // from link_root; nearest non-empty wins
+	linkRootDir string   // absolute path of dir where link_root was declared
+	actions     []string // from defaults.actions; outermost accumulate
+	isCompose   bool     // true if inside a composition-enabled dir
+	composeDir  string   // absolute path of the compose target dir
 }
 
 // Walk traverses dotfilesRoot and returns a RawNode for every dotfile found.
@@ -61,16 +65,59 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 
 	var nodes []RawNode
 
-	// cascadeStack tracks dirState per directory depth during walk.
-	// We rebuild it per-file by walking ancestors from root.
+	// Walk to emit both compose-target directory nodes and file nodes.
 	if err := filepath.WalkDir(dotfilesRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
+			if path == dotfilesRoot {
+				return nil
+			}
+			// Emit a compose-target node for directories with composition.enabled.
+			cfg, ok := daggerMap[path]
+			if !ok || !cfg.Composition.Enabled {
+				return nil
+			}
+			rel, relErr := filepath.Rel(dotfilesRoot, path)
+			if relErr != nil {
+				return relErr
+			}
+			// Compute parent-only cascade state (ancestors up to but not including this dir).
+			parentDir := filepath.Dir(rel)
+			parentRel := filepath.Join(parentDir, "x") // cascadeState uses Dir(relPath)
+			state := cascadeState(dotfilesRoot, parentRel, daggerMap)
+
+			// Dir-level actions: always starts with "compose", then user-declared actions.
+			dirActions := append([]Action{{Type: "compose"}}, parseDaggerActions(cfg.Actions)...)
+
+			// Dir-level when: cascade when AND dir's own when.
+			effectiveWhen := combineWhen(state.when, cfg.When)
+
+			// Dir's own link_root overrides inherited.
+			linkRoot := state.linkRoot
+			linkRootDir := state.linkRootDir
+			if cfg.LinkRoot != "" {
+				linkRoot = cfg.LinkRoot
+				linkRootDir = path
+			}
+
+			nodes = append(nodes, RawNode{
+				Path:          path,
+				LogicalName:   node.DeriveName(rel),
+				EffectiveWhen: effectiveWhen,
+				Actions:       dirActions,
+				LinkRoot:      linkRoot,
+				LinkRootDir:   linkRootDir,
+				IsCompose:     false,
+				ComposeTarget: path, // this node IS the compose target
+			})
 			return nil
 		}
-		if filepath.Base(path) == ".dagger" {
+
+		base := filepath.Base(path)
+		if base == ".dagger" || base == ".dotd.yaml" {
 			return nil
 		}
 
@@ -110,6 +157,9 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 			Actions:       actions,
 			After:         after,
 			LinkRoot:      state.linkRoot,
+			LinkRootDir:   state.linkRootDir,
+			IsCompose:     state.isCompose,
+			ComposeTarget: state.composeDir,
 		}
 		nodes = append(nodes, n)
 		return nil
@@ -118,6 +168,28 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 	}
 
 	return nodes, nil
+}
+
+// parseDaggerActions converts .dagger action strings (e.g. "link(~/.tmux.conf)") to Action structs.
+func parseDaggerActions(strs []string) []Action {
+	var actions []Action
+	for _, s := range strs {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if s == "compose" {
+			actions = append(actions, Action{Type: "compose"})
+		} else if s == "source" {
+			actions = append(actions, Action{Type: "source"})
+		} else if s == "no-source" {
+			actions = append(actions, Action{Type: "no-source"})
+		} else if strings.HasPrefix(s, "link(") && strings.HasSuffix(s, ")") {
+			dest := s[5 : len(s)-1]
+			actions = append(actions, Action{Type: "link", Dest: dest})
+		}
+	}
+	return actions
 }
 
 // cascadeState computes the accumulated dirState for a file at relPath
@@ -129,9 +201,10 @@ func cascadeState(root, relPath string, daggerMap map[string]*dagger.ComposableN
 
 	// Apply root .dagger defaults first.
 	if cfg, ok := daggerMap[root]; ok {
-		state = applyDefaults(state, cfg.Defaults)
+		state = applyDefaults(state, cfg.Defaults, root)
 		if cfg.LinkRoot != "" {
 			state.linkRoot = cfg.LinkRoot
+			state.linkRootDir = root
 		}
 	}
 
@@ -143,9 +216,15 @@ func cascadeState(root, relPath string, daggerMap map[string]*dagger.ComposableN
 		}
 		cur = filepath.Join(cur, part)
 		if cfg, ok := daggerMap[cur]; ok {
-			state = applyDefaults(state, cfg.Defaults)
+			state = applyDefaults(state, cfg.Defaults, cur)
 			if cfg.LinkRoot != "" {
 				state.linkRoot = cfg.LinkRoot
+				state.linkRootDir = cur
+			}
+			// Detect compose target directories.
+			if cfg.Composition.Enabled && !state.isCompose {
+				state.isCompose = true
+				state.composeDir = cur
 			}
 		}
 	}
@@ -154,7 +233,7 @@ func cascadeState(root, relPath string, daggerMap map[string]*dagger.ComposableN
 }
 
 // applyDefaults merges a BasicNode's defaults into the accumulated state.
-func applyDefaults(state dirState, defaults dagger.BasicNode) dirState {
+func applyDefaults(state dirState, defaults dagger.BasicNode, _ string) dirState {
 	if defaults.When != "" {
 		state.when = combineWhen(state.when, "("+defaults.When+")")
 	}

@@ -1,0 +1,4 @@
+link_root: "~bin"
+defaults:
+  actions:
+    - link

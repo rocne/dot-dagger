@@ -98,6 +98,8 @@ func newRootCmd() *cobra.Command {
 		newEnvCmd(cfg),
 		newBundleCmd(cfg),
 		newPackageCmd(cfg),
+		newComposeCmd(cfg),
+		newDagCmd(cfg),
 		newCompletionCmd(),
 	)
 	return root
@@ -216,6 +218,26 @@ func configureLogger(cfg *config, cmd *cobra.Command) error {
 	return nil
 }
 
+// buildActOptions constructs pipeline.ActOptions from cfg.
+// dryRun forces dry-run mode regardless of cfg.dryRun.
+func buildActOptions(cfg *config, dryRun bool) (pipeline.ActOptions, error) {
+	homeDir := cfg.linkRoot
+	if homeDir == "" {
+		var err error
+		homeDir, err = os.UserHomeDir()
+		if err != nil {
+			return pipeline.ActOptions{}, err
+		}
+	}
+	return pipeline.ActOptions{
+		HomeDir:      homeDir,
+		BinDir:       cfg.binDir,
+		GeneratedDir: cfg.generatedDir,
+		DryRun:       dryRun || cfg.dryRun,
+		Force:        cfg.force,
+	}, nil
+}
+
 func annotateKeyError(err error) error {
 	var mke *predicate.MissingKeyError
 	if errors.As(err, &mke) {
@@ -288,11 +310,11 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return fmt.Errorf("order: %w", err)
 	}
 
-	home, err := os.UserHomeDir()
+	actOpts, err := buildActOptions(cfg, false)
 	if err != nil {
 		return err
 	}
-	res, err := pipeline.Act(ordered, pipeline.ActOptions{HomeDir: home, DryRun: cfg.dryRun})
+	res, err := pipeline.Act(ordered, actOpts)
 	if err != nil {
 		return fmt.Errorf("act: %w", err)
 	}
@@ -336,11 +358,11 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		return fmt.Errorf("order: %w", err)
 	}
 
-	home, err := os.UserHomeDir()
+	actOpts, err := buildActOptions(cfg, true)
 	if err != nil {
 		return err
 	}
-	res, err := pipeline.Act(ordered, pipeline.ActOptions{HomeDir: home, DryRun: true})
+	res, err := pipeline.Act(ordered, actOpts)
 	if err != nil {
 		return fmt.Errorf("act: %w", err)
 	}
