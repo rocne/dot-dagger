@@ -146,6 +146,32 @@ Invalid annotations on fragments are hard errors at `dotd check` / `dotd apply` 
 
 ---
 
+## Compose as an action
+
+`compose` is one action type in the unified action system (see [actions.md](actions.md)). It assembles a directory's active fragments into a single generated file. Subsequent actions in the same list operate on that generated file.
+
+`compose: true` in `.dotd.yaml` is an alias for `actions: [compose]`. The output action (`link`, `source`) is inferred from the parent convention directory unless explicitly declared.
+
+To override the output action, use the `actions:` list directly:
+
+```yaml
+dotd:
+  actions:
+    - compose
+    - link(~/.config/tmux/tmux.conf)
+```
+
+```yaml
+dotd:
+  actions:
+    - compose
+    - source
+```
+
+`compose: true` remains valid and fully supported — it is not deprecated.
+
+---
+
 ## Pipeline stage
 
 The compose stage runs between fileset and links:
@@ -157,7 +183,7 @@ env → fileset → packages → compose → links → init.sh
 For each compose target with at least one active fragment:
 1. Collect active `KindCompose` nodes belonging to this target
 2. Order via isolated per-target sub-DAG
-3. Concatenate file contents in DAG order
+3. Concatenate fragment contents in DAG order
 4. Write atomically to the generated file path (temp file + rename, same as `init.sh`)
 5. Register a synthetic node of the appropriate kind — `KindScript`, `KindConf`, or `KindBin` — pointing to the generated file, for consumption by the linker and init generator
 
@@ -170,7 +196,7 @@ Compose targets with no active fragments are skipped entirely — no generated f
 `dotd check` verifies two things per compose target:
 
 1. **Output drift** — the symlink or init.sh entry is correct (same check as any other file of that kind)
-2. **Content drift** — the generated file matches what would be produced by the current active fragments; reports stale if not
+2. **Content drift** — the generated file matches what concatenation of the current active fragments would produce; reports stale if not
 
 ---
 
@@ -227,3 +253,4 @@ On macOS with `context=personal`, `my-tool.d/` has only `header.sh` active. If t
 - Nesting compose targets inside other compose targets is an error.
 - The output logical name (derived or via `dotd.name`) must be unique across all compose targets in the repo. Duplicate names are a conflict error.
 - Compose targets inside `bin/` produce executable output — the compose stage sets the executable bit on the generated file.
+- `compose` as a standalone `@action` annotation on a file (not a directory) is an error.

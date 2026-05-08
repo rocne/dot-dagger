@@ -76,19 +76,23 @@ Metadata is declared as comment annotations at the top of a file.
 | `@when <expr>` | Inclusion predicate. Multiple lines are ANDed. |
 | `@after <ref>` | DAG ordering dependency — logical name or path prefix ending in `/` |
 | `@name <logical-name>` | Override the full logical name of this file |
-| `@symlink <path>` | Symlink this file to an explicit destination (see symlinks.md for path rules) |
+| `@action <type>` | Declare what to do with this file. Multiple lines applied in order. See [actions.md](actions.md). |
 | `@retain-prefix` | Opt out of `dot-`/`nosync-` stripping for this file's name component |
 | `@disable` | Exclude this file from all processing — no DAG, no sourcing, no symlinking |
-| `@no-source` | Keep file in DAG for ordering but omit from `init.sh` (KindScript nodes only) |
-| `@source` | Force file into `init.sh` sourcing regardless of which directory it lives in |
-| `@require <key>` | Declare a required env key for this file |
-| `@request <key>` | Declare a requested (optional) env key for this file |
+| `@require <pkg>` | Declare a hard package dependency for this file |
+| `@request <pkg>` | Declare a soft (optional) package dependency for this file |
 
-### `@symlink`
+The following annotations are **aliases** for specific `@action` types and remain fully supported:
 
-Opts any file into symlinking at an explicit destination. Rarely needed — `conf/` handles the common case. Used for files outside `conf/` that need symlinking, or for config files that need a non-conventional destination.
+| Alias | Equivalent |
+|-------|-----------|
+| `@source` | `@action source` |
+| `@no-source` | `@action no-source` |
+| `@symlink <dest>` | `@action link(<dest>)` |
 
-Files in `conf/` are symlinked by convention — `@symlink` is only needed there to override the default destination. `@symlink` takes precedence over convention in all cases. See [symlinks.md](symlinks.md) for destination path rules.
+### `@action`
+
+Declares what to do with a file. See [actions.md](actions.md) for available action types, sequencing rules, and how explicit actions interact with convention dir defaults.
 
 ---
 

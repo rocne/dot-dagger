@@ -20,6 +20,7 @@ dot-dagger is a dotfiles composition engine — predicate-gated files, DAG-order
 | [architecture.md](architecture.md) | §14 Project Structure, §15 Dependencies, §16 Design Decisions, §17 Out of Scope, §18 Status |
 | [package-manifests.md](package-manifests.md) | §20 Package Manifests — `dotd-packages.yaml`, schema, predicate scoping, DAG exclusion |
 | [compose.md](compose.md) | §21 Compose Targets — `compose: true`, fragment ordering, generated files, symlink consistency |
+| [actions.md](actions.md) | §22 Action System — `@action`, sequencing, convention defaults, aliases |
 
 ---
 
@@ -34,7 +35,8 @@ dot-dagger is a dotfiles composition engine — predicate-gated files, DAG-order
 - Default ordering: alphabetical by logical name within each DAG frontier (Kahn's + alpha tie-break)
 - Missing env keys: prompt (TTY) or halt (non-interactive) — never silent
 - Package manifests: `dotd-packages.yaml` / `*.dotd-packages.yaml` — predicate-scoped, no DAG participation
-- Compose targets: `compose: true` in `.dotd.yaml` — fragments → generated file → symlinked by linker; `dotd.name` overrides output logical name
+- Compose targets: `compose: true` in `.dotd.yaml` — alias for `actions: [compose]`; fragments → generated file; output action inferred from convention dir or declared explicitly
+- Actions: `@action <type>` — `compose`, `link(dest)`, `source`, `no-source`; multiple actions applied in order; `@source`/`@no-source`/`@symlink` are aliases
 - Compose pipeline: env → fileset → packages → **compose** → links → init.sh
 
 ---

@@ -12,7 +12,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## Features
 
-- [ ] **Arbitrary composition for compose targets** — allow a `build:` key in `.dotd.yaml` to specify a command run instead of (or after) text concatenation. Output written to `~/.config/dot-dagger/generated/` same as today; synthetic node handed to linker unchanged. Enables compiled tools (Go, Rust, C) and other non-text transforms inside `bin/` compose targets. Natural pipeline slot: between `compose` and `links`.
+- [ ] **Unified action system** — specced in `actions.md`. Implement `@action <type>` annotation and `actions:` key in `.dotd.yaml`; wire `@source`/`@no-source`/`@symlink`/`compose: true` as aliases; implement convention dir defaults as implicit actions; enforce sequencing rules and error cases.
 
 ## Git / CI Infrastructure
 
