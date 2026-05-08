@@ -92,7 +92,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 
 	if includeEnv {
 		for k, v := range resolved {
-			sb.WriteString(fmt.Sprintf("export %s=%s\n", k, shellQuote(v)))
+			fmt.Fprintf(&sb, "export %s=%s\n", k, shellQuote(v))
 		}
 		sb.WriteString("\n")
 	}
@@ -102,7 +102,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 		if err != nil {
 			return fmt.Errorf("bundle: read %s: %w", n.Path, err)
 		}
-		sb.WriteString(fmt.Sprintf("# --- %s ---\n", n.LogicalName))
+		fmt.Fprintf(&sb, "# --- %s ---\n", n.LogicalName)
 		sb.Write(content)
 		sb.WriteString("\n")
 	}
@@ -112,7 +112,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 	if err != nil {
 		return fmt.Errorf("bundle: read %s: %w", ordered[targetIdx].Path, err)
 	}
-	sb.WriteString(fmt.Sprintf("# --- %s ---\n", ordered[targetIdx].LogicalName))
+	fmt.Fprintf(&sb, "# --- %s ---\n", ordered[targetIdx].LogicalName)
 	sb.Write(content)
 
 	out := sb.String()
