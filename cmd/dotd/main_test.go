@@ -325,7 +325,7 @@ func TestApplyDryRunWithScript(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "base.sh"), []byte("# @when os=linux\nexport X=1\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "base.sh"), []byte("# @when(os=linux)\nexport X=1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -353,10 +353,10 @@ func TestFilesListActiveOnly(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "linux.sh"), []byte("# @when os=linux\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "linux.sh"), []byte("# @when(os=linux)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "macos.sh"), []byte("# @when os=macos\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "macos.sh"), []byte("# @when(os=macos)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -381,10 +381,10 @@ func TestFilesListAll(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "linux.sh"), []byte("# @when os=linux\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "linux.sh"), []byte("# @when(os=linux)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "macos.sh"), []byte("# @when os=macos\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "macos.sh"), []byte("# @when(os=macos)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

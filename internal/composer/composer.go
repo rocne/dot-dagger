@@ -22,12 +22,12 @@ import (
 
 // invalidFragmentAnnotations lists annotation keys that are errors on fragments.
 var invalidFragmentAnnotations = []string{
-	annotation.KeySymlink,
-	annotation.KeySource,
-	annotation.KeyNoSource,
-	annotation.KeyRequire,
-	annotation.KeyRequest,
-	annotation.KeyRetainPrefix,
+	"symlink",
+	"source",
+	"no-source",
+	"require",
+	"request",
+	"retain-prefix",
 }
 
 // State describes the drift status of a compose target.
@@ -357,7 +357,7 @@ func syntheticNode(t Target, outPath string) fileset.Node {
 
 	if t.Kind == fileset.KindConf && t.symlinkDest != "" {
 		n.Annotations = []annotation.Annotation{
-			{Key: annotation.KeySymlink, Value: t.symlinkDest},
+			{Key: "symlink", Args: t.symlinkDest},
 		}
 	}
 

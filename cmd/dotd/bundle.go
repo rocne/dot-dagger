@@ -97,8 +97,8 @@ func runBundle(cmd *cobra.Command, cfg *config, target, output string) error {
 }
 
 func bundleCollectDeps(n fileset.Node, byName map[string]fileset.Node, all []fileset.Node, deps map[string]bool) {
-	for _, a := range annotation.Get(n.Annotations, annotation.KeyAfter) {
-		for _, name := range bundleResolveAfter(a.Value, all) {
+	for _, a := range annotation.Get(n.Annotations, "after") {
+		for _, name := range bundleResolveAfter(a.Args, all) {
 			if !deps[name] {
 				deps[name] = true
 				if dep, ok := byName[name]; ok {

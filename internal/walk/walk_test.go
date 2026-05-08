@@ -25,7 +25,7 @@ func mkTree(t *testing.T, files map[string]string) string {
 
 func TestWalkKinds(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		"shellrc/base.sh":         "# @when os=linux\n",
+		"shellrc/base.sh":         "# @when(os=linux)\n",
 		"conf/dot-gitconfig":      "",
 		"bin/my-tool":             "",
 		"other/readme.txt":        "",
@@ -155,7 +155,7 @@ func TestWalkLogicalName(t *testing.T) {
 
 func TestWalkAnnotations(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		"shellrc/base.sh": "#!/bin/bash\n# @when os=linux\n# @after shellrc.other\nexport FOO=1\n",
+		"shellrc/base.sh": "#!/bin/bash\n# @when(os=linux)\n# @after(shellrc.other)\nexport FOO=1\n",
 	})
 
 	nodes, err := Walk(root)
@@ -174,8 +174,8 @@ func TestWalkAnnotations(t *testing.T) {
 
 func TestWalkDotRYamlCascade(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		".dotd.yaml":         "dotd:\n  defaults:\n    when: \"context=work\"\n",
-		"shellrc/base.sh":   "# @when os=linux\n",
+		".dotd.yaml":            "dotd:\n  defaults:\n    when: \"context=work\"\n",
+		"shellrc/base.sh":   "# @when(os=linux)\n",
 		"shellrc/other.sh":  "",
 	})
 
@@ -203,7 +203,7 @@ func TestWalkDotRYamlCascade(t *testing.T) {
 
 func TestWalkNameAnnotation(t *testing.T) {
 	root := mkTree(t, map[string]string{
-		"tmux/shellrc/tmux-helpers-macos.sh": "# @name tmux.shellrc.helpers\n",
+		"tmux/shellrc/tmux-helpers-macos.sh": "# @name(tmux.shellrc.helpers)\n",
 	})
 
 	nodes, err := Walk(root)

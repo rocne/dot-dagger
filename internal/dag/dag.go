@@ -41,11 +41,11 @@ func Build(nodes []fileset.Node) ([]fileset.Node, error) {
 	inDegree := make([]int, len(nodes))
 
 	for i, n := range nodes {
-		for _, a := range annotation.Get(n.Annotations, annotation.KeyAfter) {
-			if a.Value == "" {
+		for _, a := range annotation.Get(n.Annotations, "after") {
+			if a.Args == "" {
 				continue
 			}
-			deps := resolveAfter(a.Value, nodes)
+			deps := resolveAfter(a.Args, nodes)
 			for _, dep := range deps {
 				j, ok := idx[dep]
 				if !ok {
