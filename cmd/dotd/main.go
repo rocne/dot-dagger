@@ -82,9 +82,24 @@ func newRootCmd() *cobra.Command {
 		return configureLogger(cfg, cmd)
 	}
 
+	// dotd help --all reveals hidden internal commands.
+	root.PersistentFlags().Bool("all", false, "show all commands including internal helpers")
+	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		showAll, _ := cmd.Root().PersistentFlags().GetBool("all")
+		if showAll {
+			for _, sub := range cmd.Root().Commands() {
+				sub.Hidden = false
+			}
+		}
+		_ = cmd.Usage()
+	})
+
 	ui.SetupCobraColors(root)
 
 	root.AddCommand(
+		getOSCmd,
+		getHostnameCmd,
+		newConfigCmd(),
 		newSetupCmd(cfg),
 		newAdoptCmd(cfg),
 		&cobra.Command{
