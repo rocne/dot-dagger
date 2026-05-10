@@ -122,7 +122,7 @@ func TestResolve_MergesAll(t *testing.T) {
 }
 
 func TestParseFlags_Valid(t *testing.T) {
-	m, err := ParseFlags("context=work,os=linux")
+	m, err := parseFlags("context=work,os=linux")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestParseFlags_Valid(t *testing.T) {
 }
 
 func TestParseFlags_Empty(t *testing.T) {
-	m, err := ParseFlags("")
+	m, err := parseFlags("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,14 +142,14 @@ func TestParseFlags_Empty(t *testing.T) {
 }
 
 func TestParseFlags_Invalid(t *testing.T) {
-	_, err := ParseFlags("noequalssign")
+	_, err := parseFlags("noequalssign")
 	if err == nil {
 		t.Error("want error for missing =, got nil")
 	}
 }
 
 func TestParseFlags_ValueWithEquals(t *testing.T) {
-	m, err := ParseFlags("expr=a=b")
+	m, err := parseFlags("expr=a=b")
 	if err != nil {
 		t.Fatal(err)
 	}

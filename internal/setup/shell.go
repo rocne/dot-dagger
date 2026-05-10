@@ -2,7 +2,9 @@ package setup
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,7 +63,7 @@ func SourceLine(initPath string) (string, error) {
 // Returns false (not an error) if rcFile does not exist.
 func HasSourceLine(rcFile, initPath string) (bool, error) {
 	f, err := os.Open(rcFile)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {

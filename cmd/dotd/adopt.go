@@ -8,8 +8,10 @@ import (
 
 func newAdoptCmd(_ *config) *cobra.Command {
 	return &cobra.Command{
-		Use:   "adopt <file>",
-		Short: "Move a file into the dotfiles repo and replace it with a symlink",
+		Use:    "adopt <file>",
+		Short:  "Move a file into the dotfiles repo and replace it with a symlink",
+		Args:   cobra.ExactArgs(1),
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("dotd adopt: not yet migrated to v2 pipeline")
 		},

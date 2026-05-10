@@ -30,6 +30,6 @@ func evalWhen(expr string, env map[string]string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	ev := &predicate.Evaluator{Env: env, Funcs: predicate.NewFuncRegistry(predicate.Strict)}
+	ev := predicate.NewEvaluator(env)
 	return ev.Eval(parsed)
 }

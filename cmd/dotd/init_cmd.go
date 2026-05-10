@@ -2,7 +2,10 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,28 +49,28 @@ func runInit(cmd *cobra.Command, nonInteractive bool) error {
 		dotfilesDefault = d
 	}
 
-	dotfilesPath, err := promptDefault(reader, "Dotfiles repo path", dotfilesDefault, nonInteractive)
+	dotfilesPath, err := promptDefault(cmd.OutOrStdout(), reader, "Dotfiles repo path", dotfilesDefault, nonInteractive)
 	if err != nil {
 		return err
 	}
 	dotfilesPath = expandTildeStr(dotfilesPath, home)
 
 	binDirDefault := filepath.Join(home, ".local", "bin", "dot-dagger")
-	binDir, err := promptDefault(reader, "Bin directory", binDirDefault, nonInteractive)
+	binDir, err := promptDefault(cmd.OutOrStdout(), reader, "Bin directory", binDirDefault, nonInteractive)
 	if err != nil {
 		return err
 	}
 	binDir = expandTildeStr(binDir, home)
 
 	generatedDirDefault := filepath.Join(home, ".local", "share", "dot-dagger", "generated")
-	generatedDir, err := promptDefault(reader, "Generated files directory", generatedDirDefault, nonInteractive)
+	generatedDir, err := promptDefault(cmd.OutOrStdout(), reader, "Generated files directory", generatedDirDefault, nonInteractive)
 	if err != nil {
 		return err
 	}
 	generatedDir = expandTildeStr(generatedDir, home)
 
 	linkRootDefault := home
-	linkRoot, err := promptDefault(reader, "Default symlink root", linkRootDefault, nonInteractive)
+	linkRoot, err := promptDefault(cmd.OutOrStdout(), reader, "Default symlink root", linkRootDefault, nonInteractive)
 	if err != nil {
 		return err
 	}
@@ -97,7 +100,7 @@ func runInit(cmd *cobra.Command, nonInteractive bool) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+	if _, err := os.Stat(envPath); errors.Is(err, fs.ErrNotExist) {
 		if err := os.MkdirAll(filepath.Dir(envPath), 0o755); err != nil {
 			return fmt.Errorf("init: mkdir %s: %w", filepath.Dir(envPath), err)
 		}
@@ -135,7 +138,7 @@ func scaffoldDaggerInteractive(reader *bufio.Reader, cmd *cobra.Command, dotfile
 	}
 
 	for _, role := range roles {
-		dir, err := promptDefault(reader, role.name, "", false)
+		dir, err := promptDefault(cmd.OutOrStdout(), reader, role.name, "", false)
 		if err != nil {
 			return err
 		}
@@ -164,14 +167,14 @@ func scaffoldDagger(dir, content string) error {
 
 // promptDefault prints "msg [default]: " and reads input.
 // If input is empty, returns defaultVal. In nonInteractive mode, returns defaultVal immediately.
-func promptDefault(reader *bufio.Reader, msg, defaultVal string, nonInteractive bool) (string, error) {
+func promptDefault(w io.Writer, reader *bufio.Reader, msg, defaultVal string, nonInteractive bool) (string, error) {
 	if nonInteractive {
 		return defaultVal, nil
 	}
 	if defaultVal != "" {
-		fmt.Printf("%s [%s]: ", msg, defaultVal)
+		fmt.Fprintf(w, "%s [%s]: ", msg, defaultVal)
 	} else {
-		fmt.Printf("%s: ", msg)
+		fmt.Fprintf(w, "%s: ", msg)
 	}
 	line, err := reader.ReadString('\n')
 	if err != nil {

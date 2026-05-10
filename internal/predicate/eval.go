@@ -80,6 +80,17 @@ func (r *FuncRegistry) Call(name, arg string) (bool, error) {
 	return f(arg)
 }
 
+// NewEvaluator returns an Evaluator with env set and a Strict FuncRegistry
+// pre-populated with the default built-in functions. Use this constructor
+// rather than an inline struct literal so that both filter and manifest
+// evaluation share identical capabilities.
+func NewEvaluator(env map[string]string) *Evaluator {
+	return &Evaluator{
+		Env:   env,
+		Funcs: NewFuncRegistry(Strict),
+	}
+}
+
 // Evaluator evaluates a parsed predicate Expr against an environment.
 type Evaluator struct {
 	// Env is the resolved environment map used for condition evaluation.

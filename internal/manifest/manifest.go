@@ -32,7 +32,7 @@ func Parse(r io.Reader) ([]Block, error) {
 // predicates against env, and returns matching package requests.
 // All packages from manifests are soft requests (not hard requirements).
 func CollectFromPaths(paths []string, env map[string]string) ([]packages.PackageRequest, error) {
-	ev := &predicate.Evaluator{Env: env}
+	ev := predicate.NewEvaluator(env)
 	var reqs []packages.PackageRequest
 	for _, path := range paths {
 		r, err := collectFromPath(path, ev)

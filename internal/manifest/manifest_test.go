@@ -4,9 +4,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestParse(t *testing.T) {
@@ -20,14 +17,40 @@ func TestParse(t *testing.T) {
     - aerospace
 `
 	blocks, err := Parse(strings.NewReader(yaml))
-	require.NoError(t, err)
-	require.Len(t, blocks, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2", len(blocks))
+	}
 
-	assert.Equal(t, "", blocks[0].When)
-	assert.Equal(t, []string{"ripgrep", "fd"}, blocks[0].Packages)
+	if blocks[0].When != "" {
+		t.Errorf("blocks[0].When = %q, want %q", blocks[0].When, "")
+	}
+	wantPkgs0 := []string{"ripgrep", "fd"}
+	if len(blocks[0].Packages) != len(wantPkgs0) {
+		t.Errorf("blocks[0].Packages = %v, want %v", blocks[0].Packages, wantPkgs0)
+	} else {
+		for i, p := range wantPkgs0 {
+			if blocks[0].Packages[i] != p {
+				t.Errorf("blocks[0].Packages[%d] = %q, want %q", i, blocks[0].Packages[i], p)
+			}
+		}
+	}
 
-	assert.Equal(t, "os=macos", blocks[1].When)
-	assert.Equal(t, []string{"aerospace"}, blocks[1].Packages)
+	if blocks[1].When != "os=macos" {
+		t.Errorf("blocks[1].When = %q, want %q", blocks[1].When, "os=macos")
+	}
+	wantPkgs1 := []string{"aerospace"}
+	if len(blocks[1].Packages) != len(wantPkgs1) {
+		t.Errorf("blocks[1].Packages = %v, want %v", blocks[1].Packages, wantPkgs1)
+	} else {
+		for i, p := range wantPkgs1 {
+			if blocks[1].Packages[i] != p {
+				t.Errorf("blocks[1].Packages[%d] = %q, want %q", i, blocks[1].Packages[i], p)
+			}
+		}
+	}
 }
 
 func TestCollectFromPaths_unconditional(t *testing.T) {
@@ -38,11 +61,21 @@ func TestCollectFromPaths_unconditional(t *testing.T) {
     - fd
 `)
 	reqs, err := CollectFromPaths([]string{path}, map[string]string{"os": "linux"})
-	require.NoError(t, err)
-	require.Len(t, reqs, 2)
-	assert.Equal(t, "ripgrep", reqs[0].Package)
-	assert.Equal(t, "fd", reqs[1].Package)
-	assert.False(t, reqs[0].Hard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 2 {
+		t.Fatalf("got %d reqs, want 2", len(reqs))
+	}
+	if reqs[0].Package != "ripgrep" {
+		t.Errorf("reqs[0].Package = %q, want %q", reqs[0].Package, "ripgrep")
+	}
+	if reqs[1].Package != "fd" {
+		t.Errorf("reqs[1].Package = %q, want %q", reqs[1].Package, "fd")
+	}
+	if reqs[0].Hard {
+		t.Errorf("reqs[0].Hard = true, want false")
+	}
 }
 
 func TestCollectFromPaths_predicate_match(t *testing.T) {
@@ -57,9 +90,15 @@ func TestCollectFromPaths_predicate_match(t *testing.T) {
     - i3
 `)
 	reqs, err := CollectFromPaths([]string{path}, map[string]string{"os": "macos"})
-	require.NoError(t, err)
-	require.Len(t, reqs, 1)
-	assert.Equal(t, "aerospace", reqs[0].Package)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 1 {
+		t.Fatalf("got %d reqs, want 1", len(reqs))
+	}
+	if reqs[0].Package != "aerospace" {
+		t.Errorf("reqs[0].Package = %q, want %q", reqs[0].Package, "aerospace")
+	}
 }
 
 func TestCollectFromPaths_predicate_no_match(t *testing.T) {
@@ -70,8 +109,12 @@ func TestCollectFromPaths_predicate_no_match(t *testing.T) {
     - aerospace
 `)
 	reqs, err := CollectFromPaths([]string{path}, map[string]string{"os": "linux"})
-	require.NoError(t, err)
-	assert.Empty(t, reqs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 0 {
+		t.Errorf("got %d reqs, want 0", len(reqs))
+	}
 }
 
 func TestCollectFromPaths_multiple_files(t *testing.T) {
@@ -86,8 +129,12 @@ func TestCollectFromPaths_multiple_files(t *testing.T) {
     - aerospace
 `)
 	reqs, err := CollectFromPaths([]string{p1, p2}, map[string]string{"os": "macos"})
-	require.NoError(t, err)
-	require.Len(t, reqs, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 2 {
+		t.Fatalf("got %d reqs, want 2", len(reqs))
+	}
 }
 
 func TestCollectFromPaths_complex_predicate(t *testing.T) {
@@ -98,13 +145,23 @@ func TestCollectFromPaths_complex_predicate(t *testing.T) {
     - some-work-tool
 `)
 	reqs, err := CollectFromPaths([]string{path}, map[string]string{"os": "macos", "context": "work"})
-	require.NoError(t, err)
-	require.Len(t, reqs, 1)
-	assert.Equal(t, "some-work-tool", reqs[0].Package)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 1 {
+		t.Fatalf("got %d reqs, want 1", len(reqs))
+	}
+	if reqs[0].Package != "some-work-tool" {
+		t.Errorf("reqs[0].Package = %q, want %q", reqs[0].Package, "some-work-tool")
+	}
 
 	reqs, err = CollectFromPaths([]string{path}, map[string]string{"os": "macos", "context": "personal"})
-	require.NoError(t, err)
-	assert.Empty(t, reqs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 0 {
+		t.Errorf("got %d reqs, want 0", len(reqs))
+	}
 }
 
 func writeManifest(t *testing.T, dir, name, content string) string {

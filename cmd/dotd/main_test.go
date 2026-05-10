@@ -222,7 +222,6 @@ func TestCheckAfterApply_Unit(t *testing.T) {
 	}
 }
 
-
 // --- dotd apply --dry-run ---
 
 func TestApplyDryRunEmptyRepo(t *testing.T) {
