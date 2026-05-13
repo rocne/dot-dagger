@@ -2,8 +2,10 @@
 package dagger
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -53,7 +55,7 @@ func Load(r io.Reader) (*ComposableNode, error) {
 // If the file does not exist, returns a zero-value ComposableNode without error.
 func LoadFile(path string) (*ComposableNode, error) {
 	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return &ComposableNode{}, nil
 	}
 	if err != nil {

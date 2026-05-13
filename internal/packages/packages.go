@@ -7,8 +7,10 @@
 package packages
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -131,7 +133,7 @@ func Load(r io.Reader) (*Registry, error) {
 // Returns an empty registry if the file does not exist.
 func LoadFile(path string) (*Registry, error) {
 	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return &Registry{
 			PackageManagers: ManagersSection{Defs: map[string]PackageManagerDef{}},
 			Packages:        map[string]PackageEntry{},
@@ -205,7 +207,6 @@ func Installable(pkg string, reg *Registry, lookPath func(string) (string, error
 	}
 	return false, nil
 }
-
 
 // PackageRequest records a package requirement from a file or manifest.
 type PackageRequest struct {

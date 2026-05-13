@@ -4,6 +4,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -373,7 +374,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	var ok, missing, wrong int
 	for _, lnk := range res.Links {
 		target, lerr := os.Readlink(lnk.Dest)
-		if os.IsNotExist(lerr) {
+		if errors.Is(lerr, fs.ErrNotExist) {
 			missing++
 			hasIssues = true
 			cfg.log.Warn(lnk.Dest, "state", "missing")
@@ -391,7 +392,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	}
 	cfg.log.Infof("%s %d ok, %d missing, %d wrong", ui.Header("symlinks:"), ok, missing, wrong)
 
-	if _, serr := os.Stat(cfg.initFile); os.IsNotExist(serr) {
+	if _, serr := os.Stat(cfg.initFile); errors.Is(serr, fs.ErrNotExist) {
 		cfg.log.Warn(cfg.initFile, "state", "missing")
 		hasIssues = true
 	} else {

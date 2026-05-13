@@ -151,7 +151,7 @@ func collectDeps(ordered []pipeline.RawNode, targetIdx int) []pipeline.RawNode {
 		queue = queue[1:]
 		for _, dep := range ordered[cur].After {
 			// Expand prefix refs.
-			deps := resolveAfterNames(dep, ordered)
+			deps := pipeline.ResolveAfterRef(dep, ordered)
 			for _, d := range deps {
 				i, ok := nameIdx[d]
 				if !ok || needed[i] {
@@ -170,21 +170,6 @@ func collectDeps(ordered []pipeline.RawNode, targetIdx int) []pipeline.RawNode {
 		}
 	}
 	return result
-}
-
-func resolveAfterNames(ref string, nodes []pipeline.RawNode) []string {
-	if strings.HasSuffix(ref, "/") {
-		prefix := strings.TrimSuffix(ref, "/")
-		dotPrefix := strings.ReplaceAll(prefix, "/", ".")
-		var matches []string
-		for _, n := range nodes {
-			if strings.HasPrefix(n.LogicalName, dotPrefix) {
-				matches = append(matches, n.LogicalName)
-			}
-		}
-		return matches
-	}
-	return []string{ref}
 }
 
 func shellQuote(s string) string {

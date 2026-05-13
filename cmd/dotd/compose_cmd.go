@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,7 +92,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 					continue
 				}
 				existing, readErr := os.ReadFile(gen.Path)
-				if os.IsNotExist(readErr) {
+				if errors.Is(readErr, fs.ErrNotExist) {
 					fmt.Fprintf(cmd.OutOrStdout(), "missing: %s\n", filepath.Base(gen.Path))
 					hasStale = true
 					continue

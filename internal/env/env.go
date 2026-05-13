@@ -4,8 +4,10 @@ package env
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,7 +21,7 @@ import (
 // If the file does not exist, returns an empty map without error.
 func Load(path string) (map[string]string, error) {
 	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return map[string]string{}, nil
 	}
 	if err != nil {
@@ -97,9 +99,9 @@ func Resolve(cliFlags, shellVars, expanded map[string]string) map[string]string 
 	return out
 }
 
-// ParseFlags parses "key=val,key2=val2" into a map.
+// parseFlags parses "key=val,key2=val2" into a map.
 // Empty string returns an empty map. Returns error if any entry lacks =.
-func ParseFlags(s string) (map[string]string, error) {
+func parseFlags(s string) (map[string]string, error) {
 	if s == "" {
 		return map[string]string{}, nil
 	}

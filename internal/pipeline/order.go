@@ -35,7 +35,7 @@ func Order(nodes []RawNode) ([]RawNode, error) {
 
 	for i, n := range nodes {
 		for _, dep := range n.After {
-			deps := resolveAfterRef(dep, nodes)
+			deps := ResolveAfterRef(dep, nodes)
 			for _, d := range deps {
 				j, ok := idx[d]
 				if !ok {
@@ -84,10 +84,10 @@ func Order(nodes []RawNode) ([]RawNode, error) {
 	return result, nil
 }
 
-// resolveAfterRef expands a single @after reference to a list of logical names.
+// ResolveAfterRef expands a single @after reference to a list of logical names.
 // A reference ending in "/" is a prefix: it matches all nodes whose logical name
 // starts with that prefix (with "." substituted for "/").
-func resolveAfterRef(ref string, nodes []RawNode) []string {
+func ResolveAfterRef(ref string, nodes []RawNode) []string {
 	if strings.HasSuffix(ref, "/") {
 		prefix := strings.TrimSuffix(ref, "/")
 		dotPrefix := strings.ReplaceAll(prefix, "/", ".")

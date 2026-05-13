@@ -300,7 +300,6 @@ func TestMultipleAppliesIdempotent(t *testing.T) {
 
 // TestDAGVerboseOrder verifies the dag check output lists scripts in dependency order.
 func TestDAGVerboseOrder(t *testing.T) {
-	t.Skip("dag check command removed in v2; use dotd list instead")
 	e := newIenv(t)
 	out := e.run(t, "dag", "check", "--log-level", "debug", "--env", "os=linux", "--env", "context=work")
 

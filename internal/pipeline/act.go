@@ -175,10 +175,10 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			if gen.Path == "" {
 				continue
 			}
-			if err := os.MkdirAll(filepath.Dir(gen.Path), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(gen.Path), 0o755); err != nil {
 				return nil, fmt.Errorf("act: mkdir for generated %s: %w", gen.Path, err)
 			}
-			if err := os.WriteFile(gen.Path, gen.Content, 0644); err != nil {
+			if err := os.WriteFile(gen.Path, gen.Content, 0o644); err != nil {
 				return nil, fmt.Errorf("act: write generated %s: %w", gen.Path, err)
 			}
 		}
@@ -239,9 +239,8 @@ func expandDest(path, homeDir, binDir string) string {
 	return path
 }
 
-
 func createSymlink(src, dest string, force bool) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return fmt.Errorf("act: mkdir for %s: %w", dest, err)
 	}
 	// Handle existing path at dest.

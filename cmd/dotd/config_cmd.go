@@ -23,12 +23,8 @@ func newConfigCmd() *cobra.Command {
 	return cmd
 }
 
-func configYamlPath() (string, error) {
-	return dotcfg.DefaultPath()
-}
-
 func loadConfig() (*dotcfg.Config, string, error) {
-	path, err := configYamlPath()
+	path, err := dotcfg.DefaultPath()
 	if err != nil {
 		return nil, "", err
 	}
@@ -98,7 +94,7 @@ func newConfigEditCmd() *cobra.Command {
 		Use:   "edit",
 		Short: "Open dotcfg.yaml in $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := configYamlPath()
+			path, err := dotcfg.DefaultPath()
 			if err != nil {
 				return err
 			}
