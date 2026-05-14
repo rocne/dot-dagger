@@ -47,6 +47,12 @@ func ValidateNodes(nodes []RawNode) error {
 }
 
 func validateNode(n RawNode) error {
+	// Compose fragments are consumed by the compose mechanism; act.go never
+	// processes their actions as standalone nodes.
+	if n.IsCompose {
+		return nil
+	}
+
 	// Directory nodes have ComposeTarget == Path (set by Walk for composition.enabled dirs).
 	isDir := n.ComposeTarget != "" && n.ComposeTarget == n.Path
 
@@ -61,7 +67,8 @@ func validateNode(n RawNode) error {
 			}
 			seenCompose = true
 		case "link":
-			if a.Dest == "" {
+			// Empty dest is valid when link_root is set — destination is derived at act time.
+			if a.Dest == "" && n.LinkRoot == "" {
 				return fmt.Errorf("node %s: link requires a destination", n.LogicalName)
 			}
 			if isDir && !seenCompose {

@@ -205,7 +205,7 @@ func TestValidateNodes(t *testing.T) {
 			errMsg:  "compose is only valid on directories",
 		},
 		{
-			name:    "link without dest is an error",
+			name:    "link without dest and no link_root is an error",
 			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "link", Dest: ""}})},
 			wantErr: true,
 			errMsg:  "link requires a destination",
@@ -263,6 +263,29 @@ func TestValidateNodes(t *testing.T) {
 		{
 			name:    "file with no actions is valid",
 			nodes:   []RawNode{fileNode("foo.sh", nil)},
+			wantErr: false,
+		},
+		{
+			name: "link without dest but with link_root is valid",
+			nodes: []RawNode{{
+				Path:        "/dotfiles/conf/dot-gitconfig",
+				LogicalName: "conf.dot-gitconfig",
+				LinkRoot:    "~",
+				LinkRootDir: "/dotfiles/conf",
+				Actions:     []Action{{Type: "link", Dest: ""}},
+			}},
+			wantErr: false,
+		},
+		{
+			name: "compose fragment with inherited link is valid",
+			nodes: []RawNode{{
+				Path:          "/dotfiles/conf/dot-tmux.conf.d/base",
+				LogicalName:   "conf.dot-tmux.conf.d.base",
+				IsCompose:     true,
+				ComposeTarget: "/dotfiles/conf/dot-tmux.conf.d",
+				LinkRoot:      "~",
+				Actions:       []Action{{Type: "link", Dest: ""}},
+			}},
 			wantErr: false,
 		},
 		{
