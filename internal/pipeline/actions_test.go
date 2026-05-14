@@ -88,3 +88,80 @@ func TestNormalizeActionAnnotations(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeActions_CanonicalAnnotations(t *testing.T) {
+	tests := []struct {
+		name     string
+		defaults []string
+		anns     []annotation.Annotation // must be pre-normalized
+		want     []Action
+	}{
+		{
+			name:     "inherited source default, no annotation",
+			defaults: []string{"source"},
+			anns:     nil,
+			want:     []Action{{Type: "source"}},
+		},
+		{
+			name:     "action source annotation adds source",
+			defaults: nil,
+			anns:     []annotation.Annotation{{Key: "action", Args: "source"}},
+			want:     []Action{{Type: "source"}},
+		},
+		{
+			name:     "action link annotation adds link",
+			defaults: nil,
+			anns:     []annotation.Annotation{{Key: "action", Args: "link(~/.gitconfig)"}},
+			want:     []Action{{Type: "link", Dest: "~/.gitconfig"}},
+		},
+		{
+			name:     "inherited source suppressed by action no-source",
+			defaults: []string{"source"},
+			anns:     []annotation.Annotation{{Key: "action", Args: "no-source"}},
+			want:     []Action{{Type: "no-source"}},
+		},
+		{
+			name:     "action no-source without inherited source still adds no-source",
+			defaults: nil,
+			anns:     []annotation.Annotation{{Key: "action", Args: "no-source"}},
+			want:     []Action{{Type: "no-source"}},
+		},
+		{
+			name:     "action link replaces inherited link dest",
+			defaults: []string{"link(~/old-dest)"},
+			anns:     []annotation.Annotation{{Key: "action", Args: "link(~/new-dest)"}},
+			want:     []Action{{Type: "link", Dest: "~/new-dest"}},
+		},
+		{
+			name:     "non-action annotation ignored by mergeActions",
+			defaults: nil,
+			anns:     []annotation.Annotation{{Key: "when", Args: "os=darwin"}},
+			want:     nil,
+		},
+		{
+			name:     "action source and action link both applied",
+			defaults: nil,
+			anns: []annotation.Annotation{
+				{Key: "action", Args: "source"},
+				{Key: "action", Args: "link(~/.gitconfig)"},
+			},
+			want: []Action{{Type: "source"}, {Type: "link", Dest: "~/.gitconfig"}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := mergeActions(tc.defaults, tc.anns)
+			if len(got) != len(tc.want) {
+				t.Fatalf("len(got)=%d want=%d; got=%v want=%v", len(got), len(tc.want), got, tc.want)
+			}
+			for i, a := range got {
+				w := tc.want[i]
+				if a.Type != w.Type || a.Dest != w.Dest {
+					t.Errorf("action[%d]: got {Type:%q Dest:%q}, want {Type:%q Dest:%q}",
+						i, a.Type, a.Dest, w.Type, w.Dest)
+				}
+			}
+		})
+	}
+}

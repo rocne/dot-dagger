@@ -147,6 +147,7 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 		if err != nil {
 			return err
 		}
+		anns = normalizeActionAnnotations(anns)
 
 		// Merge effective when.
 		fileWhen := annotation.CombineWhen(anns)
@@ -352,44 +353,61 @@ func parseActionString(s string) Action {
 }
 
 // mergeActions produces the final Action list for a node.
-// It starts from inherited default action types, then applies file-level annotations.
-// File-level @link / @source / @no-source annotations add or replace.
+// anns must be pre-normalized by normalizeActionAnnotations — only Key=="action" entries
+// are processed; all other annotation keys are ignored.
 func mergeActions(defaultActions []string, anns []annotation.Annotation) []Action {
-	// Collect defaults into Action structs.
 	var actions []Action
 	seen := map[string]bool{}
+
+	// Seed with inherited defaults.
 	for _, actStr := range defaultActions {
 		act := parseActionString(actStr)
-		if !seen[act.Type] {
+		if act.Type != "" && !seen[act.Type] {
 			actions = append(actions, act)
 			seen[act.Type] = true
 		}
 	}
 
-	// Apply file annotation overrides.
+	// Apply normalized action annotations.
 	for _, a := range anns {
-		switch a.Key {
+		if a.Key != "action" {
+			continue
+		}
+		act := parseActionString(a.Args)
+		switch act.Type {
+		case "compose":
+			if !seen["compose"] {
+				actions = append(actions, act)
+				seen["compose"] = true
+			}
 		case "link":
 			if !seen["link"] {
-				actions = append(actions, Action{Type: "link", Dest: a.Args})
+				actions = append(actions, act)
 				seen["link"] = true
 			} else {
-				// Replace existing link action dest.
 				for i := range actions {
 					if actions[i].Type == "link" {
-						actions[i].Dest = a.Args
+						actions[i].Dest = act.Dest
 					}
 				}
 			}
 		case "source":
-			if !seen["source"] {
-				actions = append(actions, Action{Type: "source"})
+			if !seen["source"] && !seen["no-source"] {
+				actions = append(actions, act)
 				seen["source"] = true
 			}
 		case "no-source":
-			// no-source suppresses source.
+			// Remove any existing source, then record no-source.
+			var filtered []Action
+			for _, existing := range actions {
+				if existing.Type != "source" {
+					filtered = append(filtered, existing)
+				}
+			}
+			actions = filtered
+			delete(seen, "source")
 			if !seen["no-source"] {
-				actions = append(actions, Action{Type: "no-source"})
+				actions = append(actions, act)
 				seen["no-source"] = true
 			}
 		}
