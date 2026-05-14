@@ -102,7 +102,7 @@ These existing annotations and keys remain valid and are treated as aliases:
 |-------|-----------|
 | `@source` | `@action source` |
 | `@no-source` | `@action no-source` |
-| `@symlink <dest>` | `@action link(<dest>)` |
+| `@symlink(dest)` | `@action link(dest)` |
 | `compose: true` in `.dotd.yaml` | `actions: [compose]` |
 
 `@require` and `@request` are **not** actions — they are package dependency declarations and remain their own annotation type.

@@ -38,13 +38,17 @@ Converts all action-related annotation keys to canonical `{Key: "action", Args: 
 | `@no-source` | `@action no-source` |
 | `@when`, `@after`, `@name`, etc. | pass through unchanged |
 
-Non-action annotations are not touched.
+Non-action annotations are not touched. `normalizeActionAnnotations` applies only to the file annotation path (`annotation.Scan` output). Files declared in `.dagger` `files:` dict entries use `parseActionString` directly and are canonical by construction — normalization does not run on them.
+
+Note on `@symlink`: the alias uses parens (`@symlink(dest)`), consistent with all other annotations. Space-separated form (`@symlink dest`) is not supported.
+
+Note on `@action compose` in a file annotation: normalization passes it through unchanged. `ValidateNodes` will reject it as "compose is only valid on directories."
 
 **`ValidateNodes([]RawNode) error`**
 
 Validates every node in the slice. Collects all errors before returning — does not stop at the first. Returns nil if everything is valid.
 
-Error conditions:
+Error conditions (`<name>` = `n.LogicalName`):
 
 | Condition | Error message |
 |---|---|
@@ -53,16 +57,28 @@ Error conditions:
 | `link` or `source` before `compose` on a dir node | `node <name>: link/source must follow compose` |
 | Two `link` actions with different destinations on same node | `node <name>: conflicting link destinations` |
 
-Directory nodes are identified by `n.ComposeTarget == n.Path` (set by Walk for `composition.enabled` dirs). Empty action lists are valid (no-op nodes pass through silently).
+"Before" means lower index in the `Actions` slice. Walk always prepends `compose` at index 0 for directory nodes, so this rule is a future-proofing guard.
 
-`source`/`no-source` conflict is resolved in `mergeActions`, not validation: when `no-source` is encountered, any existing `source` is removed from the accumulated list. The two never coexist in the final `Actions` slice.
+Same-dest duplicate `link` actions on the same node are silently deduplicated (consistent with the `seen` map in `mergeActions`).
+
+Directory nodes are identified by `n.ComposeTarget == n.Path`. This works because Walk only emits directory-level nodes for `composition.enabled` dirs, which always set `ComposeTarget = Path`. Empty action lists are valid (no-op nodes pass through silently).
 
 ---
 
 ### 2. `internal/pipeline/walk.go` (modified)
 
-- After `annotation.Scan()`, call `normalizeActionAnnotations` before passing annotations to `mergeActions`.
-- `mergeActions` simplified: only handles `Key == "action"`. Removes the individual `case "source"`, `case "link"`, `case "no-source"` branches — all arrive pre-normalized.
+**`normalizeActionAnnotations` call site:** after `annotation.Scan()`, before `mergeActions`.
+
+**`mergeActions` simplified:** only handles `Key == "action"`. For each such annotation, call `parseActionString(a.Args)` to recover the `Action` struct, then apply the accumulation logic:
+
+- `compose`: add if not already seen
+- `link(dest)`: if `link` not seen, append; if already seen, replace dest
+- `source`: add if not already seen and `no-source` not already seen
+- `no-source`: remove any existing `source` from the accumulated list, then add `no-source`
+
+`no-source` remains in the final `Actions` slice — `act.go` detects it in its first-pass scan to suppress sourcing. `source` and `no-source` never coexist in the final slice: `mergeActions` ensures this invariant.
+
+The individual `case "source"`, `case "link"`, `case "no-source"` branches in the current `mergeActions` switch are removed — all action annotations arrive pre-normalized as `Key == "action"`.
 
 ---
 
@@ -111,5 +127,5 @@ All existing annotation forms continue to work — normalization handles them tr
 ## Testing
 
 - Unit tests for `normalizeActionAnnotations`: each alias maps correctly, non-action annotations pass through
-- Unit tests for `ValidateNodes`: each of the five error conditions, plus valid sequences (`compose → link`, `compose → source → link`, file with `source` only)
+- Unit tests for `ValidateNodes`: each of the four error conditions, plus valid sequences (`compose → link`, `compose → source → link`, file with `source` only)
 - Existing pipeline integration tests must pass unchanged — aliases still work
