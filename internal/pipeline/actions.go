@@ -1,6 +1,9 @@
 package pipeline
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/rocne/dot-dagger/internal/annotation"
 )
 
@@ -26,4 +29,55 @@ func normalizeActionAnnotations(anns []annotation.Annotation) []annotation.Annot
 		}
 	}
 	return result
+}
+
+// ValidateNodes checks every node for action sequencing errors. All errors are
+// collected and returned together. Returns nil if all nodes are valid.
+func ValidateNodes(nodes []RawNode) error {
+	var errs []string
+	for _, n := range nodes {
+		if err := validateNode(n); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("action validation:\n  %s", strings.Join(errs, "\n  "))
+	}
+	return nil
+}
+
+func validateNode(n RawNode) error {
+	// Directory nodes have ComposeTarget == Path (set by Walk for composition.enabled dirs).
+	isDir := n.ComposeTarget != "" && n.ComposeTarget == n.Path
+
+	seenCompose := false
+	var linkDests []string
+
+	for _, a := range n.Actions {
+		switch a.Type {
+		case "compose":
+			if !isDir {
+				return fmt.Errorf("node %s: compose is only valid on directories", n.LogicalName)
+			}
+			seenCompose = true
+		case "link":
+			if a.Dest == "" {
+				return fmt.Errorf("node %s: link requires a destination", n.LogicalName)
+			}
+			if isDir && !seenCompose {
+				return fmt.Errorf("node %s: link/source must follow compose", n.LogicalName)
+			}
+			for _, prev := range linkDests {
+				if prev != a.Dest {
+					return fmt.Errorf("node %s: conflicting link destinations", n.LogicalName)
+				}
+			}
+			linkDests = append(linkDests, a.Dest)
+		case "source":
+			if isDir && !seenCompose {
+				return fmt.Errorf("node %s: link/source must follow compose", n.LogicalName)
+			}
+		}
+	}
+	return nil
 }

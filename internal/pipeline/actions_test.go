@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/rocne/dot-dagger/internal/annotation"
@@ -160,6 +161,154 @@ func TestMergeActions_CanonicalAnnotations(t *testing.T) {
 				if a.Type != w.Type || a.Dest != w.Dest {
 					t.Errorf("action[%d]: got {Type:%q Dest:%q}, want {Type:%q Dest:%q}",
 						i, a.Type, a.Dest, w.Type, w.Dest)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateNodes(t *testing.T) {
+	// dirNode returns a RawNode that looks like a compose-target directory (no actions yet).
+	dirNode := func(name string) RawNode {
+		return RawNode{
+			Path:          "/dotfiles/" + name,
+			LogicalName:   name,
+			ComposeTarget: "/dotfiles/" + name, // ComposeTarget == Path → directory
+		}
+	}
+	// withActions clones n and sets its Actions slice.
+	withActions := func(n RawNode, actions []Action) RawNode {
+		n.Actions = actions
+		return n
+	}
+	// fileNode returns a RawNode that looks like a regular file.
+	fileNode := func(name string, actions []Action) RawNode {
+		return RawNode{
+			Path:        "/dotfiles/" + name,
+			LogicalName: name,
+			Actions:     actions,
+			// ComposeTarget is empty → not a directory
+		}
+	}
+
+	tests := []struct {
+		name    string
+		nodes   []RawNode
+		wantErr bool
+		errMsg  string
+	}{
+		// --- error cases ---
+		{
+			name:    "compose on file is an error",
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "compose"}})},
+			wantErr: true,
+			errMsg:  "compose is only valid on directories",
+		},
+		{
+			name:    "link without dest is an error",
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "link", Dest: ""}})},
+			wantErr: true,
+			errMsg:  "link requires a destination",
+		},
+		{
+			name: "link before compose on dir is an error",
+			nodes: []RawNode{
+				withActions(dirNode("shellrc.d"), []Action{
+					{Type: "link", Dest: "~/.zshrc"},
+					{Type: "compose"},
+				}),
+			},
+			wantErr: true,
+			errMsg:  "link/source must follow compose",
+		},
+		{
+			name: "source before compose on dir is an error",
+			nodes: []RawNode{
+				withActions(dirNode("shellrc.d"), []Action{
+					{Type: "source"},
+					{Type: "compose"},
+				}),
+			},
+			wantErr: true,
+			errMsg:  "link/source must follow compose",
+		},
+		{
+			name: "conflicting link destinations is an error",
+			nodes: []RawNode{
+				withActions(dirNode("shellrc.d"), []Action{
+					{Type: "compose"},
+					{Type: "link", Dest: "~/.zshrc"},
+					{Type: "link", Dest: "~/.bashrc"},
+				}),
+			},
+			wantErr: true,
+			errMsg:  "conflicting link destinations",
+		},
+		// --- valid cases ---
+		{
+			name:    "empty nodes slice is valid",
+			nodes:   nil,
+			wantErr: false,
+		},
+		{
+			name:    "file with source only is valid",
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "source"}})},
+			wantErr: false,
+		},
+		{
+			name:    "file with link is valid",
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "link", Dest: "~/.foo"}})},
+			wantErr: false,
+		},
+		{
+			name:    "file with no actions is valid",
+			nodes:   []RawNode{fileNode("foo.sh", nil)},
+			wantErr: false,
+		},
+		{
+			name: "dir with compose then link is valid",
+			nodes: []RawNode{
+				withActions(dirNode("shellrc.d"), []Action{
+					{Type: "compose"},
+					{Type: "link", Dest: "~/.zshrc"},
+				}),
+			},
+			wantErr: false,
+		},
+		{
+			name: "dir with compose then source then link is valid",
+			nodes: []RawNode{
+				withActions(dirNode("shellrc.d"), []Action{
+					{Type: "compose"},
+					{Type: "source"},
+					{Type: "link", Dest: "~/.zshrc"},
+				}),
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple errors are all reported",
+			nodes: []RawNode{
+				fileNode("a.sh", []Action{{Type: "compose"}}),
+				fileNode("b.sh", []Action{{Type: "link", Dest: ""}}),
+			},
+			wantErr: true,
+			errMsg:  "compose is only valid on directories",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateNodes(tc.nodes)
+			if tc.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tc.wantErr && tc.errMsg != "" {
+				if !strings.Contains(err.Error(), tc.errMsg) {
+					t.Errorf("error %q does not contain %q", err.Error(), tc.errMsg)
 				}
 			}
 		})
