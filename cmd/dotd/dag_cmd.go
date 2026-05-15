@@ -9,9 +9,8 @@ import (
 
 func newDagCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:    "dag",
-		Short:  "Inspect the dotfile dependency graph",
-		Hidden: true,
+		Use:   "dag",
+		Short: "Inspect the dotfile dependency graph",
 	}
 	cmd.AddCommand(newDagCheckCmd(cfg))
 	return cmd

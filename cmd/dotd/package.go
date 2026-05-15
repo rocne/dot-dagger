@@ -14,9 +14,8 @@ import (
 
 func newPackageCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:    "package",
-		Short:  "Package management — filtered by active predicates",
-		Hidden: true,
+		Use:   "package",
+		Short: "Package management — filtered by active predicates",
 	}
 	cmd.AddCommand(
 		newPackageCheckCmd(cfg),
