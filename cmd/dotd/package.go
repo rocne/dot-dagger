@@ -21,6 +21,7 @@ func newPackageCmd(cfg *config) *cobra.Command {
 	cmd.AddCommand(
 		newPackageCheckCmd(cfg),
 		newPackageGenerateCmd(cfg),
+		newPackageListCmd(cfg),
 	)
 	return cmd
 }
@@ -92,6 +93,42 @@ func newPackageGenerateCmd(cfg *config) *cobra.Command {
 
 			reqs := collectPackageRequests(active)
 			return packages.GenerateScript(cmd.OutOrStdout(), reqs, reg, exec.LookPath)
+		},
+	}
+}
+
+func newPackageListCmd(cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List all packages referenced in active nodes",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved, err := resolveEnv(cfg)
+			if err != nil {
+				return annotateKeyError(err)
+			}
+			nodes, err := pipeline.Walk(cfg.files)
+			if err != nil {
+				return fmt.Errorf("walk: %w", err)
+			}
+			active, err := pipeline.Filter(nodes, resolved)
+			if err != nil {
+				return annotateKeyError(err)
+			}
+
+			reqs := collectPackageRequests(active)
+			seen := map[string]bool{}
+			for _, r := range reqs {
+				if seen[r.Package] {
+					continue
+				}
+				seen[r.Package] = true
+				kind := "request"
+				if r.Hard {
+					kind = "require"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %s\n", r.Package, kind)
+			}
+			return nil
 		},
 	}
 }
