@@ -427,3 +427,58 @@ func TestBundleSimple(t *testing.T) {
 		t.Errorf("expected file content in bundle output: %q", out)
 	}
 }
+
+// --- dotd env diff ---
+
+func TestEnvDiffShowsOverride(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(envFile, []byte("context: work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DOTD_CONTEXT", "")
+
+	out, err := run(t, "env", "diff",
+		"--env-file", envFile,
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "context") {
+		t.Errorf("expected 'context' in diff output, got %q", out)
+	}
+}
+
+func TestEnvDiffEmptyFile(t *testing.T) {
+	out, err := run(t, "env", "diff",
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "no overrides") {
+		t.Errorf("expected 'no overrides', got %q", out)
+	}
+}
+
+func TestEnvDiffShellVarMatches(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(envFile, []byte("context: work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DOTD_CONTEXT", "work")
+
+	out, err := run(t, "env", "diff",
+		"--env-file", envFile,
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "no overrides") {
+		t.Errorf("expected 'no overrides' when values match, got %q", out)
+	}
+}
