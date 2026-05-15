@@ -427,3 +427,128 @@ func TestBundleSimple(t *testing.T) {
 		t.Errorf("expected file content in bundle output: %q", out)
 	}
 }
+
+// --- dotd env diff ---
+
+func TestEnvDiffShowsOverride(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(envFile, []byte("context: work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DOTD_CONTEXT", "")
+
+	out, err := run(t, "env", "diff",
+		"--env-file", envFile,
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "context") {
+		t.Errorf("expected 'context' in diff output, got %q", out)
+	}
+}
+
+func TestEnvDiffEmptyFile(t *testing.T) {
+	out, err := run(t, "env", "diff",
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "no overrides") {
+		t.Errorf("expected 'no overrides', got %q", out)
+	}
+}
+
+func TestEnvDiffShellVarMatches(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(envFile, []byte("context: work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DOTD_CONTEXT", "work")
+
+	out, err := run(t, "env", "diff",
+		"--env-file", envFile,
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("env diff error = %v", err)
+	}
+	if !strings.Contains(out, "no overrides") {
+		t.Errorf("expected 'no overrides' when values match, got %q", out)
+	}
+}
+
+// --- dotd package list ---
+
+func TestPackageListEmpty(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "packages.yaml"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := run(t, "package", "list",
+		"--env-file", emptyEnvFile(t),
+		"--files", dir,
+	)
+	if err != nil {
+		t.Fatalf("package list error = %v", err)
+	}
+}
+
+func TestPackageListShowsAnnotations(t *testing.T) {
+	dir := t.TempDir()
+	shellrc := filepath.Join(dir, "shellrc")
+	if err := os.MkdirAll(shellrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrc, "base.sh"), []byte("# @require(ripgrep)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "packages.yaml"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run(t, "package", "list",
+		"--env-file", emptyEnvFile(t),
+		"--files", dir,
+	)
+	if err != nil {
+		t.Fatalf("package list error = %v", err)
+	}
+	if !strings.Contains(out, "ripgrep") {
+		t.Errorf("expected 'ripgrep' in output, got %q", out)
+	}
+	if !strings.Contains(out, "require") {
+		t.Errorf("expected 'require' in output, got %q", out)
+	}
+}
+
+func TestPackageListShowsRequestAnnotation(t *testing.T) {
+	dir := t.TempDir()
+	shellrc := filepath.Join(dir, "shellrc")
+	if err := os.MkdirAll(shellrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrc, "base.sh"), []byte("# @request(curl)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "packages.yaml"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run(t, "package", "list",
+		"--env-file", emptyEnvFile(t),
+		"--files", dir,
+	)
+	if err != nil {
+		t.Fatalf("package list error = %v", err)
+	}
+	if !strings.Contains(out, "curl") {
+		t.Errorf("expected 'curl' in output, got %q", out)
+	}
+	if !strings.Contains(out, "request") {
+		t.Errorf("expected 'request' in output, got %q", out)
+	}
+}

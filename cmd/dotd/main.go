@@ -240,6 +240,55 @@ func buildActOptions(cfg *config, dryRun bool) (pipeline.ActOptions, error) {
 	}, nil
 }
 
+type pipelineRun struct {
+	resolvedCount int
+	allCount      int
+	activeCount   int
+	result        *pipeline.ActResult
+}
+
+func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
+	resolved, err := resolveEnv(cfg)
+	if err != nil {
+		return nil, annotateKeyError(err)
+	}
+
+	nodes, err := pipeline.Walk(cfg.files)
+	if err != nil {
+		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
+	}
+
+	if err := pipeline.ValidateNodes(nodes); err != nil {
+		return nil, err
+	}
+
+	active, err := pipeline.Filter(nodes, resolved)
+	if err != nil {
+		return nil, annotateKeyError(err)
+	}
+
+	ordered, err := pipeline.Order(active)
+	if err != nil {
+		return nil, fmt.Errorf("order: %w", err)
+	}
+
+	actOpts, err := buildActOptions(cfg, dryRun)
+	if err != nil {
+		return nil, err
+	}
+	res, err := pipeline.Act(ordered, actOpts)
+	if err != nil {
+		return nil, fmt.Errorf("act: %w", err)
+	}
+
+	return &pipelineRun{
+		resolvedCount: len(resolved),
+		allCount:      len(nodes),
+		activeCount:   len(active),
+		result:        res,
+	}, nil
+}
+
 func annotateKeyError(err error) error {
 	var mke *predicate.MissingKeyError
 	if errors.As(err, &mke) {
@@ -290,97 +339,41 @@ Examples:
 }
 
 func runApply(cmd *cobra.Command, cfg *config) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return annotateKeyError(err)
-	}
-	cfg.log.Debugf("%s %d keys", ui.Header("env:"), len(resolved))
-
-	nodes, err := pipeline.Walk(cfg.files)
-	if err != nil {
-		return fmt.Errorf("walk %s: %w", cfg.files, err)
-	}
-
-	if err := pipeline.ValidateNodes(nodes); err != nil {
-		return err
-	}
-
-	active, err := pipeline.Filter(nodes, resolved)
-	if err != nil {
-		return annotateKeyError(err)
-	}
-	cfg.log.Debugf("%s %d active / %d total", ui.Header("filter:"), len(active), len(nodes))
-
-	ordered, err := pipeline.Order(active)
-	if err != nil {
-		return fmt.Errorf("order: %w", err)
-	}
-
-	actOpts, err := buildActOptions(cfg, false)
+	run, err := runPipeline(cfg, false)
 	if err != nil {
 		return err
 	}
-	res, err := pipeline.Act(ordered, actOpts)
-	if err != nil {
-		return fmt.Errorf("act: %w", err)
-	}
+	cfg.log.Debugf("%s %d keys", ui.Header("env:"), run.resolvedCount)
+	cfg.log.Debugf("%s %d active / %d total", ui.Header("filter:"), run.activeCount, run.allCount)
 
 	if cfg.dryRun {
-		for _, lnk := range res.Links {
+		for _, lnk := range run.result.Links {
 			fmt.Fprintf(cmd.OutOrStdout(), "# link %s %s %s\n", lnk.Src, ui.Arrow("→"), lnk.Dest)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s (%d sourced nodes)\n", cfg.initFile, len(res.Sourced))
+		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s (%d sourced nodes)\n", cfg.initFile, len(run.result.Sourced))
 		return nil
 	}
 
-	cfg.log.Infof("%s %d symlinks applied", ui.Header("links:"), len(res.Links))
+	cfg.log.Infof("%s %d symlinks applied", ui.Header("links:"), len(run.result.Links))
 
-	if err := pipeline.Generate(cfg.initFile, res.Sourced); err != nil {
+	if err := pipeline.Generate(cfg.initFile, run.result.Sourced); err != nil {
 		return fmt.Errorf("generate init.sh: %w", err)
 	}
-	cfg.log.Infof("%s wrote %s (%d nodes)", ui.Header("init.sh:"), cfg.initFile, len(res.Sourced))
+	cfg.log.Infof("%s wrote %s (%d nodes)", ui.Header("init.sh:"), cfg.initFile, len(run.result.Sourced))
 	return nil
 }
 
 func runCheck(cmd *cobra.Command, cfg *config) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return annotateKeyError(err)
-	}
-
-	nodes, err := pipeline.Walk(cfg.files)
-	if err != nil {
-		return fmt.Errorf("walk %s: %w", cfg.files, err)
-	}
-
-	if err := pipeline.ValidateNodes(nodes); err != nil {
-		return err
-	}
-
-	active, err := pipeline.Filter(nodes, resolved)
-	if err != nil {
-		return annotateKeyError(err)
-	}
-	cfg.log.Infof("%s %d active / %d total", ui.Header("filter:"), len(active), len(nodes))
-
-	ordered, err := pipeline.Order(active)
-	if err != nil {
-		return fmt.Errorf("order: %w", err)
-	}
-
-	actOpts, err := buildActOptions(cfg, true)
+	run, err := runPipeline(cfg, true)
 	if err != nil {
 		return err
 	}
-	res, err := pipeline.Act(ordered, actOpts)
-	if err != nil {
-		return fmt.Errorf("act: %w", err)
-	}
+	cfg.log.Infof("%s %d active / %d total", ui.Header("filter:"), run.activeCount, run.allCount)
 
 	var hasIssues bool
 
 	var ok, missing, wrong int
-	for _, lnk := range res.Links {
+	for _, lnk := range run.result.Links {
 		target, lerr := os.Readlink(lnk.Dest)
 		if errors.Is(lerr, fs.ErrNotExist) {
 			missing++
@@ -404,7 +397,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		cfg.log.Warn(cfg.initFile, "state", "missing")
 		hasIssues = true
 	} else {
-		cfg.log.Infof("%s %s present (%d sourced nodes)", ui.Header("init.sh:"), cfg.initFile, len(res.Sourced))
+		cfg.log.Infof("%s %s present (%d sourced nodes)", ui.Header("init.sh:"), cfg.initFile, len(run.result.Sourced))
 	}
 
 	if hasIssues {

@@ -20,6 +20,7 @@ func newEnvCmd(cfg *config) *cobra.Command {
 		newEnvGetCmd(cfg),
 		newEnvSetCmd(cfg),
 		newEnvEditCmd(cfg),
+		newEnvDiffCmd(cfg),
 	)
 	return cmd
 }
@@ -114,6 +115,52 @@ func newEnvEditCmd(cfg *config) *cobra.Command {
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 			return c.Run()
+		},
+	}
+}
+
+func newEnvDiffCmd(cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "diff",
+		Short: "Show env.yaml keys that override shell-detected values",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Intentionally compares env.yaml values against DOTD_* shell vars,
+			// not the final resolved env. --env CLI overrides are not included —
+			// diff shows what the file contributes, not what the invocation overrides.
+			raw, err := env.Load(cfg.envFile)
+			if err != nil {
+				return err
+			}
+			expanded, err := env.Expand(raw)
+			if err != nil {
+				return err
+			}
+			shellVars := env.ShellVars(os.Environ())
+
+			keys := make([]string, 0, len(expanded))
+			for k := range expanded {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+
+			hasAny := false
+			for _, k := range keys {
+				envVal := expanded[k]
+				shellVal, inShell := shellVars[k]
+				if inShell && envVal == shellVal {
+					continue
+				}
+				if inShell {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: %q (shell) → %q (env.yaml)\n", k, shellVal, envVal)
+				} else {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: (unset) → %q (env.yaml)\n", k, envVal)
+				}
+				hasAny = true
+			}
+			if !hasAny {
+				fmt.Fprintln(cmd.OutOrStdout(), "no overrides — env.yaml values match shell")
+			}
+			return nil
 		},
 	}
 }

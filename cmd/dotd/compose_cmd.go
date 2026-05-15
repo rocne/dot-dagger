@@ -16,9 +16,8 @@ import (
 
 func newComposeCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:    "compose",
-		Short:  "Manage compose targets (assembled fragment files)",
-		Hidden: true,
+		Use:   "compose",
+		Short: "Manage compose targets (assembled fragment files)",
 	}
 	cmd.AddCommand(
 		newComposeListCmd(cfg),

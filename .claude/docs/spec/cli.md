@@ -10,58 +10,61 @@ dotd <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `dotd apply` | Full reconciliation — env → fileset → packages → links → init.sh |
+| `dotd apply` | Full reconciliation — env → walk → filter → order → act → init.sh |
 | `dotd check` | Validate all stages without making changes |
-| `dotd setup` | Interactive onboarding — scaffold dotfiles repo structure and config files |
-| `dotd adopt <file>` | Import a file into the dotfiles repo, inferring the destination directory |
+| `dotd init` | Interactive onboarding — scaffold dotfiles repo structure and config files |
+| `dotd adopt <file>` | Import a file into the dotfiles repo _(not yet migrated to v2)_ |
 | `dotd completion <shell>` | Generate shell completion script (bash, zsh, fish, powershell) |
 
-### `dotd link` subcommands
+### `dotd list` subcommands
 
 | Command | Description |
 |---------|-------------|
-| `dotd link apply` | Plan and apply symlinks for active `conf/` and `bin/` nodes |
-| `dotd link check` | Report symlink state without making changes |
-| `dotd link remove` | Remove owned symlinks |
+| `dotd list` | List active nodes (logical name, actions, path) |
+| `dotd list --inactive` | List all nodes including inactive, with conditions |
+| `dotd list --json` | Machine-readable JSON output |
 
 ### `dotd dag` subcommands
 
 | Command | Description |
 |---------|-------------|
-| `dotd dag apply` | Resolve DAG and write `init.sh` |
-| `dotd dag check` | Validate DAG ordering without writing `init.sh` |
-
-### `dotd files` subcommands
-
-| Command | Description |
-|---------|-------------|
-| `dotd files list` | List active files (kind, logical name, path) |
-| `dotd files list --all` | List all files including inactive and disabled, with conditions |
+| `dotd dag check` | Print nodes in dependency order |
 
 ### `dotd env` subcommands
 
 | Command | Description |
 |---------|-------------|
-| `dotd env show` | Display all resolved env key-value pairs |
+| `dotd env show` | Display all resolved env key=value pairs |
 | `dotd env get <key>` | Get a specific key |
-| `dotd env set <key=value>` | Set a key in `env.yaml` |
-| `dotd env diff` | Show keys where `env.yaml` overrides auto-detected values |
+| `dotd env set <key> <value>` | Set a key in `env.yaml` |
+| `dotd env diff` | Show keys where `env.yaml` overrides shell-detected values |
+| `dotd env edit` | Open `env.yaml` in `$EDITOR` |
 
 ### `dotd compose` subcommands
 
 | Command | Description |
 |---------|-------------|
-| `dotd compose apply` | Generate all composed files and register for linking |
-| `dotd compose check` | Validate compose targets — report stale or missing generated files |
-| `dotd compose list` | List all compose targets and their active fragments |
+| `dotd compose list` | List active compose targets |
+| `dotd compose check` | Check compose targets for staleness |
+
+Note: compose files are generated (and symlinked) by `dotd apply`.
 
 ### `dotd package` subcommands
 
 | Command | Description |
 |---------|-------------|
-| `dotd package check` | Report package status without installing |
-| `dotd package list` | List all packages declared in active nodes |
+| `dotd package list` | List all packages referenced in active nodes |
+| `dotd package check` | Report install status for all referenced packages |
 | `dotd package generate` | Generate a shell install script for active package requirements |
+
+### `dotd config` subcommands
+
+| Command | Description |
+|---------|-------------|
+| `dotd config show` | Show current config.yaml values |
+| `dotd config get <key>` | Get a single config key |
+| `dotd config set <key> <value>` | Set a key in config.yaml |
+| `dotd config edit` | Open config.yaml in `$EDITOR` |
 
 ### Global flags
 
