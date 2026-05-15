@@ -97,12 +97,15 @@ func TestDefaultDotfilesFromEnvVar(t *testing.T) {
 }
 
 func TestDefaultDotfilesFallsToCwd(t *testing.T) {
-	// Save the original value to restore later
 	origDotfiles, hadDotfiles := os.LookupEnv("DOTFILES")
-	os.Unsetenv("DOTFILES")
+	if err := os.Unsetenv("DOTFILES"); err != nil {
+		t.Fatalf("unsetenv DOTFILES: %v", err)
+	}
 	t.Cleanup(func() {
 		if hadDotfiles {
-			os.Setenv("DOTFILES", origDotfiles)
+			if err := os.Setenv("DOTFILES", origDotfiles); err != nil {
+				t.Errorf("restore DOTFILES: %v", err)
+			}
 		}
 	})
 
