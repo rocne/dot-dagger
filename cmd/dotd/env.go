@@ -124,6 +124,9 @@ func newEnvDiffCmd(cfg *config) *cobra.Command {
 		Use:   "diff",
 		Short: "Show env.yaml keys that override shell-detected values",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Intentionally compares env.yaml values against DOTD_* shell vars,
+			// not the final resolved env. --env CLI overrides are not included —
+			// diff shows what the file contributes, not what the invocation overrides.
 			raw, err := env.Load(cfg.envFile)
 			if err != nil {
 				return err
