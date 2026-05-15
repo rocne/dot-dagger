@@ -301,6 +301,10 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
 
+	if err := pipeline.ValidateNodes(nodes); err != nil {
+		return err
+	}
+
 	active, err := pipeline.Filter(nodes, resolved)
 	if err != nil {
 		return annotateKeyError(err)
@@ -347,6 +351,10 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	nodes, err := pipeline.Walk(cfg.files)
 	if err != nil {
 		return fmt.Errorf("walk %s: %w", cfg.files, err)
+	}
+
+	if err := pipeline.ValidateNodes(nodes); err != nil {
+		return err
 	}
 
 	active, err := pipeline.Filter(nodes, resolved)
