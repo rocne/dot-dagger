@@ -12,7 +12,8 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## Features
 
-- [ ] **Unified action system** — specced in `actions.md`. Implement `@action <type>` annotation and `actions:` key in `.dotd.yaml`; wire `@source`/`@no-source`/`@symlink`/`compose: true` as aliases; implement convention dir defaults as implicit actions; enforce sequencing rules and error cases.
+- [x] **Unified action system (core)** — `@action` annotation, alias normalization, `ValidateNodes` stage, wired in `runApply`/`runCheck`. Merged in PR #61.
+- [ ] **Convention dir defaults (P3)** — `shellrc/` → implicit source, `conf/` → implicit `link(<dot-transform>)`, `bin/` → implicit `link(<bin-dir>/<name>)`. Currently pre-populated as `.dagger` fixtures; not special pipeline logic. Low urgency.
 
 ## Git / CI Infrastructure
 
