@@ -552,3 +552,21 @@ func TestPackageListShowsRequestAnnotation(t *testing.T) {
 		t.Errorf("expected 'request' in output, got %q", out)
 	}
 }
+
+func TestResolveToFlag(t *testing.T) {
+	tests := []struct {
+		to   string
+		name string
+		want string
+	}{
+		{"conf/dot-gitconfig-work", ".gitconfig", "conf/dot-gitconfig-work"},
+		{"conf/", ".gitconfig", "conf/.gitconfig"},
+		{"bin/", "my-script", "bin/my-script"},
+	}
+	for _, tt := range tests {
+		got := resolveToFlag(tt.to, tt.name)
+		if got != tt.want {
+			t.Errorf("resolveToFlag(%q, %q) = %q, want %q", tt.to, tt.name, got, tt.want)
+		}
+	}
+}
