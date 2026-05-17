@@ -109,3 +109,188 @@ func TestInfer_CustomConventions(t *testing.T) {
 		t.Errorf("DestRel = %q, want %q", got.DestRel, "dotfiles/dot-gitconfig")
 	}
 }
+
+func TestAdopt_Conf(t *testing.T) {
+	dotfiles := t.TempDir()
+	srcDir := t.TempDir()
+	src := filepath.Join(srcDir, ".bashrc")
+	if err := os.WriteFile(src, []byte("# bashrc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{
+		DotfilesRoot: dotfiles,
+		Conventions:  DefaultConventions(),
+		LinkRoot:     srcDir,
+	}
+
+	res, err := Adopt(src, "conf/dot-bashrc", opts)
+	if err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+
+	// Original regular file replaced by symlink.
+	if fi, statErr := os.Lstat(src); statErr != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Error("original file should have been replaced by a symlink")
+	}
+
+	// File present in dotfiles.
+	destAbs := filepath.Join(dotfiles, "conf/dot-bashrc")
+	content, err := os.ReadFile(destAbs)
+	if err != nil {
+		t.Fatalf("read dest: %v", err)
+	}
+	if string(content) != "# bashrc\n" {
+		t.Errorf("dest content = %q, want %q", content, "# bashrc\n")
+	}
+
+	// Symlink at original src path → destAbs.
+	target, err := os.Readlink(src)
+	if err != nil {
+		t.Fatalf("readlink: %v", err)
+	}
+	if target != destAbs {
+		t.Errorf("symlink target = %q, want %q", target, destAbs)
+	}
+
+	// ActResult has one link.
+	if len(res.Links) != 1 {
+		t.Fatalf("res.Links len = %d, want 1", len(res.Links))
+	}
+	if res.Links[0].Src != destAbs || res.Links[0].Dest != src {
+		t.Errorf("link = %+v, want Src=%q Dest=%q", res.Links[0], destAbs, src)
+	}
+}
+
+func TestAdopt_Bin(t *testing.T) {
+	dotfiles := t.TempDir()
+	binDir := t.TempDir()
+	srcDir := t.TempDir()
+	src := filepath.Join(srcDir, "my-script")
+	if err := os.WriteFile(src, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{
+		DotfilesRoot: dotfiles,
+		Conventions:  DefaultConventions(),
+		BinDir:       binDir,
+	}
+
+	res, err := Adopt(src, "bin/my-script", opts)
+	if err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+
+	// Original removed.
+	if _, statErr := os.Stat(src); !os.IsNotExist(statErr) {
+		t.Error("original file should have been removed")
+	}
+
+	destAbs := filepath.Join(dotfiles, "bin/my-script")
+	symlinkPath := filepath.Join(binDir, "my-script")
+
+	// Symlink at binDir/my-script → destAbs.
+	target, err := os.Readlink(symlinkPath)
+	if err != nil {
+		t.Fatalf("readlink: %v", err)
+	}
+	if target != destAbs {
+		t.Errorf("symlink target = %q, want %q", target, destAbs)
+	}
+
+	if len(res.Links) != 1 {
+		t.Fatalf("res.Links len = %d, want 1", len(res.Links))
+	}
+}
+
+func TestAdopt_Shellrc(t *testing.T) {
+	dotfiles := t.TempDir()
+	srcDir := t.TempDir()
+	src := filepath.Join(srcDir, "aliases.sh")
+	if err := os.WriteFile(src, []byte("alias ll='ls -la'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{
+		DotfilesRoot: dotfiles,
+		Conventions:  DefaultConventions(),
+	}
+
+	res, err := Adopt(src, "shellrc/aliases.sh", opts)
+	if err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+
+	// Original removed.
+	if _, statErr := os.Stat(src); !os.IsNotExist(statErr) {
+		t.Error("original file should have been removed")
+	}
+
+	// No symlinks — shellrc files are sourced, not linked.
+	if len(res.Links) != 0 {
+		t.Errorf("res.Links = %v, want empty", res.Links)
+	}
+	// Node appears in Sourced.
+	if len(res.Sourced) != 1 {
+		t.Errorf("res.Sourced len = %d, want 1", len(res.Sourced))
+	}
+
+	// File present in dotfiles.
+	destAbs := filepath.Join(dotfiles, "shellrc/aliases.sh")
+	if _, err := os.Stat(destAbs); err != nil {
+		t.Errorf("dest missing: %v", err)
+	}
+}
+
+func TestAdopt_DestExists(t *testing.T) {
+	dotfiles := t.TempDir()
+	destAbs := filepath.Join(dotfiles, "conf/dot-bashrc")
+	if err := os.MkdirAll(filepath.Dir(destAbs), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(destAbs, []byte("existing"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	src := filepath.Join(t.TempDir(), ".bashrc")
+	if err := os.WriteFile(src, []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{DotfilesRoot: dotfiles, Conventions: DefaultConventions()}
+	_, err := Adopt(src, "conf/dot-bashrc", opts)
+	if err == nil {
+		t.Fatal("expected error when dest exists, got nil")
+	}
+}
+
+func TestAdopt_DryRun(t *testing.T) {
+	dotfiles := t.TempDir()
+	src := filepath.Join(t.TempDir(), ".bashrc")
+	if err := os.WriteFile(src, []byte("# rc"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{
+		DotfilesRoot: dotfiles,
+		Conventions:  DefaultConventions(),
+		DryRun:       true,
+	}
+
+	_, err := Adopt(src, "conf/dot-bashrc", opts)
+	if err != nil {
+		t.Fatalf("Adopt dry-run: %v", err)
+	}
+
+	// Source file still present.
+	if _, statErr := os.Stat(src); statErr != nil {
+		t.Error("original should still exist in dry-run")
+	}
+
+	// Dest NOT created.
+	destAbs := filepath.Join(dotfiles, "conf/dot-bashrc")
+	if _, statErr := os.Stat(destAbs); !os.IsNotExist(statErr) {
+		t.Error("dest should not be created in dry-run")
+	}
+}
