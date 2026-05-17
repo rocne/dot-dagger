@@ -29,12 +29,19 @@ For `shellrc/` files, no symlink is created (files are sourced, not linked). Ado
 
 ### Flags
 
+Adopt-specific flags:
+
 | Flag | Description |
 |------|-------------|
 | `--to <rel>` | Override inferred destination (relative to dotfiles root) |
 | `--yes` / `-y` | Skip confirmation prompt |
+
+Global flags honoured by adopt (declared on root command):
+
+| Flag | Behaviour in adopt |
+|------|-------------------|
 | `--dry-run` | Print plan without copying, removing, or symlinking |
-| `--force` | Pass through to `Act` — overwrites non-owned symlinks at destination |
+| `--force` | Passed through to `Act` — overwrites non-owned symlinks at destination |
 
 ### Inference rules
 
@@ -146,7 +153,7 @@ adopt.go
        │    LinkRootDir: filepath.Dir(destAbs),     // the conf/ dir
        │  }
        └─ pipeline.Act([node], ActOptions{...})
-            └─ createSymlink(src_original ← destAbs)
+            └─ createSymlink: symlink at src_original → destAbs
 ```
 
 For `bin/` files, `Actions` is `[{Type: "link", Dest: filepath.Join(binDir, name)}]` — explicit dest, no `deriveLinkDest` needed.
@@ -183,7 +190,7 @@ For `shellrc/` files, `Actions` is `[{Type: "source"}]` — `Act` returns node i
 | Test | Coverage |
 |------|----------|
 | `TestInfer_*` | Each inference rule: executable, shell ext, hidden, config ext, unknown |
-| `TestInfer_ToFlag` | `--to` with trailing slash, without trailing slash |
+| `TestResolveToFlag` | `--to` with trailing slash, without trailing slash (CLI layer, not adopter) |
 | `TestAdopt_Conf` | conf/ file: copy, remove, symlink created |
 | `TestAdopt_Bin` | bin/ file: copy, remove, symlink to binDir |
 | `TestAdopt_Shellrc` | shellrc/ file: copy, remove, no symlink, node in Sourced |
