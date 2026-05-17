@@ -13,7 +13,7 @@ dotd <command> [options]
 | `dotd apply` | Full reconciliation — env → walk → filter → order → act → init.sh |
 | `dotd check` | Validate all stages without making changes |
 | `dotd init` | Interactive onboarding — scaffold dotfiles repo structure and config files |
-| `dotd adopt <file>` | Import a file into the dotfiles repo _(not yet migrated to v2)_ |
+| `dotd adopt <file>` | Move a file into the dotfiles repo and replace it with a symlink |
 | `dotd completion <shell>` | Generate shell completion script (bash, zsh, fish, powershell) |
 
 ### `dotd list` subcommands
