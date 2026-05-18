@@ -30,13 +30,22 @@ type CompositionConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// ConventionConfig holds the names of the three convention directories.
+// Zero-value fields mean "use the default" — callers apply defaults when fields are empty.
+type ConventionConfig struct {
+	Shellrc string `yaml:"shellrc"`
+	Bin     string `yaml:"bin"`
+	Conf    string `yaml:"conf"`
+}
+
 // ComposableNode is the top-level structure of a .dagger file.
 // It represents a directory node with all possible fields.
 type ComposableNode struct {
-	NamedNode   `yaml:",inline"`
-	Defaults    BasicNode            `yaml:"defaults"`
-	Files       map[string]NamedNode `yaml:"files"`
-	Composition CompositionConfig    `yaml:"composition"`
+	NamedNode    `yaml:",inline"`
+	Defaults     BasicNode            `yaml:"defaults"`
+	Files        map[string]NamedNode `yaml:"files"`
+	Composition  CompositionConfig    `yaml:"composition"`
+	Conventions  ConventionConfig     `yaml:"conventions"`
 }
 
 // Load parses a .dagger file from r.

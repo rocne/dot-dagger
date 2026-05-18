@@ -136,3 +136,23 @@ func TestLoadFile_RealFile(t *testing.T) {
 		t.Errorf("got %+v", node)
 	}
 }
+
+func TestLoad_Conventions(t *testing.T) {
+	input := `conventions:
+  shellrc: scripts
+  bin: executables
+  conf: dotfiles`
+	node, err := Load(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if node.Conventions.Shellrc != "scripts" {
+		t.Errorf("Conventions.Shellrc = %q, want %q", node.Conventions.Shellrc, "scripts")
+	}
+	if node.Conventions.Bin != "executables" {
+		t.Errorf("Conventions.Bin = %q, want %q", node.Conventions.Bin, "executables")
+	}
+	if node.Conventions.Conf != "dotfiles" {
+		t.Errorf("Conventions.Conf = %q, want %q", node.Conventions.Conf, "dotfiles")
+	}
+}
