@@ -2,7 +2,7 @@
 
 An **action** declares what to do with a file or directory. Multiple actions can be declared on a single node and are applied in declaration order.
 
-Actions are declared via `@action` annotations on files, or via the `actions:` key in `.dotd.yaml` for directories. The existing specific annotations (`@source`, `@no-source`, `@symlink`) and `.dotd.yaml` keys (`compose: true`) are aliases for specific action types and remain valid.
+Actions are declared via `@action` annotations on files, or via the `actions:` key in `.dagger` for directories. The existing specific annotations (`@source`, `@no-source`, `@symlink`) and `.dagger` keys (`compose: true`) are aliases for specific action types and remain valid.
 
 ---
 
@@ -39,7 +39,7 @@ Multiple `@action` lines are allowed and applied in declaration order:
 
 ---
 
-## `.dotd.yaml` syntax
+## `.dagger` syntax
 
 For directories, `actions:` is a list applied in order:
 
@@ -76,21 +76,9 @@ link(dest)               # symlink directly (no compose)
 
 ---
 
-## Convention dir defaults
+## Convention dirs
 
-Convention directories carry implicit default actions that apply when no explicit action of that type overrides them:
-
-| Directory | Implicit action |
-|-----------|----------------|
-| `shellrc/` | `source` |
-| `conf/` | `link(<dot-transform of filename relative to link_root>)` |
-| `bin/` | `link(<bin-dir>/<name>)` |
-
-An explicit `@action` of the same type as a convention default replaces the convention default for that file. An explicit `@action` of a different type adds to it.
-
-Example: a file in `conf/` with `@action link(~/custom/dest)` links to `~/custom/dest` instead of the convention-derived destination. A file in `shellrc/` with `@action link(~/dest)` both sources (convention) and links (explicit).
-
-Convention dirs are a convenience layer over this system. The goal is that explicit actions can always replace or extend convention behaviour, and convention dirs can be eliminated or reconfigured without changing the action model.
+Convention directories (`shellrc/`, `bin/`, `conf/`) are not special at the action-system level. Their default actions come from `defaults.actions` in the directory's `.dagger` file — the same mechanism as any other directory. The convention is naming + prepopulated defaults, not implicit magic.
 
 ---
 
@@ -103,7 +91,7 @@ These existing annotations and keys remain valid and are treated as aliases:
 | `@source` | `@action source` |
 | `@no-source` | `@action no-source` |
 | `@symlink(dest)` | `@action link(dest)` |
-| `compose: true` in `.dotd.yaml` | `actions: [compose]` |
+| `compose: true` in `.dagger` | `actions: [compose]` |
 
 `@require` and `@request` are **not** actions — they are package dependency declarations and remain their own annotation type.
 

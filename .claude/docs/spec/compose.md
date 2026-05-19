@@ -1,28 +1,31 @@
 # §21 — Compose Targets
 
-A compose target is a directory whose contents are concatenated into a single generated file. The generated file is then handled exactly like any other file in the same context — sourced if inside `shellrc/`, symlinked if inside `conf/`, placed in the bin dir if inside `bin/`. Compose is a general assembly mechanism, not a config-file-specific feature.
+A compose target is a directory whose contents are concatenated into a single generated file. What happens to the generated file is determined by the actions declared on the compose target — `source`, `link(dest)`, or both. Compose is a general assembly mechanism; it can live anywhere in the dotfiles repo.
 
 ---
 
 ## Marking a compose target
 
-A directory is a compose target if and only if its `.dotd.yaml` declares `compose: true`:
+A directory is a compose target if and only if its `.dagger` declares `compose: true` (or `actions: [compose, ...]`):
 
 ```yaml
-dotd:
-  compose: true
+compose: true
 ```
 
 There is no implicit detection. The marker is required for clarity and validation.
 
-Compose targets must live inside a convention directory (`shellrc/`, `conf/`, or `bin/`, or their configured equivalents). A compose target outside all convention dirs is a hard error — the output would have no defined behavior.
+A compose target with only `compose: true` assembles the file but does nothing with it — add `source` or `link(dest)` to the `actions:` list to use the output:
 
+```yaml
+actions:
+  - compose
+  - source
 ```
-shellrc/dot-aliases.sh.d/    ✓  output sourced in init.sh
-conf/dot-tmux.conf.d/        ✓  output symlinked to ~/.tmux.conf
-bin/my-tool.d/               ✓  output symlinked to bin dir
-tmux/conf/dot-tmux.conf.d/   ✓  topic-grouped, same rules
-tools/dot-helper.sh.d/       ✗  error — not inside a convention dir
+
+```yaml
+actions:
+  - compose
+  - link(~/.tmux.conf)
 ```
 
 ---
@@ -42,42 +45,39 @@ nosync-dot-work.sh.d   →  work.sh
 my-tool.d              →  my-tool   (warn: no .d suffix)
 ```
 
-To override, set `dotd.name` in the compose target's `.dotd.yaml` — the directory-level equivalent of `@name` on annotatable files:
+To override, set `name:` in the compose target's `.dagger` — the directory-level equivalent of `@name` on annotatable files:
 
 ```yaml
-dotd:
-  compose: true
-  name: aliases.sh
+name: aliases.sh
+actions:
+  - compose
+  - source
 ```
 
-`dotd.name` is a raw name. The `dot-` → `.` transform is not applied to it. It sets the output logical name directly; downstream behavior (sourcing, symlink destination) is then computed from that name using the same rules as any other file in the same convention context.
+`name` is a raw name. The `dot-` → `.` transform is not applied to it. It sets the output logical name directly.
 
 ---
 
-## Output path behavior
+## Output behavior
 
-Follows the same rules as any other file in the same convention context:
-
-| Context | Behavior |
-|---------|----------|
-| `shellrc/` | Generated file is sourced into `init.sh`. No symlink. |
-| `conf/` | Generated file is symlinked to its destination. The `dot-` → `.` transform applies to the directory basename (after stripping `.d`), relative to `link_root`. |
-| `bin/` | Generated file is symlinked to the bin dir and made executable. |
-
-```
-shellrc/dot-aliases.sh.d    →  sourced in init.sh
-conf/dot-tmux.conf.d        →  strip .d → dot-tmux.conf → .tmux.conf → ~/.tmux.conf
-conf/dot-gitconfig.d        →  strip .d → dot-gitconfig → .gitconfig  → ~/.gitconfig
-bin/my-tool.d               →  strip .d → my-tool → symlinked to bin dir, executable
-```
-
-When `dotd.name` is set, the `dot-` transform is applied to `dotd.name` for `conf/` destinations:
+The generated file is handled according to the actions declared on the compose target, in order. The same action types available to any file are valid here — `source`, `link(dest)`, `no-source`:
 
 ```yaml
-dotd:
-  compose: true
-  name: dot-gitconfig    # conf/ context: symlinked to ~/.gitconfig
+actions:
+  - compose
+  - source              # source the generated file in init.sh
+
+actions:
+  - compose
+  - link(~/.tmux.conf)  # symlink the generated file
+
+actions:
+  - compose
+  - link(~/.tmux.conf)
+  - source              # symlink AND source
 ```
+
+`source` and `link` act on the generated file path, not the compose target directory.
 
 ---
 
@@ -89,12 +89,12 @@ dotd writes the composed output to:
 {dot-dagger config dir}/generated/<output-logical-name>
 ```
 
-Default config dir: `~/.config/dot-dagger`.
+Default: `~/.local/share/dot-dagger/generated/`.
 
 ```
-~/.config/dot-dagger/generated/aliases.sh
-~/.config/dot-dagger/generated/tmux.conf
-~/.config/dot-dagger/generated/my-tool
+~/.local/share/dot-dagger/generated/aliases.sh
+~/.local/share/dot-dagger/generated/tmux.conf
+~/.local/share/dot-dagger/generated/my-tool
 ```
 
 These files are what the linker symlinks or the init generator sources. The user never edits them directly.
@@ -140,8 +140,6 @@ conf/dot-tmux.conf.d/nosync-work.conf  →  conf.tmux.conf.d.work
 | `@symlink` | ❌ error |
 | `@source` / `@no-source` | ❌ error |
 | `@require` / `@request` | ❌ error |
-| `@retain-prefix` | ❌ error |
-
 Invalid annotations on fragments are hard errors at `dotd check` / `dotd apply` time.
 
 ---
@@ -150,22 +148,20 @@ Invalid annotations on fragments are hard errors at `dotd check` / `dotd apply` 
 
 `compose` is one action type in the unified action system (see [actions.md](actions.md)). It assembles a directory's active fragments into a single generated file. Subsequent actions in the same list operate on that generated file.
 
-`compose: true` in `.dotd.yaml` is an alias for `actions: [compose]`. The output action (`link`, `source`) is inferred from the parent convention directory unless explicitly declared.
+`compose: true` in `.dagger` is an alias for `actions: [compose]`. Output actions (`link`, `source`) must be declared explicitly — they are never inferred.
 
-To override the output action, use the `actions:` list directly:
+To declare output actions, use the `actions:` list directly:
 
 ```yaml
-dotd:
-  actions:
-    - compose
-    - link(~/.config/tmux/tmux.conf)
+actions:
+  - compose
+  - link(~/.config/tmux/tmux.conf)
 ```
 
 ```yaml
-dotd:
-  actions:
-    - compose
-    - source
+actions:
+  - compose
+  - source
 ```
 
 `compose: true` remains valid and fully supported — it is not deprecated.
@@ -185,7 +181,7 @@ For each compose target with at least one active fragment:
 2. Order via isolated per-target sub-DAG
 3. Concatenate fragment contents in DAG order
 4. Write atomically to the generated file path (temp file + rename, same as `init.sh`)
-5. Register a synthetic node of the appropriate kind — `KindScript`, `KindConf`, or `KindBin` — pointing to the generated file, for consumption by the linker and init generator
+5. Execute the remaining declared actions (`source`, `link`) on the generated file path
 
 Compose targets with no active fragments are skipped entirely — no generated file, no synthetic node.
 
@@ -204,7 +200,6 @@ Compose targets with no active fragments are skipped entirely — no generated f
 
 | Command | Description |
 |---------|-------------|
-| `dotd compose apply` | Generate all composed files and register synthetic nodes for downstream stages |
 | `dotd compose check` | Validate compose targets — report stale or missing generated files |
 | `dotd compose list` | List all compose targets and their active fragments |
 
@@ -217,20 +212,20 @@ Compose targets with no active fragments are skipped entirely — no generated f
 ```
 shellrc/
   dot-aliases.sh.d/
-    .dotd.yaml           ← compose: true
+    .dagger              ← actions: [compose, source]
     base.sh              ← always active
     nosync-work.sh       ← @when context=work
 
 conf/
   dot-tmux.conf.d/
-    .dotd.yaml           ← compose: true
+    .dagger              ← actions: [compose, link(~/.tmux.conf)]
     base.conf            ← always active
     nosync-work.conf     ← @when context=work
     macos.conf           ← @when os=macos
 
 bin/
   my-tool.d/
-    .dotd.yaml           ← compose: true
+    .dagger              ← actions: [compose, link(~bin/my-tool)]
     header.sh            ← always active (shebang + common setup)
     nosync-work.sh       ← @when context=work
 ```
@@ -249,8 +244,8 @@ On macOS with `context=personal`, `my-tool.d/` has only `header.sh` active. If t
 
 ## Constraints
 
-- Compose targets must live inside a convention dir (`shellrc/`, `conf/`, `bin/`). Error if outside.
+- Compose targets can live anywhere in the dotfiles repo. Output behavior is determined by declared actions, not location.
 - Nesting compose targets inside other compose targets is an error.
-- The output logical name (derived or via `dotd.name`) must be unique across all compose targets in the repo. Duplicate names are a conflict error.
-- Compose targets inside `bin/` produce executable output — the compose stage sets the executable bit on the generated file.
-- `compose` as a standalone `@action` annotation on a file (not a directory) is an error.
+- The output logical name (derived or via `name` in `.dagger`) must be unique across all compose targets in the repo. Duplicate names are a conflict error.
+- `compose` on a file (not a directory) is an error.
+- `link` or `source` declared before `compose` in the `actions:` list is an error — the generated file does not exist yet.

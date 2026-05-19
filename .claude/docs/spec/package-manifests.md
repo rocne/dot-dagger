@@ -58,10 +58,10 @@ Effective predicate for a block follows the same rule as all other files:
 directory_when AND block_when
 ```
 
-- **`directory_when`**: the `when` declared in the nearest ancestor `.dotd.yaml`, if any. If the directory predicate is false, the entire manifest file is skipped.
+- **`directory_when`**: the `when` declared in the nearest ancestor `.dagger`, if any. If the directory predicate is false, the entire manifest file is skipped.
 - **`block_when`**: the `when` declared on the block itself. Omitted = always true.
 
-To apply a predicate to an entire manifest, place the file in a directory with a `.dotd.yaml` `when` declaration. No file-level `when` key is needed or supported.
+To apply a predicate to an entire manifest, place the file in a directory with a `.dagger` `when` declaration. No file-level `when` key is needed or supported.
 
 ---
 

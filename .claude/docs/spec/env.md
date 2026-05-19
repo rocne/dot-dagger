@@ -18,7 +18,14 @@ dotfiles_repo: ~/dotfiles
 # init_file: ~/.local/share/dot-dagger/init.sh
 ```
 
-All fields are optional. Keys under `env` override auto-detected values.
+All fields are optional. `dotd init` pre-populates `env.yaml` with shell expressions for OS detection:
+
+```yaml
+env:
+  os: $(dotd get-os)
+  shell: $(basename $SHELL)
+  context: personal   # set to your value
+```
 
 ### Path fields
 
@@ -55,7 +62,7 @@ CLI `--env-file` → `DOTD_ENV_FILE` → `$XDG_CONFIG_HOME/dot-dagger/env.yaml`.
 
 ---
 
-## `.dotd.yaml` (per-directory, in dotfiles repo)
+## `.dagger` (per-directory, in dotfiles repo)
 
 The only config file in the dotfiles repo. See [dag.md §6](dag.md) for full structure.
 
