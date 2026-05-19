@@ -35,7 +35,7 @@ func newComposeListCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return annotateKeyError(err)
 			}
-			nodes, err := pipeline.Walk(cfg.files)
+			nodes, _, err := pipeline.Walk(cfg.files)
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
@@ -64,7 +64,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return annotateKeyError(err)
 			}
-			nodes, err := pipeline.Walk(cfg.files)
+			nodes, _, err := pipeline.Walk(cfg.files)
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}

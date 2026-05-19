@@ -103,8 +103,8 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			genPath := ""
 			if opts.GeneratedDir != "" {
 				// Derive filename from the compose dir basename:
-				// "dot-shellrc-extras.sh.d" → "shellrc-extras.sh"
-				dirBase := strings.TrimPrefix(filepath.Base(n.Path), "dot-")
+				// "nosync-dot-shellrc-extras.sh.d" → "shellrc-extras.sh"
+				dirBase := strings.TrimPrefix(strings.TrimPrefix(filepath.Base(n.Path), "nosync-"), "dot-")
 				dirBase = strings.TrimSuffix(dirBase, ".d")
 				genPath = filepath.Join(opts.GeneratedDir, dirBase)
 			}
@@ -202,7 +202,7 @@ func resolveLink(dest string, n RawNode, homeDir, binDir string) string {
 }
 
 // deriveLinkDest computes a link destination from n.LinkRoot + relative filename.
-// Applies "dot-" → "." transformation to the first path component.
+// Applies nosync- strip and dot- → . transformation to every path component.
 func deriveLinkDest(n RawNode) string {
 	root := n.LinkRoot
 	if root == "" || n.LinkRootDir == "" {
@@ -212,12 +212,15 @@ func deriveLinkDest(n RawNode) string {
 	if err != nil {
 		return ""
 	}
-	// Apply dot- → . transformation to the first path component.
-	parts := strings.SplitN(rel, string(filepath.Separator), 2)
-	if strings.HasPrefix(parts[0], "dot-") {
-		parts[0] = "." + parts[0][4:]
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	for i, p := range parts {
+		p = strings.TrimPrefix(p, "nosync-")
+		if strings.HasPrefix(p, "dot-") {
+			p = "." + p[4:]
+		}
+		parts[i] = p
 	}
-	return filepath.Join(root, strings.Join(parts, string(filepath.Separator)))
+	return filepath.Join(root, filepath.Join(parts...))
 }
 
 // expandDest expands "~/" and "~bin/" prefixes in a link destination.

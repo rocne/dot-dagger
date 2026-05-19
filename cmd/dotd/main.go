@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	chlog "github.com/charmbracelet/log"
@@ -253,9 +255,12 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 		return nil, annotateKeyError(err)
 	}
 
-	nodes, err := pipeline.Walk(cfg.files)
+	nodes, disabled, err := pipeline.Walk(cfg.files)
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
+	}
+	for _, p := range disabled {
+		cfg.log.Debugf("disabled: %s", p)
 	}
 
 	if err := pipeline.ValidateNodes(nodes); err != nil {
@@ -338,7 +343,30 @@ Examples:
 	}
 }
 
+// warnIfNosyncUnignored warns about nosync- paths in the dotfiles repo that are not gitignored.
+func warnIfNosyncUnignored(cfg *config) {
+	_ = filepath.WalkDir(cfg.files, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		base := filepath.Base(path)
+		if !strings.HasPrefix(base, "nosync-") {
+			return nil
+		}
+		// git check-ignore exits 0 if ignored, 1 if not, 128 if not a git repo.
+		cmd := exec.Command("git", "-C", cfg.files, "check-ignore", "--quiet", path)
+		if cmd.Run() != nil {
+			cfg.log.Warnf("nosync- path not gitignored: %s — add to .gitignore to avoid committing private files", path)
+		}
+		if d.IsDir() {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+}
+
 func runApply(cmd *cobra.Command, cfg *config) error {
+	warnIfNosyncUnignored(cfg)
 	run, err := runPipeline(cfg, false)
 	if err != nil {
 		return err
@@ -364,6 +392,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 }
 
 func runCheck(cmd *cobra.Command, cfg *config) error {
+	warnIfNosyncUnignored(cfg)
 	run, err := runPipeline(cfg, true)
 	if err != nil {
 		return err
@@ -382,7 +411,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		} else if lerr != nil {
 			wrong++
 			hasIssues = true
-			cfg.log.Warn(lnk.Dest, "state", "not-a-symlink")
+			cfg.log.Warn(lnk.Dest, "state", "conflict")
 		} else if target != lnk.Src {
 			wrong++
 			hasIssues = true

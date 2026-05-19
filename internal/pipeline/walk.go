@@ -25,6 +25,8 @@ type RawNode struct {
 	EffectiveWhen string // merged from ancestor defaults + file @when
 	Actions       []Action
 	After         []string // logical names (or prefix/) this node must come after
+	Require       []string // hard package dependencies (@require / .dagger require:)
+	Request       []string // soft package dependencies (@request / .dagger request:)
 	LinkRoot      string   // from nearest ancestor .dagger with link_root set
 	LinkRootDir   string   // abs path of dir where link_root was declared
 	IsCompose     bool     // true if this file is a compose fragment
@@ -42,8 +44,9 @@ type dirState struct {
 }
 
 // Walk traverses dotfilesRoot and returns a RawNode for every dotfile found.
-// It skips .dagger files themselves.
-func Walk(dotfilesRoot string) ([]RawNode, error) {
+// It skips .dagger files themselves. Disabled paths (via @disable or files: disable: true)
+// are returned in the second slice instead of included in nodes.
+func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 	// Pre-scan .dagger files into a map.
 	daggerMap := map[string]*dagger.ComposableNode{}
 
@@ -60,7 +63,7 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 		}
 		return nil
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Build set of files declared in .dagger files: dicts.
@@ -73,6 +76,7 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 	}
 
 	var nodes []RawNode
+	var disabled []string
 
 	// Walk to emit both compose-target directory nodes and file nodes.
 	if err := filepath.WalkDir(dotfilesRoot, func(path string, d fs.DirEntry, err error) error {
@@ -84,9 +88,9 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 			if path == dotfilesRoot {
 				return nil
 			}
-			// Emit a compose-target node for directories with composition.enabled.
+			// Emit a compose-target node for directories with composition enabled.
 			cfg, ok := daggerMap[path]
-			if !ok || !cfg.Composition.Enabled {
+			if !ok || !cfg.IsCompose() {
 				return nil
 			}
 			rel, relErr := filepath.Rel(dotfilesRoot, path)
@@ -112,9 +116,15 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 				linkRootDir = path
 			}
 
+			// Apply .dagger name override if set; otherwise derive from path.
+			logicalName := node.DeriveName(rel)
+			if cfg.Name != "" {
+				logicalName = cfg.Name
+			}
+
 			nodes = append(nodes, RawNode{
 				Path:          path,
-				LogicalName:   node.DeriveName(rel),
+				LogicalName:   logicalName,
 				EffectiveWhen: effectiveWhen,
 				Actions:       dirActions,
 				LinkRoot:      linkRoot,
@@ -149,6 +159,12 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 		}
 		anns = normalizeActionAnnotations(anns)
 
+		// @disable: skip this file entirely.
+		if _, ok := annotation.First(anns, "disable"); ok {
+			disabled = append(disabled, path)
+			return nil
+		}
+
 		// Merge effective when.
 		fileWhen := annotation.CombineWhen(anns)
 		effectiveWhen := combineWhen(state.when, fileWhen)
@@ -164,6 +180,19 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 			}
 		}
 
+		// Collect @require / @request package deps.
+		var require, request []string
+		for _, a := range annotation.Get(anns, "require") {
+			if a.Args != "" {
+				require = append(require, a.Args)
+			}
+		}
+		for _, a := range annotation.Get(anns, "request") {
+			if a.Args != "" {
+				request = append(request, a.Args)
+			}
+		}
+
 		// Apply @name override if present.
 		logicalName := node.DeriveName(rel)
 		if a, ok := annotation.First(anns, "name"); ok && a.Args != "" {
@@ -176,6 +205,8 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 			EffectiveWhen: effectiveWhen,
 			Actions:       actions,
 			After:         after,
+			Require:       require,
+			Request:       request,
 			LinkRoot:      state.linkRoot,
 			LinkRootDir:   state.linkRootDir,
 			IsCompose:     state.isCompose,
@@ -184,7 +215,7 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 		nodes = append(nodes, n)
 		return nil
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Process .dagger files: dict entries.
@@ -195,9 +226,16 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 			if _, statErr := os.Stat(filePath); statErr != nil {
 				continue // file doesn't exist, skip silently
 			}
+
+			// disable: true in .dagger files: dict skips the file.
+			if fileNode.Disable {
+				disabled = append(disabled, filePath)
+				continue
+			}
+
 			rel, relErr := filepath.Rel(dotfilesRoot, filePath)
 			if relErr != nil {
-				return nil, relErr
+				return nil, nil, relErr
 			}
 			state := cascadeState(dotfilesRoot, rel, daggerMap)
 
@@ -227,12 +265,15 @@ func Walk(dotfilesRoot string) ([]RawNode, error) {
 				LogicalName:   logicalName,
 				EffectiveWhen: effectiveWhen,
 				Actions:       fileActions,
+				After:         fileNode.After,
+				Require:       fileNode.Require,
+				Request:       fileNode.Request,
 				LinkRoot:      state.linkRoot,
 			})
 		}
 	}
 
-	return nodes, nil
+	return nodes, disabled, nil
 }
 
 // parseDaggerActions converts .dagger action strings (e.g. "link(~/.tmux.conf)") to Action structs.
@@ -358,6 +399,9 @@ func parseActionString(s string) Action {
 func mergeActions(defaultActions []string, anns []annotation.Annotation) []Action {
 	var actions []Action
 	seen := map[string]bool{}
+	// linkFromDefault tracks whether the only link action came from inherited defaults,
+	// allowing a single file annotation to override the destination.
+	linkFromDefault := false
 
 	// Seed with inherited defaults.
 	for _, actStr := range defaultActions {
@@ -365,6 +409,9 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 		if act.Type != "" && !seen[act.Type] {
 			actions = append(actions, act)
 			seen[act.Type] = true
+			if act.Type == "link" {
+				linkFromDefault = true
+			}
 		}
 	}
 
@@ -384,11 +431,25 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 			if !seen["link"] {
 				actions = append(actions, act)
 				seen["link"] = true
-			} else {
+			} else if linkFromDefault {
+				// Annotation overrides inherited default — replace dest in-place.
 				for i := range actions {
 					if actions[i].Type == "link" {
 						actions[i].Dest = act.Dest
 					}
+				}
+				linkFromDefault = false
+			} else {
+				// Second explicit annotation: keep both, validateNode reports the conflict.
+				alreadyPresent := false
+				for _, existing := range actions {
+					if existing.Type == "link" && existing.Dest == act.Dest {
+						alreadyPresent = true
+						break
+					}
+				}
+				if !alreadyPresent {
+					actions = append(actions, act)
 				}
 			}
 		case "source":
