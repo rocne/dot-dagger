@@ -3,6 +3,10 @@
 Full cross-reference of `.claude/docs/spec/` against `internal/` and `cmd/dotd/`.
 Items marked **VERIFY** need a human look before acting on them.
 
+**Status as of 2026-05-18:** All high/medium items resolved in PR #64 (`feature/claude-audit-fixes`),
+except M2 (deferred — no behavioural difference), M3 (deferred), and M8 (deferred).
+Spec updates committed in c7da628; code fixes in eb5ee9f.
+
 ---
 
 ## High Severity
@@ -11,7 +15,7 @@ Real behavioural differences where the spec and code produce different outcomes.
 
 ---
 
-### H1 — `compose: true` not parsed by code
+### H1 — `compose: true` not parsed by code ✅ FIXED
 **Spec:** compose.md §21 says mark a compose target with `compose: true` in `.dagger`.  
 **Code:** `dagger.go` parses compose under `Composition.Enabled` (`yaml:"composition"` → `yaml:"enabled"`). The actual YAML the code accepts is:
 ```yaml
@@ -23,14 +27,14 @@ composition:
 
 ---
 
-### H2 — `.dagger` YAML schema differs from dag.md §6
+### H2 — `.dagger` YAML schema differs from dag.md §6 ✅ SPEC FIXED
 **Spec:** dag.md §6 shows a schema with top-level `dotd:` and `link:` sections (e.g. `dotd.when`, `link.link_root`).  
 **Code:** All fields are flat at the top level — `when:`, `link_root:`, `defaults:`, `files:`, `actions:`, `composition:`, `conventions:`. No `dotd:` or `link:` nesting.  
 **Action:** Rewrite dag.md §6 YAML examples to match actual flat schema. **VERIFY** — dag.md may have been partially updated already.
 
 ---
 
-### H3 — `files:` dict format differs from dag.md §6
+### H3 — `files:` dict format differs from dag.md §6 ✅ SPEC FIXED
 **Spec:** dag.md §6 shows `files:` as a **sequence** (list of objects with `path:` key).  
 **Code:** `dagger.go` parses `files:` as a **map** (filename is the key). Actual format:
 ```yaml
@@ -43,7 +47,7 @@ files:
 
 ---
 
-### H4 — `@disable` annotation has no effect
+### H4 — `@disable` annotation has no effect ✅ FIXED
 **Spec:** dag.md §5 defines `@disable` to "exclude this file from all processing."  
 **Code:** `@disable` is scanned as an annotation but never checked in walk, filter, or act. Files with `@disable` are processed normally.  
 **Action:** Implement `@disable` in `walk.go` (skip node) or `filter.go` (exclude), or remove from spec.
