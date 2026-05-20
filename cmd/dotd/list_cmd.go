@@ -49,7 +49,7 @@ func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) err
 		return annotateKeyError(err)
 	}
 
-	nodes, err := pipeline.Walk(cfg.files)
+	nodes, _, err := pipeline.Walk(cfg.files)
 	if err != nil {
 		return fmt.Errorf("walk %s: %w", cfg.files, err)
 	}

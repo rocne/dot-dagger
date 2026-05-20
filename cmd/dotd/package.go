@@ -2,11 +2,9 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 
-	"github.com/rocne/dot-dagger/internal/annotation"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/spf13/cobra"
@@ -34,7 +32,7 @@ func newPackageCheckCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return annotateKeyError(err)
 			}
-			nodes, err := pipeline.Walk(cfg.files)
+			nodes, _, err := pipeline.Walk(cfg.files)
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
@@ -76,7 +74,7 @@ func newPackageGenerateCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return annotateKeyError(err)
 			}
-			nodes, err := pipeline.Walk(cfg.files)
+			nodes, _, err := pipeline.Walk(cfg.files)
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
@@ -105,7 +103,7 @@ func newPackageListCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return annotateKeyError(err)
 			}
-			nodes, err := pipeline.Walk(cfg.files)
+			nodes, _, err := pipeline.Walk(cfg.files)
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
@@ -147,29 +145,13 @@ func collectPackageRequests(nodes []pipeline.RawNode) []packages.PackageRequest 
 		if n.IsCompose {
 			continue
 		}
-		anns, err := scanAnnotations(n.Path)
-		if err != nil {
-			continue
+		for _, pkg := range n.Require {
+			reqs = append(reqs, packages.PackageRequest{Package: pkg, Hard: true, NodePath: n.Path})
 		}
-		for _, a := range annotation.Get(anns, "require") {
-			if a.Args != "" {
-				reqs = append(reqs, packages.PackageRequest{Package: a.Args, Hard: true, NodePath: n.Path})
-			}
-		}
-		for _, a := range annotation.Get(anns, "request") {
-			if a.Args != "" {
-				reqs = append(reqs, packages.PackageRequest{Package: a.Args, Hard: false, NodePath: n.Path})
-			}
+		for _, pkg := range n.Request {
+			reqs = append(reqs, packages.PackageRequest{Package: pkg, Hard: false, NodePath: n.Path})
 		}
 	}
 	return reqs
 }
 
-func scanAnnotations(path string) ([]annotation.Annotation, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
-	return annotation.Scan(f)
-}

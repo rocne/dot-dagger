@@ -46,7 +46,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 		return annotateKeyError(err)
 	}
 
-	nodes, err := pipeline.Walk(cfg.files)
+	nodes, _, err := pipeline.Walk(cfg.files)
 	if err != nil {
 		return fmt.Errorf("walk %s: %w", cfg.files, err)
 	}

@@ -12,7 +12,12 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## Features
 
-- [ ] **Unified action system** — specced in `actions.md`. Implement `@action <type>` annotation and `actions:` key in `.dotd.yaml`; wire `@source`/`@no-source`/`@symlink`/`compose: true` as aliases; implement convention dir defaults as implicit actions; enforce sequencing rules and error cases.
+- [x] **Unified action system** — implemented. `@action <type>`, `actions:` key in `.dagger`, aliases (`@source`/`@no-source`/`@symlink`/`compose: true`), sequencing validation all done. Convention dirs use explicit `.dagger` defaults by design — not implicit magic.
+- [x] **`@disable` annotation** — implemented. Walk skips disabled files; disabled paths logged at debug level.
+- [x] **BasicNode completeness** — `after`, `require`, `request`, `disable` all expressible in `.dagger` `files:` dict. `internal/manifest` and §20 dropped.
+- [x] **`compose: true` alias** — works as shorthand for `composition.enabled: true` in `.dagger`.
+- [ ] **TTY-aware missing-key prompt** (M3) — currently always halts with hint; no interactive fallback. Deferred.
+- [ ] **`dotd init` rc-file check** (M8) — `internal/setup` has `AppendSourceLine`/`HasSourceLine` but never called from `init_cmd.go`. Deferred.
 
 ## Git / CI Infrastructure
 

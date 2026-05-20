@@ -14,6 +14,7 @@ dotd <command> [options]
 | `dotd check` | Validate all stages without making changes |
 | `dotd init` | Interactive onboarding — scaffold dotfiles repo structure and config files |
 | `dotd adopt <file>` | Move a file into the dotfiles repo and replace it with a symlink |
+| `dotd bundle <file>` | Concatenate a node and its transitive `@after` dependencies into a single script |
 | `dotd completion <shell>` | Generate shell completion script (bash, zsh, fish, powershell) |
 
 ### `dotd list` subcommands
@@ -82,7 +83,8 @@ See [env.md §7](env.md) for the full resolution table.
 | `--generated-dir <path>` | Path to write composed files (`DOTD_GENERATED_DIR` / `generated_dir` in env.yaml / XDG data default) |
 | `--dry-run` | Print actions without executing |
 | `--force` | Override safety checks |
-| `--verbose` | Detailed output |
+| `--log-level <level>` | Log verbosity: `debug`, `info`, `warn`, `error` (default `info`) |
+| `--quiet` | Suppress all non-error output |
 
 ---
 

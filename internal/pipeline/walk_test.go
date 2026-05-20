@@ -27,7 +27,7 @@ func nodeByLogicalName(nodes []RawNode, name string) *RawNode {
 
 func TestWalk_ProducesNodes(t *testing.T) {
 	root := fixtureRoot(t)
-	nodes, err := Walk(root)
+	nodes, _, err := Walk(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestWalk_ProducesNodes(t *testing.T) {
 
 func TestWalk_NoDaggerFiles(t *testing.T) {
 	root := fixtureRoot(t)
-	nodes, err := Walk(root)
+	nodes, _, err := Walk(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestWalk_NoDaggerFiles(t *testing.T) {
 
 func TestWalk_DefaultsActions_Inherited(t *testing.T) {
 	root := fixtureRoot(t)
-	nodes, err := Walk(root)
+	nodes, _, err := Walk(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestWalk_DefaultsActions_Inherited(t *testing.T) {
 
 func TestWalk_FileAnnotation_When(t *testing.T) {
 	root := fixtureRoot(t)
-	nodes, err := Walk(root)
+	nodes, _, err := Walk(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestWalk_FileAnnotation_When(t *testing.T) {
 
 func TestWalk_DefaultsWhen_AndFileWhen(t *testing.T) {
 	root := fixtureRoot(t)
-	nodes, err := Walk(root)
+	nodes, _, err := Walk(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestWalk_DefaultsWhen_AndFileWhen(t *testing.T) {
 
 func TestWalk_FileAnnotation_Link(t *testing.T) {
 	root := fixtureRoot(t)
-	nodes, err := Walk(root)
+	nodes, _, err := Walk(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestWalk_FileAnnotation_Link(t *testing.T) {
 
 func TestWalk_ConfdirLinkRoot(t *testing.T) {
 	root := fixtureRoot(t)
-	nodes, err := Walk(root)
+	nodes, _, err := Walk(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestWalk_ConfdirLinkRoot(t *testing.T) {
 
 func TestWalk_LogicalName_DotPrefix(t *testing.T) {
 	root := fixtureRoot(t)
-	nodes, err := Walk(root)
+	nodes, _, err := Walk(root)
 	if err != nil {
 		t.Fatal(err)
 	}

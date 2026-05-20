@@ -12,10 +12,15 @@ import (
 )
 
 // BasicNode is the base metadata that can appear on any node.
+// Every field corresponds to an annotation supported in file headers.
 type BasicNode struct {
 	When     string   `yaml:"when"`
 	LinkRoot string   `yaml:"link_root"`
 	Actions  []string `yaml:"actions"`
+	After    []string `yaml:"after"`
+	Require  []string `yaml:"require"`
+	Request  []string `yaml:"request"`
+	Disable  bool     `yaml:"disable"`
 }
 
 // NamedNode extends BasicNode with an optional logical name override.
@@ -41,11 +46,17 @@ type ConventionConfig struct {
 // ComposableNode is the top-level structure of a .dagger file.
 // It represents a directory node with all possible fields.
 type ComposableNode struct {
-	NamedNode    `yaml:",inline"`
-	Defaults     BasicNode            `yaml:"defaults"`
-	Files        map[string]NamedNode `yaml:"files"`
-	Composition  CompositionConfig    `yaml:"composition"`
-	Conventions  ConventionConfig     `yaml:"conventions"`
+	NamedNode   `yaml:",inline"`
+	Defaults    BasicNode            `yaml:"defaults"`
+	Files       map[string]NamedNode `yaml:"files"`
+	Composition CompositionConfig    `yaml:"composition"`
+	Compose     bool                 `yaml:"compose"` // alias for composition.enabled
+	Conventions ConventionConfig     `yaml:"conventions"`
+}
+
+// IsCompose reports whether this directory is a compose target.
+func (c *ComposableNode) IsCompose() bool {
+	return c.Composition.Enabled || c.Compose
 }
 
 // Load parses a .dagger file from r.

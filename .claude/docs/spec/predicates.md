@@ -2,7 +2,7 @@
 
 Every file can declare a `when` condition. A file is active if its effective predicate evaluates to true against the current environment.
 
-A directory-level `when` in `.dotd.yaml` applies to all files in that directory and all subdirectories as a shared default. The effective predicate for any file is:
+A directory-level `when` in `.dagger` applies to all files in that directory and all subdirectories as a shared default. The effective predicate for any file is:
 
 ```
 directory_when AND file_when
@@ -14,31 +14,31 @@ A file with no `when` is implicitly true — active whenever its directory predi
 
 ## Environment keys
 
-| Key | Auto-detected? | Method | Examples |
-|-----|---------------|--------|---------|
-| `os` | Yes | `runtime.GOOS`, normalized | `macos`, `linux` |
-| `distro` | Yes | `ID=` from `/etc/os-release`; `macos` on darwin | `ubuntu`, `fedora`, `macos` |
-| `shell` | Yes | `$SHELL`, basename, lowercased | `zsh`, `bash` |
-| `context` | No | Must be set explicitly in `env.yaml` | `personal`, `work` |
+| Key | Source | Examples |
+|-----|--------|---------|
+| `os` | Shell expression in `env.yaml` — `$(dotd get-os)` | `macos`, `linux` |
+| `distro` | Shell expression in `env.yaml` — `$(dotd get-hostname)` or manual | `ubuntu`, `fedora`, `macos` |
+| `shell` | Shell expression in `env.yaml` — `$(basename $SHELL)` | `zsh`, `bash` |
+| `context` | Explicit value in `env.yaml` | `personal`, `work` |
 
-`darwin` and `macos` are treated as aliases — `runtime.GOOS` returns `darwin`, which is normalized to `macos` for both `os` and `distro` at detection time.
+`dotd init` pre-populates `env.yaml` with shell expressions for `os`, `distro`, and `shell` so they work out of the box. `context` is left for the user to set.
 
-Additional env keys can be added to `env.yaml` under the `env` section. There is no schema declaration file — any key present in `env.yaml` is available to predicates.
+`darwin` is normalised to `macos` by `dotd get-os`.
+
+Additional env keys can be added to `env.yaml`. Any key present is available to predicates.
 
 ---
 
 ## Environment resolution precedence
 
 1. `--env key=val` CLI flag (highest precedence)
-2. Explicit value in `env.yaml`
-3. Built-in auto-detection (`os`, `distro`, `shell`)
-4. Unset — surfaces as error or prompt, never silent
+2. Shell expression result from `env.yaml` (e.g. `os: $(dotd get-os)`)
+3. Explicit value in `env.yaml`
+4. Unset — halts with a clear error and hint; never silent
 
 ### Missing keys at apply time
 
-If `context` or any other required key is unset when `dotd apply` runs, the tool prompts interactively if a TTY is present, or halts with a clear error in non-interactive mode. Files gated on unset keys are not silently excluded.
-
-`Resolve()` never prompts — it returns `*MissingKeysError`. The CLI catches with `errors.As` and decides whether to prompt or halt based on TTY.
+If a required key is unset when `dotd apply` runs, the tool halts with an error and a hint (`"Hint: set it with --env or add it to env.yaml"`). Files gated on unset keys are never silently excluded.
 
 ---
 
