@@ -76,11 +76,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("order: %w", err)
 			}
-			actOpts, err := buildActOptions(cfg, true)
-			if err != nil {
-				return err
-			}
-			res, err := pipeline.Act(ordered, actOpts)
+			res, err := pipeline.Act(ordered, buildActOptions(cfg, true))
 			if err != nil {
 				return fmt.Errorf("act: %w", err)
 			}
