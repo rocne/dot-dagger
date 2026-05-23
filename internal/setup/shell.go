@@ -98,3 +98,37 @@ func AppendSourceLine(rcFile, initPath string) error {
 	_, err = fmt.Fprintf(f, "\n# dotd — generated shell init\n%s\n", line)
 	return err
 }
+
+// RemoveSourceLine removes the dotd source line and its comment header from rcFile.
+// The comment written by AppendSourceLine is "# dotd — generated shell init".
+// No-op if rcFile does not exist or the lines are not present.
+func RemoveSourceLine(rcFile, initFile string) error {
+	data, err := os.ReadFile(rcFile)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("setup: read %s: %w", rcFile, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	needle := filepath.Base(initFile)
+	const header = "# dotd \xe2\x80\x94 generated shell init"
+
+	out := make([]string, 0, len(lines))
+	i := 0
+	for i < len(lines) {
+		if lines[i] == header {
+			i++ // skip header
+			// skip the following source line if it references our init file
+			if i < len(lines) && strings.Contains(lines[i], "source") && strings.Contains(lines[i], needle) {
+				i++
+			}
+			continue
+		}
+		out = append(out, lines[i])
+		i++
+	}
+
+	return os.WriteFile(rcFile, []byte(strings.Join(out, "\n")), 0o644)
+}
