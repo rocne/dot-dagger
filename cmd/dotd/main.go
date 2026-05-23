@@ -90,22 +90,46 @@ func newRootCmd() *cobra.Command {
 
 	ui.SetupCobraColors(root)
 
-	root.AddCommand(
-		getOSCmd,
-		getHostnameCmd,
-		newConfigCmd(),
-		newInitCmd(cfg),
+	root.AddGroup(
+		&cobra.Group{ID: "core", Title: "Core Commands:"},
+		&cobra.Group{ID: "config", Title: "Configuration:"},
+		&cobra.Group{ID: "advanced", Title: "Advanced:"},
+	)
+
+	// hidden internal helpers — no group
+	root.AddCommand(getOSCmd, getHostnameCmd)
+
+	for _, cmd := range []*cobra.Command{
 		newAdoptCmd(cfg),
 		newApplyCmd(cfg),
 		newCheckCmd(cfg),
-		newEnvCmd(cfg),
 		newListCmd(cfg),
+	} {
+		cmd.GroupID = "core"
+		root.AddCommand(cmd)
+	}
+
+	for _, cmd := range []*cobra.Command{
+		newConfigCmd(),
+		newEnvCmd(cfg),
+		newInitCmd(cfg),
+	} {
+		cmd.GroupID = "config"
+		root.AddCommand(cmd)
+	}
+
+	for _, cmd := range []*cobra.Command{
 		newBundleCmd(cfg),
-		newPackageCmd(cfg),
 		newComposeCmd(cfg),
 		newDagCmd(cfg),
-		newCompletionCmd(),
-	)
+		newPackageCmd(cfg),
+	} {
+		cmd.GroupID = "advanced"
+		root.AddCommand(cmd)
+	}
+
+	root.AddCommand(newCompletionCmd())
+
 	return root
 }
 
