@@ -17,7 +17,7 @@ Items that are known but intentionally deferred. Update this as things get done 
 - [x] **BasicNode completeness** — `after`, `require`, `request`, `disable` all expressible in `.dagger` `files:` dict. `internal/manifest` and §20 dropped.
 - [x] **`compose: true` alias** — works as shorthand for `composition.enabled: true` in `.dagger`.
 - [ ] **TTY-aware missing-key prompt** (M3) — currently always halts with hint; no interactive fallback. Deferred.
-- [ ] **`dotd init` rc-file check** (M8) — `internal/setup` has `AppendSourceLine`/`HasSourceLine` but never called from `init_cmd.go`. Deferred.
+- [x] **`dotd init` rc-file check** (M8) — `maybeAddSourceLine` wired into `runInit`. Reads shell/os from resolved env, uses `setup.DetectShellConfig`/`HasSourceLine`/`AppendSourceLine`.
 
 ## Git / CI Infrastructure
 

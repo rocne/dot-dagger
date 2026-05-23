@@ -25,14 +25,8 @@ func newEnvCmd(cfg *config) *cobra.Command {
 	return cmd
 }
 
-func envYamlPath(cfg *config) (string, error) {
-	if cfg != nil && cfg.envFile != "" {
-		return cfg.envFile, nil
-	}
-	if p := os.Getenv("DOTD_ENV_FILE"); p != "" {
-		return p, nil
-	}
-	return env.DefaultPath()
+func envYamlPath(cfg *config) string {
+	return cfg.envFile
 }
 
 func newEnvShowCmd(cfg *config) *cobra.Command {
@@ -83,10 +77,7 @@ func newEnvSetCmd(cfg *config) *cobra.Command {
 		Short: "Set a key in env.yaml",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := envYamlPath(cfg)
-			if err != nil {
-				return err
-			}
+			path := envYamlPath(cfg)
 			raw, err := env.Load(path)
 			if err != nil {
 				return err
@@ -102,10 +93,7 @@ func newEnvEditCmd(cfg *config) *cobra.Command {
 		Use:   "edit",
 		Short: "Open env.yaml in $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := envYamlPath(cfg)
-			if err != nil {
-				return err
-			}
+			path := envYamlPath(cfg)
 			editor := os.Getenv("EDITOR")
 			if editor == "" {
 				editor = "vi"

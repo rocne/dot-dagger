@@ -57,6 +57,22 @@ git push origin v0.2.0
 
 Always tag from `main`. The workflow files must be present at the tagged commit — tagging a commit before the release workflow was merged will silently not trigger.
 
+## Canonical Resolution Paths
+
+Every value with a canonical source must be obtained through that source. The two chains:
+
+**Paths** (`cfg.initFile`, `cfg.linkRoot`, `cfg.binDir`, etc.) — resolved once in `resolvePaths()` via `ecosystem.ResolvePath`: CLI flag → `DOTD_*` env var → env.yaml field → XDG/system default. Command code reads `cfg.*`; it never calls `ecosystem.DefaultX()` directly or re-queries env vars.
+
+**Env values** (`os`, `shell`, `context`, etc.) — resolved via `resolveEnv(cfg)` which reads env.yaml and applies shell vars and `--env` overrides. Command code reads from the returned map; it never calls `runtime.GOOS`, `os.Getenv("SHELL")`, or equivalent directly.
+
+**Violations to avoid:**
+- Calling `ecosystem.DefaultInitFile()` (or any `Default*`) outside of `resolvePaths`
+- Reading `os.Getenv("DOTD_*")` in command code after `resolvePaths` has already run
+- Using `runtime.GOOS` or `os.Getenv("SHELL")` anywhere outside `cmd/dotd/getters.go`
+- Redundant `os.UserHomeDir()` calls in commands where `cfg.linkRoot` is already resolved
+
+**Legitimate exceptions:** `resolvePaths` itself; `getters.go` (these implement the canonical detectors); bootstrap code in `dotd init` that runs before env.yaml exists.
+
 ## Repository
 
 This is the `dot-dagger` repository — a home for Dagger pipelines and CI/CD configuration.

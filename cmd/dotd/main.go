@@ -224,22 +224,14 @@ func configureLogger(cfg *config, cmd *cobra.Command) error {
 
 // buildActOptions constructs pipeline.ActOptions from cfg.
 // dryRun forces dry-run mode regardless of cfg.dryRun.
-func buildActOptions(cfg *config, dryRun bool) (pipeline.ActOptions, error) {
-	homeDir := cfg.linkRoot
-	if homeDir == "" {
-		var err error
-		homeDir, err = os.UserHomeDir()
-		if err != nil {
-			return pipeline.ActOptions{}, err
-		}
-	}
+func buildActOptions(cfg *config, dryRun bool) pipeline.ActOptions {
 	return pipeline.ActOptions{
-		HomeDir:      homeDir,
+		HomeDir:      cfg.linkRoot,
 		BinDir:       cfg.binDir,
 		GeneratedDir: cfg.generatedDir,
 		DryRun:       dryRun || cfg.dryRun,
 		Force:        cfg.force,
-	}, nil
+	}
 }
 
 type pipelineRun struct {
@@ -277,11 +269,7 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 		return nil, fmt.Errorf("order: %w", err)
 	}
 
-	actOpts, err := buildActOptions(cfg, dryRun)
-	if err != nil {
-		return nil, err
-	}
-	res, err := pipeline.Act(ordered, actOpts)
+	res, err := pipeline.Act(ordered, buildActOptions(cfg, dryRun))
 	if err != nil {
 		return nil, fmt.Errorf("act: %w", err)
 	}
