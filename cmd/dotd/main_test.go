@@ -570,3 +570,18 @@ func TestResolveToFlag(t *testing.T) {
 		}
 	}
 }
+
+// --- dotd init ---
+
+func TestInit_RequiresConfig(t *testing.T) {
+	// Fresh XDG dir so no config.yaml exists.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	_, err := run(t, "init",
+		"--files", emptyDotfiles(t),
+		"--env-file", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatal("expected error when config.yaml is absent, got nil")
+	}
+}
