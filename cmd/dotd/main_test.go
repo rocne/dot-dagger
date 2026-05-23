@@ -573,6 +573,102 @@ func TestResolveToFlag(t *testing.T) {
 
 // --- dotd init ---
 
+func TestSetup_WritesConfigAndEnv(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", t.TempDir()) // so default dotfiles path exists
+
+	// Simulate pressing Enter for all prompts (accept defaults).
+	input := strings.Repeat("\n", 10)
+
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(input))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"setup"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	configPath := filepath.Join(xdg, "dot-dagger", "config.yaml")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("config.yaml not written: %v", err)
+	}
+	envPath := filepath.Join(xdg, "dot-dagger", "env.yaml")
+	if _, err := os.Stat(envPath); err != nil {
+		t.Fatalf("env.yaml not written: %v", err)
+	}
+}
+
+func TestSetup_UsesCurrentValuesAsDefaults(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	// Pre-write config.yaml with a known dotfiles path.
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	existingDotfiles := t.TempDir()
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"),
+		[]byte("dotfiles: "+existingDotfiles+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Accept all defaults (Enter for each prompt).
+	input := strings.Repeat("\n", 10)
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(input))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetArgs([]string{"setup"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(configDir, "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), existingDotfiles) {
+		t.Errorf("existing dotfiles path not preserved, got:\n%s", string(content))
+	}
+}
+
+func TestSetup_SkipsEnvIfExists(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", t.TempDir())
+
+	// Pre-write env.yaml.
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	envContent := "context: work\n"
+	if err := os.WriteFile(filepath.Join(configDir, "env.yaml"), []byte(envContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	input := strings.Repeat("\n", 10)
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(input))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetArgs([]string{"setup"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	got, _ := os.ReadFile(filepath.Join(configDir, "env.yaml"))
+	if string(got) != envContent {
+		t.Errorf("env.yaml modified: got %q, want %q", string(got), envContent)
+	}
+}
+
+// --- dotd init ---
+
 func TestInit_RequiresConfig(t *testing.T) {
 	// Fresh XDG dir so no config.yaml exists.
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
