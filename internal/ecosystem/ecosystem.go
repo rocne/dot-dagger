@@ -14,6 +14,9 @@ const Name = "dot-dagger"
 // ConfigFile is the per-directory config filename placed inside dotfiles repos.
 const ConfigFile = ".dagger"
 
+// LegacyConfigFile is the old per-directory config filename, kept for defensive skipping during walks.
+const LegacyConfigFile = ".dotd.yaml"
+
 // ToolD is the CLI binary name.
 const ToolD = "dotd"
 

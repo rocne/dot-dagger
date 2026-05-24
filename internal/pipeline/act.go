@@ -81,7 +81,7 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 		// Check for compose action on compose-target directory nodes.
 		hasCompose := false
 		for _, a := range n.Actions {
-			if a.Type == "compose" {
+			if a.Type == ActionCompose {
 				hasCompose = true
 				break
 			}
@@ -98,11 +98,7 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			// Determine generated file path.
 			genPath := ""
 			if opts.GeneratedDir != "" {
-				// Derive filename from the compose dir basename:
-				// "nosync-dot-shellrc-extras.sh.d" → "shellrc-extras.sh"
-				dirBase := strings.TrimPrefix(strings.TrimPrefix(filepath.Base(n.Path), "nosync-"), "dot-")
-				dirBase = strings.TrimSuffix(dirBase, ".d")
-				genPath = filepath.Join(opts.GeneratedDir, dirBase)
+				genPath = filepath.Join(opts.GeneratedDir, ComposeFileName(n.Path))
 			}
 
 			gen := Generated{Path: genPath, Content: assembled, Node: n}
@@ -111,22 +107,22 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			// Apply remaining actions on the generated result (link, source).
 			noSource := false
 			for _, a := range n.Actions {
-				if a.Type == "no-source" {
+				if a.Type == ActionNoSource {
 					noSource = true
 				}
 			}
 			for _, a := range n.Actions {
 				switch a.Type {
-				case "compose":
+				case ActionCompose:
 					// handled above
-				case "source":
+				case ActionSource:
 					if !noSource && genPath != "" {
 						// Create a synthetic node for init.sh with the generated file path.
 						synth := n
 						synth.Path = genPath
 						res.Sourced = append(res.Sourced, synth)
 					}
-				case "link":
+				case ActionLink:
 					dest := resolveLink(a.Dest, n, home, opts.BinDir)
 					if prev, ok := destSeen[dest]; ok {
 						return nil, fmt.Errorf("act: link conflict: %s and %s both link to %s", prev, n.LogicalName, dest)
@@ -143,18 +139,18 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 		// Regular file node: apply actions.
 		noSource := false
 		for _, a := range n.Actions {
-			if a.Type == "no-source" {
+			if a.Type == ActionNoSource {
 				noSource = true
 			}
 		}
 
 		for _, a := range n.Actions {
 			switch a.Type {
-			case "source":
+			case ActionSource:
 				if !noSource {
 					res.Sourced = append(res.Sourced, n)
 				}
-			case "link":
+			case ActionLink:
 				dest := resolveLink(a.Dest, n, home, opts.BinDir)
 				if prev, ok := destSeen[dest]; ok {
 					return nil, fmt.Errorf("act: link conflict: %s and %s both link to %s", prev, n.LogicalName, dest)
@@ -195,6 +191,14 @@ func resolveLink(dest string, n RawNode, homeDir, binDir string) string {
 		dest = deriveLinkDest(n)
 	}
 	return expandDest(dest, homeDir, binDir)
+}
+
+// ComposeFileName derives the generated filename from a compose target dir path.
+// Strips "nosync-" then "dot-" prefixes and the ".d" suffix.
+// "nosync-dot-shellrc.d" → "shellrc", "dot-tmux.conf.d" → "tmux.conf"
+func ComposeFileName(dirPath string) string {
+	base := strings.TrimPrefix(strings.TrimPrefix(filepath.Base(dirPath), "nosync-"), "dot-")
+	return strings.TrimSuffix(base, ".d")
 }
 
 // deriveLinkDest computes a link destination from n.LinkRoot + relative filename.

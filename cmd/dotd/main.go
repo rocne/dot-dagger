@@ -400,7 +400,10 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 
 	cfg.log.Infof("%s %d symlinks applied", ui.Header("links:"), len(run.result.Links))
 
-	if err := pipeline.Generate(cfg.initFile, run.result.Sourced); err != nil {
+	if err := pipeline.Generate(cfg.initFile, run.result.Sourced, pipeline.GenerateOptions{
+		BinDir:  cfg.binDir,
+		HomeDir: cfg.linkRoot,
+	}); err != nil {
 		return fmt.Errorf("generate init.sh: %w", err)
 	}
 	cfg.log.Infof("%s wrote %s (%d nodes)", ui.Header("init.sh:"), cfg.initFile, len(run.result.Sourced))

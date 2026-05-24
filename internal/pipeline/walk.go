@@ -9,13 +9,32 @@ import (
 
 	"github.com/rocne/dot-dagger/internal/annotation"
 	"github.com/rocne/dot-dagger/internal/dagger"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/node"
+)
+
+// Action type constants for Action.Type.
+const (
+	ActionCompose  = "compose"
+	ActionSource   = "source"
+	ActionNoSource = "no-source"
+	ActionLink     = "link"
+)
+
+// Annotation key constants used internally after normalizeActionAnnotations.
+const (
+	annAction  = "action"
+	annAfter   = "after"
+	annRequire = "require"
+	annRequest = "request"
+	annDisable = "disable"
+	annName    = "name"
 )
 
 // Action is a single action declared for a node.
 type Action struct {
-	Type string // "link", "source", "no-source", "compose"
-	Dest string // non-empty only for "link"
+	Type string // ActionLink, ActionSource, ActionNoSource, ActionCompose
+	Dest string // non-empty only for ActionLink
 }
 
 // RawNode is a file discovered during Walk, before predicate evaluation.
@@ -58,7 +77,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 			if filepath.Base(path) == ".git" {
 				return filepath.SkipDir
 			}
-			cfg, err := dagger.LoadFile(filepath.Join(path, ".dagger"))
+			cfg, err := dagger.LoadFile(filepath.Join(path, ecosystem.ConfigFile))
 			if err != nil {
 				return err
 			}
@@ -108,8 +127,8 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 			parentRel := filepath.Join(parentDir, "x") // cascadeState uses Dir(relPath)
 			state := cascadeState(dotfilesRoot, parentRel, daggerMap)
 
-			// Dir-level actions: always starts with "compose", then user-declared actions.
-			dirActions := append([]Action{{Type: "compose"}}, parseDaggerActions(cfg.Actions)...)
+			// Dir-level actions: always starts with ActionCompose, then user-declared actions.
+			dirActions := append([]Action{{Type: ActionCompose}}, parseDaggerActions(cfg.Actions)...)
 
 			// Dir-level when: cascade when AND dir's own when.
 			effectiveWhen := combineWhen(state.when, cfg.When)
@@ -142,7 +161,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 		}
 
 		base := filepath.Base(path)
-		if base == ".dagger" || base == ".dotd.yaml" {
+		if base == ecosystem.ConfigFile || base == ecosystem.LegacyConfigFile {
 			return nil
 		}
 		// Files declared in a .dagger files: dict are handled below.
@@ -166,7 +185,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 		anns = normalizeActionAnnotations(anns)
 
 		// @disable: skip this file entirely.
-		if _, ok := annotation.First(anns, "disable"); ok {
+		if _, ok := annotation.First(anns, annDisable); ok {
 			disabled = append(disabled, path)
 			return nil
 		}
@@ -180,7 +199,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Collect @after dependencies.
 		var after []string
-		for _, a := range annotation.Get(anns, "after") {
+		for _, a := range annotation.Get(anns, annAfter) {
 			if a.Args != "" {
 				after = append(after, a.Args)
 			}
@@ -188,12 +207,12 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Collect @require / @request package deps.
 		var require, request []string
-		for _, a := range annotation.Get(anns, "require") {
+		for _, a := range annotation.Get(anns, annRequire) {
 			if a.Args != "" {
 				require = append(require, a.Args)
 			}
 		}
-		for _, a := range annotation.Get(anns, "request") {
+		for _, a := range annotation.Get(anns, annRequest) {
 			if a.Args != "" {
 				request = append(request, a.Args)
 			}
@@ -201,7 +220,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Apply @name override if present.
 		logicalName := node.DeriveName(rel)
-		if a, ok := annotation.First(anns, "name"); ok && a.Args != "" {
+		if a, ok := annotation.First(anns, annName); ok && a.Args != "" {
 			logicalName = a.Args
 		}
 
@@ -290,15 +309,15 @@ func parseDaggerActions(strs []string) []Action {
 		if s == "" {
 			continue
 		}
-		if s == "compose" {
-			actions = append(actions, Action{Type: "compose"})
-		} else if s == "source" {
-			actions = append(actions, Action{Type: "source"})
-		} else if s == "no-source" {
-			actions = append(actions, Action{Type: "no-source"})
+		if s == ActionCompose {
+			actions = append(actions, Action{Type: ActionCompose})
+		} else if s == ActionSource {
+			actions = append(actions, Action{Type: ActionSource})
+		} else if s == ActionNoSource {
+			actions = append(actions, Action{Type: ActionNoSource})
 		} else if strings.HasPrefix(s, "link(") && strings.HasSuffix(s, ")") {
 			dest := s[5 : len(s)-1]
-			actions = append(actions, Action{Type: "link", Dest: dest})
+			actions = append(actions, Action{Type: ActionLink, Dest: dest})
 		}
 	}
 	return actions
@@ -415,7 +434,7 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 		if act.Type != "" && !seen[act.Type] {
 			actions = append(actions, act)
 			seen[act.Type] = true
-			if act.Type == "link" {
+			if act.Type == ActionLink {
 				linkFromDefault = true
 			}
 		}
@@ -423,24 +442,24 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 
 	// Apply normalized action annotations.
 	for _, a := range anns {
-		if a.Key != "action" {
+		if a.Key != annAction {
 			continue
 		}
 		act := parseActionString(a.Args)
 		switch act.Type {
-		case "compose":
-			if !seen["compose"] {
+		case ActionCompose:
+			if !seen[ActionCompose] {
 				actions = append(actions, act)
-				seen["compose"] = true
+				seen[ActionCompose] = true
 			}
-		case "link":
-			if !seen["link"] {
+		case ActionLink:
+			if !seen[ActionLink] {
 				actions = append(actions, act)
-				seen["link"] = true
+				seen[ActionLink] = true
 			} else if linkFromDefault {
 				// Annotation overrides inherited default — replace dest in-place.
 				for i := range actions {
-					if actions[i].Type == "link" {
+					if actions[i].Type == ActionLink {
 						actions[i].Dest = act.Dest
 					}
 				}
@@ -449,7 +468,7 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 				// Second explicit annotation: keep both, validateNode reports the conflict.
 				alreadyPresent := false
 				for _, existing := range actions {
-					if existing.Type == "link" && existing.Dest == act.Dest {
+					if existing.Type == ActionLink && existing.Dest == act.Dest {
 						alreadyPresent = true
 						break
 					}
@@ -458,24 +477,24 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 					actions = append(actions, act)
 				}
 			}
-		case "source":
-			if !seen["source"] && !seen["no-source"] {
+		case ActionSource:
+			if !seen[ActionSource] && !seen[ActionNoSource] {
 				actions = append(actions, act)
-				seen["source"] = true
+				seen[ActionSource] = true
 			}
-		case "no-source":
+		case ActionNoSource:
 			// Remove any existing source, then record no-source.
 			var filtered []Action
 			for _, existing := range actions {
-				if existing.Type != "source" {
+				if existing.Type != ActionSource {
 					filtered = append(filtered, existing)
 				}
 			}
 			actions = filtered
-			delete(seen, "source")
-			if !seen["no-source"] {
+			delete(seen, ActionSource)
+			if !seen[ActionNoSource] {
 				actions = append(actions, act)
-				seen["no-source"] = true
+				seen[ActionNoSource] = true
 			}
 		}
 	}

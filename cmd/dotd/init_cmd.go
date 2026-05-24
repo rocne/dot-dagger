@@ -10,6 +10,7 @@ import (
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +20,7 @@ func newInitCmd(cfg *config) *cobra.Command {
 		Short: "Scaffold .dagger convention files in your dotfiles repo",
 		Long: `Scaffold .dagger convention files in the configured dotfiles repo.
 
-Prompts for shell scripts and config file directories.
+Prompts for shell scripts, config files, and bin scripts directories.
 Creates each directory if absent, writes .dagger if absent (idempotent).
 
 Requires config.yaml — run 'dotd setup' first if you haven't already.`,
@@ -40,49 +41,93 @@ func runInit(cmd *cobra.Command, cfg *config) error {
 		return fmt.Errorf("no config found — run 'dotd setup' first")
 	}
 
+	out := cmd.OutOrStdout()
 	reader := bufio.NewReader(cmd.InOrStdin())
 
-	fmt.Fprintln(cmd.OutOrStdout(), "Scaffold .dagger convention files — enter directory paths, empty to skip.")
-	fmt.Fprintln(cmd.OutOrStdout())
+	fmt.Fprintf(out, "%s — scaffold convention directories\n", ui.Header("dotd init"))
+	fmt.Fprintf(out, "Directories are created inside: %s\n", ui.Key(cfg.files))
 
-	if err := scaffoldDaggerInteractive(reader, cmd, cfg.files); err != nil {
+	written, err := scaffoldDaggerInteractive(out, reader, cfg.files)
+	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), "\nNext steps:")
-	fmt.Fprintln(cmd.OutOrStdout(), "  1. Add dotfiles to your repo")
-	fmt.Fprintf(cmd.OutOrStdout(), "  2. Run: %s apply\n", ecosystem.ToolD)
+	fmt.Fprintln(out)
+	for _, path := range written {
+		fmt.Fprintf(out, "  %s %s\n", ui.OK("wrote"), path)
+	}
+
+	fmt.Fprintf(out, "\n%s\n", ui.Header("Next steps:"))
+	fmt.Fprintln(out, "  1. Add dotfiles to your repo")
+	fmt.Fprintf(out, "  2. %s\n", ui.Key("dotd apply"))
 	return nil
 }
 
-func scaffoldDaggerInteractive(reader *bufio.Reader, cmd *cobra.Command, dotfilesPath string) error {
-	roles := []struct {
-		name    string
-		content string
-	}{
-		{"shell scripts directory (source action)", "defaults:\n  actions:\n    - source\n"},
-		{"config files directory (link action)", "defaults:\n  actions:\n    - link\n"},
-	}
+type conventionRole struct {
+	label   string
+	desc    string
+	defDir  string
+	content string
+}
 
-	for _, role := range roles {
-		dir, err := promptDefault(cmd.OutOrStdout(), reader, role.name, "", false)
+var conventionRoles = []conventionRole{
+	{
+		label:  "Shell scripts",
+		desc:   "Files here are auto-sourced by your shell on startup.",
+		defDir: "shellrc",
+		content: "defaults:\n  actions:\n    - source\n",
+	},
+	{
+		label:  "Config files",
+		desc:   "Files here are symlinked into your home directory (e.g. ~/.gitconfig).",
+		defDir: "config",
+		content: "link_root: \"~\"\ndefaults:\n  actions:\n    - link\n",
+	},
+	{
+		label:  "Bin scripts",
+		desc:   "Executable scripts here are linked to your bin directory.",
+		defDir: "bin",
+		content: "link_root: \"~bin\"\ndefaults:\n  actions:\n    - link\n",
+	},
+}
+
+// scaffoldDaggerInteractive prompts for each convention dir and scaffolds .dagger files.
+// Returns the absolute paths that were written.
+func scaffoldDaggerInteractive(out io.Writer, reader *bufio.Reader, dotfilesPath string) ([]string, error) {
+	var written []string
+
+	for _, role := range conventionRoles {
+		printField(out, role.label, role.desc)
+
+		yes, err := promptYN(out, reader, "Create this directory?")
 		if err != nil {
-			return err
+			return written, err
 		}
-		if dir == "" {
+		if !yes {
+			fmt.Fprintf(out, "  %s\n", ui.Skip("skipping"))
 			continue
 		}
-		dir = filepath.Join(dotfilesPath, filepath.Clean(dir))
-		if err := scaffoldDagger(dir, role.content); err != nil {
-			return err
+
+		dirName, err := promptDefault(out, reader, fieldPrompt()+" name", role.defDir, false)
+		if err != nil {
+			return written, err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "wrote %s/.dagger\n", dir)
+		if dirName == "" {
+			dirName = role.defDir
+		}
+
+		dir := filepath.Join(dotfilesPath, filepath.Clean(dirName))
+		if err := scaffoldDagger(dir, role.content); err != nil {
+			return written, err
+		}
+		written = append(written, filepath.Join(dir, ecosystem.ConfigFile))
 	}
-	return nil
+
+	return written, nil
 }
 
 func scaffoldDagger(dir, content string) error {
-	path := filepath.Join(dir, ".dagger")
+	path := filepath.Join(dir, ecosystem.ConfigFile)
 	if _, err := os.Stat(path); err == nil {
 		return nil // already exists — skip
 	}
@@ -99,7 +144,7 @@ func promptDefault(w io.Writer, reader *bufio.Reader, msg, defaultVal string, no
 		return defaultVal, nil
 	}
 	if defaultVal != "" {
-		fmt.Fprintf(w, "%s [%s]: ", msg, defaultVal)
+		fmt.Fprintf(w, "%s [%s]: ", msg, ui.Skip(defaultVal))
 	} else {
 		fmt.Fprintf(w, "%s: ", msg)
 	}
@@ -112,6 +157,18 @@ func promptDefault(w io.Writer, reader *bufio.Reader, msg, defaultVal string, no
 		return defaultVal, nil
 	}
 	return line, nil
+}
+
+// promptYN prints "msg [Y/n]: " and returns true unless user types n/no.
+// Empty input and EOF both default to yes.
+func promptYN(w io.Writer, reader *bufio.Reader, msg string) (bool, error) {
+	fmt.Fprintf(w, "  %s [Y/n]: ", msg)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return true, nil // EOF → default yes
+	}
+	line = strings.ToLower(strings.TrimSpace(line))
+	return line == "" || line == "y" || line == "yes", nil
 }
 
 func expandTildeStr(path, home string) string {

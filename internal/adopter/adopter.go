@@ -156,12 +156,12 @@ func actionsFor(destRel, src string, opts AdoptOptions) []pipeline.Action {
 
 	switch first {
 	case conv.Shellrc:
-		return []pipeline.Action{{Type: "source"}}
+		return []pipeline.Action{{Type: pipeline.ActionSource}}
 	case conv.Bin:
-		return []pipeline.Action{{Type: "link", Dest: filepath.Join(opts.BinDir, name)}}
+		return []pipeline.Action{{Type: pipeline.ActionLink, Dest: filepath.Join(opts.BinDir, name)}}
 	default:
 		// conf/ and any --to path: symlink at original src location.
-		return []pipeline.Action{{Type: "link", Dest: src}}
+		return []pipeline.Action{{Type: pipeline.ActionLink, Dest: src}}
 	}
 }
 

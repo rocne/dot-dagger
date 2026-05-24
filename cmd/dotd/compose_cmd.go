@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -113,7 +112,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 
 func hasComposeAction(n pipeline.RawNode) bool {
 	for _, a := range n.Actions {
-		if a.Type == "compose" {
+		if a.Type == pipeline.ActionCompose {
 			return true
 		}
 	}
@@ -121,12 +120,5 @@ func hasComposeAction(n pipeline.RawNode) bool {
 }
 
 func composeGenName(n pipeline.RawNode) string {
-	return genNameFromDir(n.Path)
-}
-
-// genNameFromDir derives the generated filename from a compose target dir path.
-// "dot-shellrc-extras.sh.d" → "shellrc-extras.sh", "dot-tmux.conf.d" → "tmux.conf"
-func genNameFromDir(dirPath string) string {
-	base := strings.TrimPrefix(filepath.Base(dirPath), "dot-")
-	return strings.TrimSuffix(base, ".d")
+	return pipeline.ComposeFileName(n.Path)
 }

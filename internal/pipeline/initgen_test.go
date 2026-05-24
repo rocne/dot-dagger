@@ -14,7 +14,7 @@ func TestGenerate_BasicSourceOrder(t *testing.T) {
 		{Path: "/dots/b.sh", LogicalName: "b"},
 	}
 	out := filepath.Join(dir, "init.sh")
-	if err := Generate(out, nodes); err != nil {
+	if err := Generate(out, nodes, GenerateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	content, err := os.ReadFile(out)
@@ -38,7 +38,7 @@ func TestGenerate_BasicSourceOrder(t *testing.T) {
 func TestGenerate_NoNodes_WritesHeader(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "init.sh")
-	if err := Generate(out, nil); err != nil {
+	if err := Generate(out, nil, GenerateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	content, err := os.ReadFile(out)
@@ -56,10 +56,10 @@ func TestGenerate_Atomic(t *testing.T) {
 	// Write twice — second write should replace atomically.
 	nodes1 := []RawNode{{Path: "/dots/a.sh", LogicalName: "a"}}
 	nodes2 := []RawNode{{Path: "/dots/b.sh", LogicalName: "b"}}
-	if err := Generate(out, nodes1); err != nil {
+	if err := Generate(out, nodes1, GenerateOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := Generate(out, nodes2); err != nil {
+	if err := Generate(out, nodes2, GenerateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	content, err := os.ReadFile(out)
@@ -71,5 +71,60 @@ func TestGenerate_Atomic(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "b.sh") {
 		t.Errorf("expected b.sh in second generate, got:\n%s", string(content))
+	}
+}
+
+func TestGenerate_PrependsBinDir(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "init.sh")
+	opts := GenerateOptions{
+		BinDir:  "/home/user/.local/bin/dot-dagger",
+		HomeDir: "/home/user",
+	}
+	if err := Generate(out, nil, opts); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(content)
+	if !strings.Contains(s, `export PATH="${HOME}/.local/bin/dot-dagger:${PATH}"`) {
+		t.Errorf("expected portable PATH line, got:\n%s", s)
+	}
+}
+
+func TestGenerate_BinDirAbsoluteWhenNotUnderHome(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "init.sh")
+	opts := GenerateOptions{
+		BinDir:  "/usr/local/bin",
+		HomeDir: "/home/user",
+	}
+	if err := Generate(out, nil, opts); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(content)
+	if !strings.Contains(s, `export PATH="/usr/local/bin:${PATH}"`) {
+		t.Errorf("expected absolute PATH line, got:\n%s", s)
+	}
+}
+
+func TestGenerate_NoBinDirSkipsPATH(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "init.sh")
+	if err := Generate(out, nil, GenerateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(content), "PATH") {
+		t.Errorf("expected no PATH line when BinDir empty, got:\n%s", string(content))
 	}
 }

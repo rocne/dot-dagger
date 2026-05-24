@@ -10,10 +10,10 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -144,28 +144,8 @@ func DefaultPath() (string, error) {
 
 // Save writes raw to path atomically (temp file + rename). Creates parent dirs.
 func Save(path string, raw map[string]string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("env: mkdir: %w", err)
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".env-*.yaml.tmp")
-	if err != nil {
-		return fmt.Errorf("env: create temp: %w", err)
-	}
-	tmpPath := tmp.Name()
-	enc := yaml.NewEncoder(tmp)
-	enc.SetIndent(2)
-	if err := enc.Encode(raw); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("env: encode: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("env: close temp: %w", err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("env: rename: %w", err)
+	if err := fileutil.SaveYAML(path, raw); err != nil {
+		return fmt.Errorf("env: %w", err)
 	}
 	return nil
 }

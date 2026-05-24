@@ -14,16 +14,14 @@ func normalizeActionAnnotations(anns []annotation.Annotation) []annotation.Annot
 	result := make([]annotation.Annotation, 0, len(anns))
 	for _, a := range anns {
 		switch a.Key {
-		case "action":
+		case annAction:
 			result = append(result, a)
-		case "source":
-			result = append(result, annotation.Annotation{Key: "action", Args: "source", Line: a.Line})
-		case "no-source":
-			result = append(result, annotation.Annotation{Key: "action", Args: "no-source", Line: a.Line})
-		case "link":
-			result = append(result, annotation.Annotation{Key: "action", Args: "link(" + a.Args + ")", Line: a.Line})
-		case "symlink":
-			result = append(result, annotation.Annotation{Key: "action", Args: "link(" + a.Args + ")", Line: a.Line})
+		case ActionSource:
+			result = append(result, annotation.Annotation{Key: annAction, Args: ActionSource, Line: a.Line})
+		case ActionNoSource:
+			result = append(result, annotation.Annotation{Key: annAction, Args: ActionNoSource, Line: a.Line})
+		case ActionLink, "symlink":
+			result = append(result, annotation.Annotation{Key: annAction, Args: ActionLink + "(" + a.Args + ")", Line: a.Line})
 		default:
 			result = append(result, a)
 		}
@@ -61,12 +59,12 @@ func validateNode(n RawNode) error {
 
 	for _, a := range n.Actions {
 		switch a.Type {
-		case "compose":
+		case ActionCompose:
 			if !isDir {
 				return fmt.Errorf("node %s: compose is only valid on directories", n.LogicalName)
 			}
 			seenCompose = true
-		case "link":
+		case ActionLink:
 			// Empty dest is valid when link_root is set — destination is derived at act time.
 			if a.Dest == "" && n.LinkRoot == "" {
 				return fmt.Errorf("node %s: link requires a destination", n.LogicalName)
@@ -80,7 +78,7 @@ func validateNode(n RawNode) error {
 				}
 			}
 			linkDests = append(linkDests, a.Dest)
-		case "source":
+		case ActionSource:
 			if isDir && !seenCompose {
 				return fmt.Errorf("node %s: link/source must follow compose", n.LogicalName)
 			}
