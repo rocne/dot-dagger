@@ -49,10 +49,18 @@ const colorHelpTemplate = `{{with .Long}}{{. | trimRightSpace}}
   {{.NameAndAliases}}{{end}}{{if .HasExample}}
 
 {{colorHeader "Examples:"}}
-{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
 
-{{colorHeader "Available Commands:"}}{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{colorCmdName .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+{{colorHeader "Available Commands:"}}{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{colorCmdName .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{else}}
+
+{{range $i, $group := .Groups}}{{if gt $i 0}}
+
+{{end}}{{colorHeader $group.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{colorCmdName .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+{{colorHeader "Additional Commands:"}}{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{colorCmdName .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 {{colorHeader "Flags:"}}
 {{.LocalFlags.FlagUsages | trimRightSpace | colorFlagUsages}}{{end}}{{if .HasAvailableInheritedFlags}}
@@ -76,8 +84,14 @@ const colorUsageTemplate = `{{colorHeader "Usage:"}}{{if .Runnable}}
 {{end}}{{if .HasExample}}{{colorHeader "Examples:"}}
 {{.Example}}
 
-{{end}}{{if .HasAvailableSubCommands}}{{colorHeader "Available Commands:"}}{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{colorCmdName .Name .NamePadding}} {{.Short}}{{end}}{{end}}
+{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}{{colorHeader "Available Commands:"}}{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{colorCmdName .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{else}}{{range $i, $group := .Groups}}{{if gt $i 0}}
+
+{{end}}{{colorHeader $group.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{colorCmdName .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+{{colorHeader "Additional Commands:"}}{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{colorCmdName .Name .NamePadding}} {{.Short}}{{end}}{{end}}{{end}}{{end}}
 
 {{end}}{{if .HasAvailableLocalFlags}}{{colorHeader "Flags:"}}
 {{.LocalFlags.FlagUsages | trimRightSpace | colorFlagUsages}}{{end}}
