@@ -33,6 +33,7 @@ Run 'dotd init' next to scaffold your dotfiles repo.`,
 
 func runSetup(cmd *cobra.Command, cfg *config) error {
 	reader := bufio.NewReader(cmd.InOrStdin())
+	// home is used only to expand "~" in user-typed paths, not for config resolution.
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err

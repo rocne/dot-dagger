@@ -571,7 +571,7 @@ func TestResolveToFlag(t *testing.T) {
 	}
 }
 
-// --- dotd init ---
+// --- dotd setup ---
 
 func TestSetup_WritesConfigAndEnv(t *testing.T) {
 	xdg := t.TempDir()
