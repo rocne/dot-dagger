@@ -139,14 +139,14 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	// Execute.
 	for _, dest := range toRemove {
 		if err := os.Remove(dest); err != nil {
-			fmt.Fprintf(out, "%s removing %s: %v\n", ui.Wrong("error"), dest, err)
+			ui.Errf(out, "removing %s: %v", dest, err)
 			continue
 		}
 		fmt.Fprintf(out, "%s %s\n", ui.OK("removed"), dest)
 	}
 	if initShExists {
 		if err := os.Remove(cfg.initFile); err != nil {
-			fmt.Fprintf(out, "%s removing %s: %v\n", ui.Wrong("error"), cfg.initFile, err)
+			ui.Errf(out, "removing %s: %v", cfg.initFile, err)
 		} else {
 			fmt.Fprintf(out, "%s %s\n", ui.OK("removed"), cfg.initFile)
 		}

@@ -3,7 +3,26 @@
 // NO_COLOR is set.
 package ui
 
-import "github.com/fatih/color"
+import (
+	"fmt"
+	"io"
+
+	"github.com/fatih/color"
+)
+
+// Print helpers — write a labeled, colored line to w.
+
+func Warnf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "%s %s\n", Missing("warning:"), fmt.Sprintf(format, a...))
+}
+
+func Errf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "%s %s\n", Conflict("error:"), fmt.Sprintf(format, a...))
+}
+
+func Tipf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "%s %s\n", Arrow("tip:"), fmt.Sprintf(format, a...))
+}
 
 // Semantic Sprint functions — each returns a colored string.
 

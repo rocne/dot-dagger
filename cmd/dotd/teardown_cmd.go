@@ -48,13 +48,13 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	// Non-fatal if walk fails (env.yaml or dotfiles repo may be absent).
 	if prun, err := runPipeline(cfg, true); err == nil {
 		if len(prun.result.Links) > 0 {
-			fmt.Fprintf(out, "%s %d symlink(s) still active — consider running 'dotd unapply' first\n", ui.Missing("warning:"), len(prun.result.Links))
+			ui.Warnf(out, "%d symlink(s) still active — consider running 'dotd unapply' first", len(prun.result.Links))
 		}
 	}
 
 	// Pre-action check: warn if .dagger files still present.
 	if cfg.files != "" && hasDaggerFiles(cfg.files) {
-		fmt.Fprintf(out, "%s .dagger files present in dotfiles repo — these will not be removed\n", ui.Missing("warning:"))
+		ui.Warnf(out, ".dagger files present in dotfiles repo — these will not be removed")
 	}
 
 	// Determine paths. Both call DefaultPath() directly — teardown removes the
