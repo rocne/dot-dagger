@@ -76,13 +76,13 @@ func scaffoldDaggerInteractive(reader *bufio.Reader, cmd *cobra.Command, dotfile
 		if err := scaffoldDagger(dir, role.content); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "wrote %s/.dagger\n", dir)
+		fmt.Fprintf(cmd.OutOrStdout(), "wrote %s/%s\n", dir, ecosystem.ConfigFile)
 	}
 	return nil
 }
 
 func scaffoldDagger(dir, content string) error {
-	path := filepath.Join(dir, ".dagger")
+	path := filepath.Join(dir, ecosystem.ConfigFile)
 	if _, err := os.Stat(path); err == nil {
 		return nil // already exists — skip
 	}

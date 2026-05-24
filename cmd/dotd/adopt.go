@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/dagger"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -68,10 +69,9 @@ func runAdopt(_ *cobra.Command, cfg *config, src, to string, yes bool) error {
 		return fmt.Errorf("adopt: %s is a directory — adopt one file at a time", srcAbs)
 	}
 
-	// Load convention names from root .dagger.
-	dagCfg, err := dagger.LoadFile(filepath.Join(cfg.files, ".dagger"))
+	dagCfg, err := dagger.LoadFile(filepath.Join(cfg.files, ecosystem.ConfigFile))
 	if err != nil {
-		return fmt.Errorf("adopt: load .dagger: %w", err)
+		return fmt.Errorf("adopt: load %s: %w", ecosystem.ConfigFile, err)
 	}
 	conv := conventionsFrom(dagCfg)
 

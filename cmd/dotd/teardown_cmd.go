@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/spf13/cobra"
@@ -167,7 +168,7 @@ func hasDaggerFiles(root string) bool {
 		if d.IsDir() && d.Name() == ".git" {
 			return filepath.SkipDir
 		}
-		if !d.IsDir() && d.Name() == ".dagger" {
+		if !d.IsDir() && d.Name() == ecosystem.ConfigFile {
 			found = true
 			return filepath.SkipAll
 		}
