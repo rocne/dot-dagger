@@ -681,3 +681,88 @@ func TestInit_RequiresConfig(t *testing.T) {
 		t.Fatal("expected error when config.yaml is absent, got nil")
 	}
 }
+
+// --- dotd teardown ---
+
+func TestTeardown_RemovesConfigAndEnv(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	envPath := filepath.Join(configDir, "env.yaml")
+	if err := os.WriteFile(configPath, []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(envPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "teardown", "--yes",
+		"--files", emptyDotfiles(t),
+		"--env-file", envPath,
+	)
+	if err != nil {
+		t.Fatalf("teardown error = %v", err)
+	}
+
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Error("config.yaml should be removed")
+	}
+	if _, err := os.Stat(envPath); !os.IsNotExist(err) {
+		t.Error("env.yaml should be removed")
+	}
+}
+
+func TestTeardown_SkipsAbsentFiles(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	out, err := run(t, "teardown", "--yes",
+		"--files", emptyDotfiles(t),
+		"--env-file", filepath.Join(xdg, "env.yaml"), // doesn't exist
+	)
+	if err != nil {
+		t.Fatalf("teardown error = %v\noutput:\n%s", err, out)
+	}
+	if !strings.Contains(out, "not found") && !strings.Contains(out, "skip") {
+		t.Errorf("expected 'not found'/'skip' in output: %q", out)
+	}
+}
+
+func TestTeardown_CancelExits0(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root := newRootCmd()
+	root.SetIn(strings.NewReader("n\n"))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"teardown",
+		"--files", emptyDotfiles(t),
+		"--env-file", filepath.Join(xdg, "env.yaml"),
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("teardown cancel should exit 0, got %v", err)
+	}
+
+	if _, err := os.Stat(configPath); err != nil {
+		t.Error("config.yaml should be preserved on cancel")
+	}
+	if !strings.Contains(buf.String(), "cancelled") {
+		t.Errorf("expected 'cancelled' in output: %q", buf.String())
+	}
+}

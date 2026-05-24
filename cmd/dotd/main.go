@@ -114,6 +114,7 @@ func newRootCmd() *cobra.Command {
 		newEnvCmd(cfg),
 		newSetupCmd(cfg),
 		newInitCmd(cfg),
+		newTeardownCmd(cfg),
 	} {
 		cmd.GroupID = "config"
 		root.AddCommand(cmd)
