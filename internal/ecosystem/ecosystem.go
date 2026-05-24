@@ -41,6 +41,15 @@ func xdgDataHome() (string, error) {
 	return filepath.Join(home, ".local", "share"), nil
 }
 
+// DefaultConfigFile returns the default path to config.yaml: $XDG_CONFIG_HOME/dot-dagger/config.yaml.
+func DefaultConfigFile() (string, error) {
+	base, err := xdgConfigHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, Name, "config.yaml"), nil
+}
+
 // DefaultEnvFile returns the default path to env.yaml: $XDG_CONFIG_HOME/dot-dagger/env.yaml.
 func DefaultEnvFile() (string, error) {
 	base, err := xdgConfigHome()

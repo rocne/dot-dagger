@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,13 +21,9 @@ type Config struct {
 	LinkRoot     string `yaml:"link_root"`
 }
 
-// DefaultPath returns the default config.yaml path: ~/.config/dot-dagger/config.yaml.
+// DefaultPath returns the default config.yaml path: $XDG_CONFIG_HOME/dot-dagger/config.yaml.
 func DefaultPath() (string, error) {
-	cfg, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("config: user config dir: %w", err)
-	}
-	return filepath.Join(cfg, "dot-dagger", "config.yaml"), nil
+	return ecosystem.DefaultConfigFile()
 }
 
 // Load parses config.yaml at path.

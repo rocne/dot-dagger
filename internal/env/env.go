@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"gopkg.in/yaml.v3"
 )
 
@@ -136,13 +137,9 @@ func ShellVars(environ []string) map[string]string {
 	return out
 }
 
-// DefaultPath returns the default env.yaml path: ~/.config/dot-dagger/env.yaml.
+// DefaultPath returns the default env.yaml path: $XDG_CONFIG_HOME/dot-dagger/env.yaml.
 func DefaultPath() (string, error) {
-	cfg, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("env: user config dir: %w", err)
-	}
-	return filepath.Join(cfg, "dot-dagger", "env.yaml"), nil
+	return ecosystem.DefaultEnvFile()
 }
 
 // Save writes raw to path atomically (temp file + rename). Creates parent dirs.
