@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/pipeline"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -102,15 +103,15 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	initShExists := fileExists(cfg.initFile)
 
 	if len(toRemove) == 0 && !initShExists {
-		fmt.Fprintln(out, "nothing to remove")
+		fmt.Fprintf(out, "%s\n", ui.Skip("nothing to remove"))
 		return nil
 	}
 
 	// Preview.
 	if initShExists {
-		fmt.Fprintf(out, "Will remove %d symlink(s) and init.sh:\n", len(toRemove))
+		fmt.Fprintf(out, "%s %d symlink(s) and init.sh:\n", ui.Header("Will remove"), len(toRemove))
 	} else {
-		fmt.Fprintf(out, "Will remove %d symlink(s):\n", len(toRemove))
+		fmt.Fprintf(out, "%s %d symlink(s):\n", ui.Header("Will remove"), len(toRemove))
 	}
 	for _, dest := range toRemove {
 		fmt.Fprintf(out, "  %s\n", dest)
@@ -130,7 +131,7 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 		ans, _ := reader.ReadString('\n')
 		ans = strings.TrimSpace(strings.ToLower(ans))
 		if ans != "y" && ans != "yes" {
-			fmt.Fprintln(out, "cancelled")
+			fmt.Fprintf(out, "%s\n", ui.Skip("cancelled"))
 			return nil
 		}
 	}
@@ -138,16 +139,16 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	// Execute.
 	for _, dest := range toRemove {
 		if err := os.Remove(dest); err != nil {
-			fmt.Fprintf(out, "error removing %s: %v\n", dest, err)
+			fmt.Fprintf(out, "%s removing %s: %v\n", ui.Wrong("error"), dest, err)
 			continue
 		}
-		fmt.Fprintf(out, "removed %s\n", dest)
+		fmt.Fprintf(out, "%s %s\n", ui.OK("removed"), dest)
 	}
 	if initShExists {
 		if err := os.Remove(cfg.initFile); err != nil {
-			fmt.Fprintf(out, "error removing %s: %v\n", cfg.initFile, err)
+			fmt.Fprintf(out, "%s removing %s: %v\n", ui.Wrong("error"), cfg.initFile, err)
 		} else {
-			fmt.Fprintf(out, "removed %s\n", cfg.initFile)
+			fmt.Fprintf(out, "%s %s\n", ui.OK("removed"), cfg.initFile)
 		}
 	}
 

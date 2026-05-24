@@ -439,7 +439,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 			ok++
 		}
 	}
-	cfg.log.Infof("%s %d ok, %d missing, %d wrong", ui.Header("symlinks:"), ok, missing, wrong)
+	cfg.log.Infof("%s %d %s, %d %s, %d %s", ui.Header("symlinks:"), ok, ui.OK("ok"), missing, ui.Missing("missing"), wrong, ui.Wrong("wrong"))
 
 	if _, serr := os.Stat(cfg.initFile); errors.Is(serr, fs.ErrNotExist) {
 		cfg.log.Warn(cfg.initFile, "state", "missing")
