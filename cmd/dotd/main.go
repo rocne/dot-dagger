@@ -102,6 +102,7 @@ func newRootCmd() *cobra.Command {
 	for _, cmd := range []*cobra.Command{
 		newAdoptCmd(cfg),
 		newApplyCmd(cfg),
+		newUnapplyCmd(cfg),
 		newCheckCmd(cfg),
 		newListCmd(cfg),
 	} {

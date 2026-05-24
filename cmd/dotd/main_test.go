@@ -766,3 +766,158 @@ func TestTeardown_CancelExits0(t *testing.T) {
 		t.Errorf("expected 'cancelled' in output: %q", buf.String())
 	}
 }
+
+// --- dotd unapply ---
+
+func TestUnapply_RemovesSymlink(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Set up .dagger file to mark files as links
+	daggerFile := filepath.Join(confDir, ".dagger")
+	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// File with link destination annotation
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n[core]\n  autocrlf = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	// Apply first.
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	linkDest := filepath.Join(home, ".gitconfig")
+	if _, err := os.Lstat(linkDest); err != nil {
+		t.Fatalf("symlink not created by apply: %v", err)
+	}
+
+	// Unapply.
+	if _, err := run(t, "unapply", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("unapply error = %v", err)
+	}
+
+	if _, err := os.Lstat(linkDest); !os.IsNotExist(err) {
+		t.Error("symlink should be removed after unapply")
+	}
+}
+
+func TestUnapply_NothingToRemove(t *testing.T) {
+	home := t.TempDir()
+	out, err := run(t, "unapply", "--yes",
+		"--files", emptyDotfiles(t),
+		"--env-file", emptyEnvFile(t),
+		"--link-root", home,
+		"--init-file", filepath.Join(t.TempDir(), "init.sh"),
+	)
+	if err != nil {
+		t.Fatalf("unapply error = %v", err)
+	}
+	if !strings.Contains(out, "nothing to remove") {
+		t.Errorf("expected 'nothing to remove', got %q", out)
+	}
+}
+
+func TestUnapply_DryRunPreservesSymlink(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Set up .dagger file to mark files as links
+	daggerFile := filepath.Join(confDir, ".dagger")
+	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	out, err := run(t, "unapply", "--dry-run", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err != nil {
+		t.Fatalf("unapply --dry-run error = %v", err)
+	}
+
+	// Symlink must still exist.
+	if _, err := os.Lstat(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Error("dry-run must not remove symlink")
+	}
+	if !strings.Contains(out, ".gitconfig") {
+		t.Errorf("dry-run should mention .gitconfig in preview: %q", out)
+	}
+}
+
+func TestUnapply_CancelExits0(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Set up .dagger file to mark files as links
+	daggerFile := filepath.Join(confDir, ".dagger")
+	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	root := newRootCmd()
+	root.SetIn(strings.NewReader("n\n"))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"unapply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unapply cancel should exit 0, got %v", err)
+	}
+
+	if _, err := os.Lstat(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Error("symlink must be preserved on cancel")
+	}
+	if !strings.Contains(buf.String(), "cancelled") {
+		t.Errorf("expected 'cancelled' in output: %q", buf.String())
+	}
+}
