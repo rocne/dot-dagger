@@ -17,7 +17,11 @@ const ConfigFile = ".dagger"
 // ToolD is the CLI binary name.
 const ToolD = "dotd"
 
-// xdgConfigHome returns $XDG_CONFIG_HOME if set to an absolute path, else ~/.config.
+// XdgConfigHome returns $XDG_CONFIG_HOME if set to an absolute path, else ~/.config.
+// Use this as the canonical XDG config home — do not call os.Getenv("XDG_CONFIG_HOME") directly.
+func XdgConfigHome() (string, error) { return xdgConfigHome() }
+
+// xdgConfigHome is the unexported implementation shared by all Default* functions in this package.
 func xdgConfigHome() (string, error) {
 	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" && filepath.IsAbs(d) {
 		return d, nil
@@ -39,6 +43,15 @@ func xdgDataHome() (string, error) {
 		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
 	}
 	return filepath.Join(home, ".local", "share"), nil
+}
+
+// DefaultConfigFile returns the default path to config.yaml: $XDG_CONFIG_HOME/dot-dagger/config.yaml.
+func DefaultConfigFile() (string, error) {
+	base, err := xdgConfigHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, Name, "config.yaml"), nil
 }
 
 // DefaultEnvFile returns the default path to env.yaml: $XDG_CONFIG_HOME/dot-dagger/env.yaml.

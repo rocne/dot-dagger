@@ -174,6 +174,7 @@ func TestAdopt_Bin(t *testing.T) {
 	opts := AdoptOptions{
 		DotfilesRoot: dotfiles,
 		Conventions:  DefaultConventions(),
+		LinkRoot:     srcDir,
 		BinDir:       binDir,
 	}
 
@@ -215,6 +216,7 @@ func TestAdopt_Shellrc(t *testing.T) {
 	opts := AdoptOptions{
 		DotfilesRoot: dotfiles,
 		Conventions:  DefaultConventions(),
+		LinkRoot:     srcDir,
 	}
 
 	res, err := Adopt(src, "shellrc/aliases.sh", opts)
@@ -258,7 +260,7 @@ func TestAdopt_DestExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	opts := AdoptOptions{DotfilesRoot: dotfiles, Conventions: DefaultConventions()}
+	opts := AdoptOptions{DotfilesRoot: dotfiles, Conventions: DefaultConventions(), LinkRoot: t.TempDir()}
 	_, err := Adopt(src, "conf/dot-bashrc", opts)
 	if err == nil {
 		t.Fatal("expected error when dest exists, got nil")
@@ -275,6 +277,7 @@ func TestAdopt_DryRun(t *testing.T) {
 	opts := AdoptOptions{
 		DotfilesRoot: dotfiles,
 		Conventions:  DefaultConventions(),
+		LinkRoot:     t.TempDir(),
 		DryRun:       true,
 	}
 

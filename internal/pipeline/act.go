@@ -9,7 +9,7 @@ import (
 
 // ActOptions configures Act behaviour.
 type ActOptions struct {
-	HomeDir      string // replaces "~" in link destinations; defaults to os.UserHomeDir
+	HomeDir      string // replaces "~" in link destinations; must be set (use cfg.linkRoot)
 	BinDir       string // replaces "~bin" in link destinations
 	GeneratedDir string // directory for compose-generated files
 	DryRun       bool   // validate without writing to filesystem
@@ -41,11 +41,7 @@ type ActResult struct {
 func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 	home := opts.HomeDir
 	if home == "" {
-		var err error
-		home, err = os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("act: resolve home dir: %w", err)
-		}
+		return nil, fmt.Errorf("act: HomeDir is required — set it via cfg.linkRoot")
 	}
 
 	res := &ActResult{}
