@@ -11,6 +11,10 @@ import (
 )
 
 // Print helpers — write a labeled, colored line to w.
+//
+// Warnf/Errf/Tipf prefix the message with a colored label.
+// OKf/Skipf color the entire message.
+// Headerf emits a blank line, then a bold header line (section start).
 
 func Warnf(w io.Writer, format string, a ...any) {
 	fmt.Fprintf(w, "%s %s\n", Missing("warning:"), fmt.Sprintf(format, a...))
@@ -22,6 +26,20 @@ func Errf(w io.Writer, format string, a ...any) {
 
 func Tipf(w io.Writer, format string, a ...any) {
 	fmt.Fprintf(w, "%s %s\n", Arrow("tip:"), fmt.Sprintf(format, a...))
+}
+
+func OKf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "%s\n", OK(fmt.Sprintf(format, a...)))
+}
+
+func Skipf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "%s\n", Skip(fmt.Sprintf(format, a...)))
+}
+
+// Headerf writes a blank line followed by a bold section header.
+// All standalone section headers in the CLI use this leading-newline pattern.
+func Headerf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "\n%s\n", Header(fmt.Sprintf(format, a...)))
 }
 
 // Semantic Sprint functions — each returns a colored string.

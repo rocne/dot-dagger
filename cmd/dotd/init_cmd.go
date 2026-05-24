@@ -54,10 +54,10 @@ func runInit(cmd *cobra.Command, cfg *config) error {
 
 	fmt.Fprintln(out)
 	for _, path := range written {
-		fmt.Fprintf(out, "  %s %s\n", ui.OK("wrote"), path)
+		ui.OKf(out, "  wrote %s", path)
 	}
 
-	fmt.Fprintf(out, "\n%s\n", ui.Header("Next steps:"))
+	ui.Headerf(out, "Next steps:")
 	fmt.Fprintln(out, "  1. Add dotfiles to your repo")
 	fmt.Fprintf(out, "  2. %s\n", ui.Key("dotd apply"))
 	return nil
@@ -104,7 +104,7 @@ func scaffoldDaggerInteractive(out io.Writer, reader *bufio.Reader, dotfilesPath
 			return written, err
 		}
 		if !yes {
-			fmt.Fprintf(out, "  %s\n", ui.Skip("skipping"))
+			ui.Skipf(out, "  skipping")
 			continue
 		}
 

@@ -136,7 +136,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err := dotcfg.Save(configPath, toolCfg); err != nil {
 		return fmt.Errorf("setup: save config.yaml: %w", err)
 	}
-	fmt.Fprintf(out, "  %s %s\n", ui.OK("wrote"), configPath)
+	ui.OKf(out, "  wrote %s", configPath)
 
 	// Write env.yaml only if absent. cfg.envFile is already resolved by resolvePaths.
 	envPath := cfg.envFile
@@ -148,12 +148,12 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 		if err := os.WriteFile(envPath, []byte(envContent), 0o644); err != nil {
 			return fmt.Errorf("setup: write env.yaml: %w", err)
 		}
-		fmt.Fprintf(out, "  %s %s\n", ui.OK("wrote"), envPath)
+		ui.OKf(out, "  wrote %s", envPath)
 	} else {
-		fmt.Fprintf(out, "  %s %s\n", ui.Skip("exists"), envPath)
+		ui.Skipf(out, "  exists %s", envPath)
 	}
 
-	fmt.Fprintf(out, "\n%s\n", ui.Header("Next steps:"))
+	ui.Headerf(out, "Next steps:")
 	fmt.Fprintf(out, "  1. %s   scaffold convention directories in your dotfiles repo\n", ui.Key("dotd init"))
 	fmt.Fprintln(out, "  2. Add dotfiles to your repo")
 	fmt.Fprintf(out, "  3. %s\n", ui.Key("dotd apply"))
