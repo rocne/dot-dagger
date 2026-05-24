@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +33,7 @@ Run 'dotd init' next to scaffold your dotfiles repo.`,
 }
 
 func runSetup(cmd *cobra.Command, cfg *config) error {
+	out := cmd.OutOrStdout()
 	reader := bufio.NewReader(cmd.InOrStdin())
 	// home is used only to expand "~" in user-typed paths, not for config resolution.
 	home, err := os.UserHomeDir()
@@ -50,18 +53,20 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 
 	isUpdate := existing.Dotfiles != "" || existing.BinDir != "" || existing.GeneratedDir != "" || existing.LinkRoot != ""
 	if isUpdate {
-		fmt.Fprintln(cmd.OutOrStdout(), "Updating dot-dagger configuration — press Enter to keep current value.")
+		fmt.Fprintf(out, "%s — update machine configuration\n", ui.Header("dotd setup"))
+		fmt.Fprintln(out, "Press Enter to keep the current value.")
 	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), "dot-dagger setup wizard — press Enter to accept defaults.")
+		fmt.Fprintf(out, "%s — configure this machine\n", ui.Header("dotd setup"))
+		fmt.Fprintln(out, "Press Enter to accept the shown default.")
 	}
-	fmt.Fprintln(cmd.OutOrStdout())
 
-	// Dotfiles path. Use cfg.files — already resolved by resolvePaths (DOTD_FILES → DOTFILES → config → default).
+	// Dotfiles path. Use cfg.files — already resolved by resolvePaths.
 	dotfilesDefault := existing.Dotfiles
 	if dotfilesDefault == "" {
 		dotfilesDefault = cfg.files
 	}
-	dotfilesPath, err := promptDefault(cmd.OutOrStdout(), reader, "Dotfiles repo (your dotfiles git repository)", dotfilesDefault, false)
+	printField(out, "Dotfiles repo", "Your dotfiles git repository.")
+	dotfilesPath, err := promptDefault(out, reader, fieldPrompt(), dotfilesDefault, false)
 	if err != nil {
 		return err
 	}
@@ -76,7 +81,8 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if binDirDefault == "" {
 		binDirDefault = cfg.binDir
 	}
-	binDir, err := promptDefault(cmd.OutOrStdout(), reader, "Bin directory (generated shell wrappers)", binDirDefault, false)
+	printField(out, "Bin directory", "Where executable scripts from your dotfiles repo are linked.")
+	binDir, err := promptDefault(out, reader, fieldPrompt(), binDirDefault, false)
 	if err != nil {
 		return err
 	}
@@ -91,7 +97,8 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if generatedDirDefault == "" {
 		generatedDirDefault = cfg.generatedDir
 	}
-	generatedDir, err := promptDefault(cmd.OutOrStdout(), reader, "Generated files directory (assembled compose targets)", generatedDirDefault, false)
+	printField(out, "Generated files directory", "Where compose-assembled shell fragments are written.")
+	generatedDir, err := promptDefault(out, reader, fieldPrompt(), generatedDirDefault, false)
 	if err != nil {
 		return err
 	}
@@ -106,7 +113,8 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if linkRootDefault == "" {
 		linkRootDefault = cfg.linkRoot
 	}
-	linkRoot, err := promptDefault(cmd.OutOrStdout(), reader, "Symlink root (where dotfiles symlink to, usually $HOME)", linkRootDefault, false)
+	printField(out, "Symlink root", "Base path for dotfile symlinks, usually your home directory.")
+	linkRoot, err := promptDefault(out, reader, fieldPrompt(), linkRootDefault, false)
 	if err != nil {
 		return err
 	}
@@ -115,6 +123,8 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Fprintln(out)
 
 	// Write config.yaml.
 	toolCfg := &dotcfg.Config{
@@ -126,7 +136,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err := dotcfg.Save(configPath, toolCfg); err != nil {
 		return fmt.Errorf("setup: save config.yaml: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", configPath)
+	fmt.Fprintf(out, "  %s %s\n", ui.OK("wrote"), configPath)
 
 	// Write env.yaml only if absent. cfg.envFile is already resolved by resolvePaths.
 	envPath := cfg.envFile
@@ -138,14 +148,25 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 		if err := os.WriteFile(envPath, []byte(envContent), 0o644); err != nil {
 			return fmt.Errorf("setup: write env.yaml: %w", err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", envPath)
+		fmt.Fprintf(out, "  %s %s\n", ui.OK("wrote"), envPath)
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "exists %s (not modified)\n", envPath)
+		fmt.Fprintf(out, "  %s %s\n", ui.Skip("exists"), envPath)
 	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), "\nNext steps:")
-	fmt.Fprintf(cmd.OutOrStdout(), "  1. Run: %s init  (scaffold .dagger convention files)\n", ecosystem.ToolD)
-	fmt.Fprintln(cmd.OutOrStdout(), "  2. Add dotfiles to your repo")
-	fmt.Fprintf(cmd.OutOrStdout(), "  3. Run: %s apply\n", ecosystem.ToolD)
+	fmt.Fprintf(out, "\n%s\n", ui.Header("Next steps:"))
+	fmt.Fprintf(out, "  1. %s   scaffold convention directories in your dotfiles repo\n", ui.Key("dotd init"))
+	fmt.Fprintln(out, "  2. Add dotfiles to your repo")
+	fmt.Fprintf(out, "  3. %s\n", ui.Key("dotd apply"))
 	return nil
+}
+
+// printField prints a bold field label and a faint description, then a blank line.
+func printField(w io.Writer, label, desc string) {
+	fmt.Fprintf(w, "\n  %s\n", ui.Key(label))
+	fmt.Fprintf(w, "  %s\n", ui.Skip(desc))
+}
+
+// fieldPrompt returns the prompt text used after a printField call.
+func fieldPrompt() string {
+	return "  " + ui.Arrow("›")
 }
