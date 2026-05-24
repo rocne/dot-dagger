@@ -54,7 +54,7 @@ Examples:
 	return cmd
 }
 
-func runAdopt(_ *cobra.Command, cfg *config, src, to string, yes bool) error {
+func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 	// Resolve src to absolute path.
 	srcAbs, err := filepath.Abs(src)
 	if err != nil {
@@ -103,7 +103,7 @@ func runAdopt(_ *cobra.Command, cfg *config, src, to string, yes bool) error {
 
 	if cfg.dryRun {
 		destAbs := filepath.Join(cfg.files, destRel)
-		fmt.Fprintf(os.Stdout, "# adopt %s → %s\n", srcAbs, destAbs)
+		fmt.Fprintf(cmd.OutOrStdout(), "# adopt %s → %s\n", srcAbs, destAbs)
 		return nil
 	}
 

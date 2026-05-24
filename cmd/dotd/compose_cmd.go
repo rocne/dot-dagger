@@ -87,7 +87,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 				}
 				existing, readErr := os.ReadFile(gen.Path)
 				if errors.Is(readErr, fs.ErrNotExist) {
-					fmt.Fprintf(cmd.OutOrStdout(), "missing: %s\n", filepath.Base(gen.Path))
+					fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Missing("missing:"), filepath.Base(gen.Path))
 					hasStale = true
 					continue
 				}
@@ -95,7 +95,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 					return fmt.Errorf("read %s: %w", gen.Path, readErr)
 				}
 				if !bytes.Equal(existing, gen.Content) {
-					fmt.Fprintf(cmd.OutOrStdout(), "stale: %s\n", filepath.Base(gen.Path))
+					fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Wrong("stale:"), filepath.Base(gen.Path))
 					hasStale = true
 				}
 			}
