@@ -19,7 +19,7 @@ func actNode(t *testing.T, dir, name string, actions []Action) RawNode {
 func TestAct_Source(t *testing.T) {
 	dir := t.TempDir()
 	n := actNode(t, dir, "base", []Action{{Type: "source"}})
-	res, err := Act([]RawNode{n}, ActOptions{})
+	res, err := Act([]RawNode{n}, ActOptions{HomeDir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestAct_Source(t *testing.T) {
 func TestAct_NoSource_SuppressesSource(t *testing.T) {
 	dir := t.TempDir()
 	n := actNode(t, dir, "base", []Action{{Type: "source"}, {Type: "no-source"}})
-	res, err := Act([]RawNode{n}, ActOptions{})
+	res, err := Act([]RawNode{n}, ActOptions{HomeDir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}

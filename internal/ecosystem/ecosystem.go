@@ -17,7 +17,11 @@ const ConfigFile = ".dagger"
 // ToolD is the CLI binary name.
 const ToolD = "dotd"
 
-// xdgConfigHome returns $XDG_CONFIG_HOME if set to an absolute path, else ~/.config.
+// XdgConfigHome returns $XDG_CONFIG_HOME if set to an absolute path, else ~/.config.
+// Use this as the canonical XDG config home — do not call os.Getenv("XDG_CONFIG_HOME") directly.
+func XdgConfigHome() (string, error) { return xdgConfigHome() }
+
+// xdgConfigHome is the unexported implementation shared by all Default* functions in this package.
 func xdgConfigHome() (string, error) {
 	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" && filepath.IsAbs(d) {
 		return d, nil

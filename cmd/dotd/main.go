@@ -31,6 +31,7 @@ func main() {
 
 type appConfig struct {
 	files        string
+	configPath   string // resolved path to config.yaml — set by resolvePaths, read by config subcommands
 	envFile      string
 	env          []string
 	initFile     string
@@ -111,7 +112,7 @@ func newRootCmd() *cobra.Command {
 	}
 
 	for _, cmd := range []*cobra.Command{
-		newConfigCmd(),
+		newConfigCmd(cfg),
 		newEnvCmd(cfg),
 		newSetupCmd(cfg),
 		newInitCmd(cfg),
@@ -196,12 +197,12 @@ func resolvePaths(cfg *config) error {
 		return err
 	}
 
-	// Tool preferences from config.yaml.
-	configPath, err := dotcfg.DefaultPath()
+	// Tool preferences from config.yaml. Path stored in cfg so config subcommands don't re-resolve it.
+	cfg.configPath, err = dotcfg.DefaultPath()
 	if err != nil {
 		return err
 	}
-	toolCfg, err := dotcfg.Load(configPath)
+	toolCfg, err := dotcfg.Load(cfg.configPath)
 	if err != nil {
 		return err
 	}

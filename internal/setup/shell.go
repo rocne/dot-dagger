@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 )
 
 // ShellConfig holds the shell name and its RC file path.
@@ -18,12 +20,9 @@ type ShellConfig struct {
 
 // DetectShellConfig returns the RC file for the given shell and OS.
 // shell is the basename (bash, zsh, fish). osName is "macos" or "linux".
+// home is the user's home directory (use cfg.linkRoot from the caller).
 // Returns ok=false for unrecognized shells.
-func DetectShellConfig(shell, osName string) (ShellConfig, bool, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ShellConfig{}, false, fmt.Errorf("setup: home dir: %w", err)
-	}
+func DetectShellConfig(shell, osName, home string) (ShellConfig, bool, error) {
 	switch shell {
 	case "bash":
 		rc := filepath.Join(home, ".bashrc")
@@ -34,10 +33,9 @@ func DetectShellConfig(shell, osName string) (ShellConfig, bool, error) {
 	case "zsh":
 		return ShellConfig{Shell: "zsh", RCFile: filepath.Join(home, ".zshrc")}, true, nil
 	case "fish":
-		// Fish respects $XDG_CONFIG_HOME; default to ~/.config if unset or not absolute.
-		xdgConfig := os.Getenv("XDG_CONFIG_HOME")
-		if xdgConfig == "" || !filepath.IsAbs(xdgConfig) {
-			xdgConfig = filepath.Join(home, ".config")
+		xdgConfig, err := ecosystem.XdgConfigHome()
+		if err != nil {
+			return ShellConfig{}, false, fmt.Errorf("setup: xdg config home: %w", err)
 		}
 		return ShellConfig{Shell: "fish", RCFile: filepath.Join(xdgConfig, "fish", "config.fish")}, true, nil
 	default:
@@ -46,12 +44,9 @@ func DetectShellConfig(shell, osName string) (ShellConfig, bool, error) {
 }
 
 // SourceLine returns the shell source line for initPath expressed as $HOME-relative.
-// Falls back to an absolute path if initPath is not under $HOME.
-func SourceLine(initPath string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("setup: home dir: %w", err)
-	}
+// home is the user's home directory (use cfg.linkRoot from the caller).
+// Falls back to an absolute path if initPath is not under home.
+func SourceLine(initPath, home string) (string, error) {
 	rel, err := filepath.Rel(home, initPath)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return fmt.Sprintf(`source "%s"`, initPath), nil
@@ -84,9 +79,10 @@ func HasSourceLine(rcFile, initPath string) (bool, error) {
 }
 
 // AppendSourceLine appends the dotd source line for initPath to rcFile.
+// home is the user's home directory (use cfg.linkRoot from the caller).
 // Creates rcFile if it does not exist.
-func AppendSourceLine(rcFile, initPath string) error {
-	line, err := SourceLine(initPath)
+func AppendSourceLine(rcFile, initPath, home string) error {
+	line, err := SourceLine(initPath, home)
 	if err != nil {
 		return err
 	}
