@@ -570,3 +570,354 @@ func TestResolveToFlag(t *testing.T) {
 		}
 	}
 }
+
+// --- dotd setup ---
+
+func TestSetup_WritesConfigAndEnv(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", t.TempDir()) // so default dotfiles path exists
+
+	// Simulate pressing Enter for all prompts (accept defaults).
+	input := strings.Repeat("\n", 10)
+
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(input))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"setup"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	configPath := filepath.Join(xdg, "dot-dagger", "config.yaml")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("config.yaml not written: %v", err)
+	}
+	envPath := filepath.Join(xdg, "dot-dagger", "env.yaml")
+	if _, err := os.Stat(envPath); err != nil {
+		t.Fatalf("env.yaml not written: %v", err)
+	}
+}
+
+func TestSetup_UsesCurrentValuesAsDefaults(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	// Pre-write config.yaml with a known dotfiles path.
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	existingDotfiles := t.TempDir()
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"),
+		[]byte("dotfiles: "+existingDotfiles+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Accept all defaults (Enter for each prompt).
+	input := strings.Repeat("\n", 10)
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(input))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetArgs([]string{"setup"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(configDir, "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), existingDotfiles) {
+		t.Errorf("existing dotfiles path not preserved, got:\n%s", string(content))
+	}
+}
+
+func TestSetup_SkipsEnvIfExists(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", t.TempDir())
+
+	// Pre-write env.yaml.
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	envContent := "context: work\n"
+	if err := os.WriteFile(filepath.Join(configDir, "env.yaml"), []byte(envContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	input := strings.Repeat("\n", 10)
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(input))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetArgs([]string{"setup"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	got, _ := os.ReadFile(filepath.Join(configDir, "env.yaml"))
+	if string(got) != envContent {
+		t.Errorf("env.yaml modified: got %q, want %q", string(got), envContent)
+	}
+}
+
+// --- dotd init ---
+
+func TestInit_RequiresConfig(t *testing.T) {
+	// Fresh XDG dir so no config.yaml exists.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	_, err := run(t, "init",
+		"--files", emptyDotfiles(t),
+		"--env-file", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatal("expected error when config.yaml is absent, got nil")
+	}
+}
+
+// --- dotd teardown ---
+
+func TestTeardown_RemovesConfigAndEnv(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	envPath := filepath.Join(configDir, "env.yaml")
+	if err := os.WriteFile(configPath, []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(envPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "teardown", "--yes",
+		"--files", emptyDotfiles(t),
+		"--env-file", envPath,
+	)
+	if err != nil {
+		t.Fatalf("teardown error = %v", err)
+	}
+
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Error("config.yaml should be removed")
+	}
+	if _, err := os.Stat(envPath); !os.IsNotExist(err) {
+		t.Error("env.yaml should be removed")
+	}
+}
+
+func TestTeardown_SkipsAbsentFiles(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	out, err := run(t, "teardown", "--yes",
+		"--files", emptyDotfiles(t),
+		"--env-file", filepath.Join(xdg, "env.yaml"), // doesn't exist
+	)
+	if err != nil {
+		t.Fatalf("teardown error = %v\noutput:\n%s", err, out)
+	}
+	if !strings.Contains(out, "not found") && !strings.Contains(out, "skip") {
+		t.Errorf("expected 'not found'/'skip' in output: %q", out)
+	}
+}
+
+func TestTeardown_CancelExits0(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root := newRootCmd()
+	root.SetIn(strings.NewReader("n\n"))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"teardown",
+		"--files", emptyDotfiles(t),
+		"--env-file", filepath.Join(xdg, "env.yaml"),
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("teardown cancel should exit 0, got %v", err)
+	}
+
+	if _, err := os.Stat(configPath); err != nil {
+		t.Error("config.yaml should be preserved on cancel")
+	}
+	if !strings.Contains(buf.String(), "cancelled") {
+		t.Errorf("expected 'cancelled' in output: %q", buf.String())
+	}
+}
+
+// --- dotd unapply ---
+
+func TestUnapply_RemovesSymlink(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Set up .dagger file to mark files as links
+	daggerFile := filepath.Join(confDir, ".dagger")
+	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// File with link destination annotation
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n[core]\n  autocrlf = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	// Apply first.
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	linkDest := filepath.Join(home, ".gitconfig")
+	if _, err := os.Lstat(linkDest); err != nil {
+		t.Fatalf("symlink not created by apply: %v", err)
+	}
+
+	// Unapply.
+	if _, err := run(t, "unapply", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("unapply error = %v", err)
+	}
+
+	if _, err := os.Lstat(linkDest); !os.IsNotExist(err) {
+		t.Error("symlink should be removed after unapply")
+	}
+}
+
+func TestUnapply_NothingToRemove(t *testing.T) {
+	home := t.TempDir()
+	out, err := run(t, "unapply", "--yes",
+		"--files", emptyDotfiles(t),
+		"--env-file", emptyEnvFile(t),
+		"--link-root", home,
+		"--init-file", filepath.Join(t.TempDir(), "init.sh"),
+	)
+	if err != nil {
+		t.Fatalf("unapply error = %v", err)
+	}
+	if !strings.Contains(out, "nothing to remove") {
+		t.Errorf("expected 'nothing to remove', got %q", out)
+	}
+}
+
+func TestUnapply_DryRunPreservesSymlink(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Set up .dagger file to mark files as links
+	daggerFile := filepath.Join(confDir, ".dagger")
+	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	out, err := run(t, "unapply", "--dry-run", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err != nil {
+		t.Fatalf("unapply --dry-run error = %v", err)
+	}
+
+	// Symlink must still exist.
+	if _, err := os.Lstat(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Error("dry-run must not remove symlink")
+	}
+	if !strings.Contains(out, ".gitconfig") {
+		t.Errorf("dry-run should mention .gitconfig in preview: %q", out)
+	}
+}
+
+func TestUnapply_CancelExits0(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Set up .dagger file to mark files as links
+	daggerFile := filepath.Join(confDir, ".dagger")
+	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	root := newRootCmd()
+	root.SetIn(strings.NewReader("n\n"))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"unapply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unapply cancel should exit 0, got %v", err)
+	}
+
+	if _, err := os.Lstat(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Error("symlink must be preserved on cancel")
+	}
+	if !strings.Contains(buf.String(), "cancelled") {
+		t.Errorf("expected 'cancelled' in output: %q", buf.String())
+	}
+}
