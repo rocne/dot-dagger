@@ -122,6 +122,7 @@ The spec is split into focused sections under `.claude/docs/spec/`. Always start
 | CLI commands | `cli.md` |
 | Config files | `env.md` |
 | Architecture / structure | `architecture.md` |
+| Code quality audit | `.claude/docs/audit-guide.md` |
 
 ### File reading discipline
 
