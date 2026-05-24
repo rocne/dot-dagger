@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -42,19 +40,18 @@ Shows a preview and prompts for confirmation before making any changes.`,
 
 func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	out := cmd.OutOrStdout()
-	reader := bufio.NewReader(cmd.InOrStdin())
 
 	// Pre-action check: warn if active symlinks detected.
 	// Non-fatal if walk fails (env.yaml or dotfiles repo may be absent).
 	if prun, err := runPipeline(cfg, true); err == nil {
 		if len(prun.result.Links) > 0 {
-			fmt.Fprintf(out, "%s %d symlink(s) still active — consider running 'dotd unapply' first\n", ui.Missing("warning:"), len(prun.result.Links))
+			ui.Warnf(out, "%d symlink(s) still active — consider running 'dotd unapply' first", len(prun.result.Links))
 		}
 	}
 
 	// Pre-action check: warn if .dagger files still present.
 	if cfg.files != "" && hasDaggerFiles(cfg.files) {
-		fmt.Fprintf(out, "%s .dagger files present in dotfiles repo — these will not be removed\n", ui.Missing("warning:"))
+		ui.Warnf(out, ".dagger files present in dotfiles repo — these will not be removed")
 	}
 
 	// Determine paths. Both call DefaultPath() directly — teardown removes the
@@ -89,7 +86,7 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	envExists := fileExists(envPath)
 
 	// Preview.
-	fmt.Fprintf(out, "\n%s\n", ui.Header("Will remove:"))
+	ui.Headerf(out, "Will remove:")
 	if configExists {
 		fmt.Fprintf(out, "  %s\n", configPath)
 	} else {
@@ -107,14 +104,8 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	}
 
 	// Confirmation.
-	if !yes {
-		fmt.Fprint(out, "\nProceed? [y/N]: ")
-		ans, _ := reader.ReadString('\n')
-		ans = strings.TrimSpace(strings.ToLower(ans))
-		if ans != "y" && ans != "yes" {
-			fmt.Fprintf(out, "%s\n", ui.Skip("cancelled"))
-			return nil
-		}
+	if !yes && !promptConfirm(out, cmd.InOrStdin()) {
+		return nil
 	}
 
 	// Execute.
@@ -122,32 +113,32 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 		if err := os.Remove(configPath); err != nil {
 			return fmt.Errorf("teardown: remove %s: %w", configPath, err)
 		}
-		fmt.Fprintf(out, "%s %s\n", ui.OK("removed"), configPath)
+		ui.OKf(out, "removed %s", configPath)
 	} else {
-		fmt.Fprintf(out, "%s %s\n", ui.Skip("skip:"), configPath)
+		ui.Skipf(out, "skip: %s", configPath)
 	}
 
 	if envExists {
 		if err := os.Remove(envPath); err != nil {
 			return fmt.Errorf("teardown: remove %s: %w", envPath, err)
 		}
-		fmt.Fprintf(out, "%s %s\n", ui.OK("removed"), envPath)
+		ui.OKf(out, "removed %s", envPath)
 	} else {
-		fmt.Fprintf(out, "%s %s\n", ui.Skip("skip:"), envPath)
+		ui.Skipf(out, "skip: %s", envPath)
 	}
 
 	if rcFile != "" {
 		if err := setup.RemoveSourceLine(rcFile, cfg.initFile); err != nil {
 			return fmt.Errorf("teardown: strip RC source line: %w", err)
 		}
-		fmt.Fprintf(out, "%s source line from %s\n", ui.OK("removed"), rcFile)
+		ui.OKf(out, "removed source line from %s", rcFile)
 	}
 
 	// Prune config dir if now empty.
 	configDir := filepath.Dir(configPath)
 	if entries, err := os.ReadDir(configDir); err == nil && len(entries) == 0 {
 		if err := os.Remove(configDir); err == nil {
-			fmt.Fprintf(out, "%s %s (empty)\n", ui.OK("removed"), configDir)
+			ui.OKf(out, "removed %s (empty)", configDir)
 		}
 	}
 

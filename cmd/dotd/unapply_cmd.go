@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -45,7 +44,6 @@ Examples:
 
 func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	out := cmd.OutOrStdout()
-	reader := bufio.NewReader(cmd.InOrStdin())
 
 	// Collect the link plan.
 	type linkPair struct{ src, dest string }
@@ -103,15 +101,15 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	initShExists := fileExists(cfg.initFile)
 
 	if len(toRemove) == 0 && !initShExists {
-		fmt.Fprintf(out, "%s\n", ui.Skip("nothing to remove"))
+		ui.Skipf(out, "nothing to remove")
 		return nil
 	}
 
 	// Preview.
 	if initShExists {
-		fmt.Fprintf(out, "%s %d symlink(s) and init.sh:\n", ui.Header("Will remove"), len(toRemove))
+		ui.Headerf(out, "Will remove %d symlink(s) and init.sh:", len(toRemove))
 	} else {
-		fmt.Fprintf(out, "%s %d symlink(s):\n", ui.Header("Will remove"), len(toRemove))
+		ui.Headerf(out, "Will remove %d symlink(s):", len(toRemove))
 	}
 	for _, dest := range toRemove {
 		fmt.Fprintf(out, "  %s\n", dest)
@@ -126,29 +124,23 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	}
 
 	// Confirmation.
-	if !yes {
-		fmt.Fprint(out, "\nProceed? [y/N]: ")
-		ans, _ := reader.ReadString('\n')
-		ans = strings.TrimSpace(strings.ToLower(ans))
-		if ans != "y" && ans != "yes" {
-			fmt.Fprintf(out, "%s\n", ui.Skip("cancelled"))
-			return nil
-		}
+	if !yes && !promptConfirm(out, cmd.InOrStdin()) {
+		return nil
 	}
 
 	// Execute.
 	for _, dest := range toRemove {
 		if err := os.Remove(dest); err != nil {
-			fmt.Fprintf(out, "%s removing %s: %v\n", ui.Wrong("error"), dest, err)
+			ui.Errf(out, "removing %s: %v", dest, err)
 			continue
 		}
-		fmt.Fprintf(out, "%s %s\n", ui.OK("removed"), dest)
+		ui.OKf(out, "removed %s", dest)
 	}
 	if initShExists {
 		if err := os.Remove(cfg.initFile); err != nil {
-			fmt.Fprintf(out, "%s removing %s: %v\n", ui.Wrong("error"), cfg.initFile, err)
+			ui.Errf(out, "removing %s: %v", cfg.initFile, err)
 		} else {
-			fmt.Fprintf(out, "%s %s\n", ui.OK("removed"), cfg.initFile)
+			ui.OKf(out, "removed %s", cfg.initFile)
 		}
 	}
 
