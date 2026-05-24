@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -153,6 +154,36 @@ func TestWalk_LogicalName_DotPrefix(t *testing.T) {
 		}
 		sort.Strings(names)
 		t.Fatalf("expected node conf.tmux, got: %v", names)
+	}
+}
+
+func TestWalk_SkipsGitDir(t *testing.T) {
+	root := t.TempDir()
+	// Create a real file dotd should see.
+	shellrc := filepath.Join(root, "shellrc")
+	if err := os.MkdirAll(shellrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrc, "base.sh"), []byte("# @action source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Create .git with a file that would conflict if walked.
+	gitObjects := filepath.Join(root, ".git", "objects")
+	if err := os.MkdirAll(gitObjects, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitObjects, "something"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range nodes {
+		if filepath.Base(filepath.Dir(n.Path)) == ".git" || filepath.Base(n.Path) == ".git" {
+			t.Errorf("Walk returned node inside .git: %s", n.Path)
+		}
 	}
 }
 

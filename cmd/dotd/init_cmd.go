@@ -44,34 +44,43 @@ func runInit(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 		return err
 	}
 
+	if !nonInteractive {
+		fmt.Fprintln(cmd.OutOrStdout(), "Dotd setup wizard — press Enter to accept defaults.")
+		fmt.Fprintln(cmd.OutOrStdout())
+	}
+
 	// Gather tool config values.
 	dotfilesDefault := filepath.Join(home, "dotfiles")
 	if d, ok := os.LookupEnv("DOTFILES"); ok {
 		dotfilesDefault = d
 	}
 
-	dotfilesPath, err := promptDefault(cmd.OutOrStdout(), reader, "Dotfiles repo path", dotfilesDefault, nonInteractive)
+	dotfilesPath, err := promptDefault(cmd.OutOrStdout(), reader, "Dotfiles repo (your dotfiles git repository)", dotfilesDefault, nonInteractive)
 	if err != nil {
 		return err
 	}
 	dotfilesPath = expandTildeStr(dotfilesPath, home)
+	dotfilesPath, err = filepath.Abs(dotfilesPath)
+	if err != nil {
+		return err
+	}
 
 	binDirDefault := filepath.Join(home, ".local", "bin", "dot-dagger")
-	binDir, err := promptDefault(cmd.OutOrStdout(), reader, "Bin directory", binDirDefault, nonInteractive)
+	binDir, err := promptDefault(cmd.OutOrStdout(), reader, "Bin directory (generated shell wrappers)", binDirDefault, nonInteractive)
 	if err != nil {
 		return err
 	}
 	binDir = expandTildeStr(binDir, home)
 
 	generatedDirDefault := filepath.Join(home, ".local", "share", "dot-dagger", "generated")
-	generatedDir, err := promptDefault(cmd.OutOrStdout(), reader, "Generated files directory", generatedDirDefault, nonInteractive)
+	generatedDir, err := promptDefault(cmd.OutOrStdout(), reader, "Generated files directory (assembled compose targets)", generatedDirDefault, nonInteractive)
 	if err != nil {
 		return err
 	}
 	generatedDir = expandTildeStr(generatedDir, home)
 
 	linkRootDefault := home
-	linkRoot, err := promptDefault(cmd.OutOrStdout(), reader, "Default symlink root", linkRootDefault, nonInteractive)
+	linkRoot, err := promptDefault(cmd.OutOrStdout(), reader, "Symlink root (where dotfiles symlink to, usually $HOME)", linkRootDefault, nonInteractive)
 	if err != nil {
 		return err
 	}

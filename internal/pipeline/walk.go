@@ -55,6 +55,9 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 			return err
 		}
 		if d.IsDir() {
+			if filepath.Base(path) == ".git" {
+				return filepath.SkipDir
+			}
 			cfg, err := dagger.LoadFile(filepath.Join(path, ".dagger"))
 			if err != nil {
 				return err
@@ -87,6 +90,9 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 		if d.IsDir() {
 			if path == dotfilesRoot {
 				return nil
+			}
+			if filepath.Base(path) == ".git" {
+				return filepath.SkipDir
 			}
 			// Emit a compose-target node for directories with composition enabled.
 			cfg, ok := daggerMap[path]
