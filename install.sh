@@ -16,7 +16,7 @@
 # --dir        override install directory   (default: ~/.local/bin)
 # --dry-run    print what would be done, then exit without installing
 #
-# Requires: gh CLI (https://cli.github.com)
+# Requires: curl
 #
 set -e
 
@@ -84,10 +84,9 @@ fi
 printf 'tool:     %s\n' "$TOOL"
 printf 'platform: %s/%s\n' "$OS" "$ARCH"
 
-# --- require gh ---
-if ! command -v gh >/dev/null 2>&1; then
-  printf 'error: gh CLI not found\n' >&2
-  printf '       install from https://cli.github.com then run: gh auth login\n' >&2
+# --- require curl ---
+if ! command -v curl >/dev/null 2>&1; then
+  printf 'error: curl not found\n' >&2
   exit 1
 fi
 
@@ -97,8 +96,9 @@ if [ -n "$VERSION" ]; then
   VERSION=$(printf '%s' "$VERSION" | sed 's/^v//')
   TAG="v${VERSION}"
 else
-  TAG=$(gh api "repos/$REPO/releases" \
-    --jq "[.[] | select(.tag_name | startswith(\"v\"))][0].tag_name")
+  TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+    | grep '"tag_name"' \
+    | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
 
   if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
     printf 'error: no %s release found in %s\n' "$TOOL" "$REPO" >&2
@@ -125,7 +125,9 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 printf 'downloading...\n'
-gh release download "$TAG" --repo "$REPO" --pattern "$ASSET" --pattern "$CHECKSUMS" --dir "$TMP"
+BASE_URL="https://github.com/$REPO/releases/download/$TAG"
+curl -fsSL -o "$TMP/$ASSET"     "$BASE_URL/$ASSET"
+curl -fsSL -o "$TMP/$CHECKSUMS" "$BASE_URL/$CHECKSUMS"
 
 # --- verify checksum ---
 printf 'verifying checksum...\n'
