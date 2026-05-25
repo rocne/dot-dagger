@@ -3,26 +3,21 @@
 ## install.sh (recommended)
 
 ```sh
-curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh
 ```
 
-Detects your OS and architecture, downloads the latest release, and installs `dotd` to `~/.local/bin`.
-
-Requires the [GitHub CLI](https://cli.github.com) authenticated with `gh auth login`. This requirement will be removed when the repository goes public.
+Detects your OS and architecture, downloads the latest release, and installs `dotd` to `~/.local/bin`. Requires only `curl`.
 
 **Install a specific version:**
 
 ```sh
-curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
+curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
 ```
 
 **Install to a custom directory:**
 
 ```sh
-curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --dir /usr/local/bin
+curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --dir /usr/local/bin
 ```
 
 ## From source

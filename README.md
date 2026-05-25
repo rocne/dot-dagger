@@ -119,7 +119,7 @@ Each stage is also available standalone: `dotd env`, `dotd dag`, `dotd link`, `d
 curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh
 ```
 
-Detects your OS and architecture, downloads the latest release, and installs to `~/.local/bin`. Requires [gh CLI](https://cli.github.com).
+Detects your OS and architecture, downloads the latest release, and installs to `~/.local/bin`. Requires only `curl`.
 
 Install a specific version:
 
