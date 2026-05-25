@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   release:
@@ -48,3 +49,12 @@ jobs:
         run: ./test/run-e2e.sh
         env:
           DOTD_VERSION: ${{ github.ref_name }}
+
+      - name: Open issue on failure
+        if: failure()
+        run: |
+          gh issue create \
+            --title "e2e failure: ${{ github.ref_name }} (${{ matrix.distro }})" \
+            --body "E2e tests failed for release [${{ github.ref_name }}](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}) on \`${{ matrix.distro }}\`.\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
