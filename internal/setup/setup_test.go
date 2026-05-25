@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/setup"
 )
 
@@ -45,7 +46,7 @@ func TestScaffoldCreatesFiles(t *testing.T) {
 		t.Fatalf("Scaffold error = %v", err)
 	}
 
-	for _, name := range []string{"env.yaml", ".dagger", "packages.yaml"} {
+	for _, name := range []string{"env.yaml", ecosystem.ConfigFile, "packages.yaml"} {
 		path := filepath.Join(dir, name)
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("expected file %s to exist: %v", name, err)

@@ -42,6 +42,14 @@ func Headerf(w io.Writer, format string, a ...any) {
 	fmt.Fprintf(w, "\n%s\n", Header(fmt.Sprintf(format, a...)))
 }
 
+func Missingf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "%s %s\n", Missing("missing:"), fmt.Sprintf(format, a...))
+}
+
+func Wrongf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "%s %s\n", Wrong("stale:"), fmt.Sprintf(format, a...))
+}
+
 // Semantic Sprint functions — each returns a colored string.
 
 func OK(s string) string          { return green.Sprint(s) }

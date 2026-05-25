@@ -18,7 +18,7 @@ func actNode(t *testing.T, dir, name string, actions []Action) RawNode {
 
 func TestAct_Source(t *testing.T) {
 	dir := t.TempDir()
-	n := actNode(t, dir, "base", []Action{{Type: "source"}})
+	n := actNode(t, dir, "base", []Action{{Type: ActionSource}})
 	res, err := Act([]RawNode{n}, ActOptions{HomeDir: dir})
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +30,7 @@ func TestAct_Source(t *testing.T) {
 
 func TestAct_NoSource_SuppressesSource(t *testing.T) {
 	dir := t.TempDir()
-	n := actNode(t, dir, "base", []Action{{Type: "source"}, {Type: "no-source"}})
+	n := actNode(t, dir, "base", []Action{{Type: ActionSource}, {Type: ActionNoSource}})
 	res, err := Act([]RawNode{n}, ActOptions{HomeDir: dir})
 	if err != nil {
 		t.Fatal(err)
@@ -44,7 +44,7 @@ func TestAct_Link_CreatesSymlink(t *testing.T) {
 	dir := t.TempDir()
 	destDir := t.TempDir()
 	dest := filepath.Join(destDir, ".tmux.conf")
-	n := actNode(t, dir, "tmux", []Action{{Type: "link", Dest: dest}})
+	n := actNode(t, dir, "tmux", []Action{{Type: ActionLink, Dest: dest}})
 	n.LinkRoot = destDir
 
 	opts := ActOptions{HomeDir: destDir}
@@ -68,8 +68,8 @@ func TestAct_Link_Conflict_Error(t *testing.T) {
 	dir := t.TempDir()
 	destDir := t.TempDir()
 	dest := filepath.Join(destDir, "same")
-	n1 := actNode(t, dir, "a", []Action{{Type: "link", Dest: dest}})
-	n2 := actNode(t, dir, "b", []Action{{Type: "link", Dest: dest}})
+	n1 := actNode(t, dir, "a", []Action{{Type: ActionLink, Dest: dest}})
+	n2 := actNode(t, dir, "b", []Action{{Type: ActionLink, Dest: dest}})
 
 	_, err := Act([]RawNode{n1, n2}, ActOptions{HomeDir: destDir})
 	if err == nil {
@@ -80,7 +80,7 @@ func TestAct_Link_Conflict_Error(t *testing.T) {
 func TestAct_Link_TildeExpansion(t *testing.T) {
 	dir := t.TempDir()
 	home := t.TempDir()
-	n := actNode(t, dir, "tmux", []Action{{Type: "link", Dest: "~/.tmux.conf"}})
+	n := actNode(t, dir, "tmux", []Action{{Type: ActionLink, Dest: "~/.tmux.conf"}})
 	n.LinkRoot = home
 
 	res, err := Act([]RawNode{n}, ActOptions{HomeDir: home})
@@ -100,7 +100,7 @@ func TestAct_DryRun_NoWrite(t *testing.T) {
 	dir := t.TempDir()
 	destDir := t.TempDir()
 	dest := filepath.Join(destDir, ".tmux.conf")
-	n := actNode(t, dir, "tmux", []Action{{Type: "link", Dest: dest}})
+	n := actNode(t, dir, "tmux", []Action{{Type: ActionLink, Dest: dest}})
 	n.LinkRoot = destDir
 
 	_, err := Act([]RawNode{n}, ActOptions{HomeDir: destDir, DryRun: true})
