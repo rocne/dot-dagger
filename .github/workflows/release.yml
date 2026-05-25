@@ -34,3 +34,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.VERSION }}
+
+  e2e:
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distro: [ubuntu]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run e2e tests (${{ matrix.distro }})
+        run: ./test/run-e2e.sh
+        env:
+          DOTD_VERSION: ${{ github.ref_name }}
