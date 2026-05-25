@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 )
 
 // run executes the root command with the given args, capturing combined stdout+stderr.
@@ -252,7 +254,7 @@ func TestApplyDryRunWithActiveNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	// v2 annotation syntax: @when(os=linux), .dagger defaults source action
-	daggerFile := filepath.Join(shellrcDir, ".dagger")
+	daggerFile := filepath.Join(shellrcDir, ecosystem.ConfigFile)
 	if err := os.WriteFile(daggerFile, []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +290,7 @@ func TestApplyWritesInitSh(t *testing.T) {
 	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	daggerFile := filepath.Join(shellrcDir, ".dagger")
+	daggerFile := filepath.Join(shellrcDir, ecosystem.ConfigFile)
 	if err := os.WriteFile(daggerFile, []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +336,7 @@ func TestListActiveNodes(t *testing.T) {
 	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(shellrcDir, ".dagger"), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(shellrcDir, ecosystem.ConfigFile), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(shellrcDir, "base.sh"), []byte("export X=1\n"), 0o644); err != nil {
@@ -366,7 +368,7 @@ func TestListInactiveFlag(t *testing.T) {
 	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(shellrcDir, ".dagger"), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(shellrcDir, ecosystem.ConfigFile), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(shellrcDir, "macos.sh"), []byte("# @when(os=macos)\n"), 0o644); err != nil {
@@ -408,7 +410,7 @@ func TestBundleSimple(t *testing.T) {
 	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(shellrcDir, ".dagger"), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(shellrcDir, ecosystem.ConfigFile), []byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(shellrcDir, "base.sh"), []byte("export BASE=1\n"), 0o644); err != nil {
@@ -776,7 +778,7 @@ func TestUnapply_RemovesSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Set up .dagger file to mark files as links
-	daggerFile := filepath.Join(confDir, ".dagger")
+	daggerFile := filepath.Join(confDir, ecosystem.ConfigFile)
 	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -839,7 +841,7 @@ func TestUnapply_DryRunPreservesSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Set up .dagger file to mark files as links
-	daggerFile := filepath.Join(confDir, ".dagger")
+	daggerFile := filepath.Join(confDir, ecosystem.ConfigFile)
 	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -882,7 +884,7 @@ func TestUnapply_CancelExits0(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Set up .dagger file to mark files as links
-	daggerFile := filepath.Join(confDir, ".dagger")
+	daggerFile := filepath.Join(confDir, ecosystem.ConfigFile)
 	if err := os.WriteFile(daggerFile, []byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+
+	"github.com/rocne/dot-dagger/internal/ui"
 )
 
 // MissingKeyError is returned when a predicate references an env key that is not set.
@@ -73,7 +75,7 @@ func (r *FuncRegistry) Call(name, arg string) (bool, error) {
 		case Strict:
 			return false, fmt.Errorf("predicate: unknown function %q", name)
 		case Warn:
-			fmt.Fprintf(r.warnOut, "warning: unknown predicate function %q\n", name)
+			ui.Warnf(r.warnOut, "unknown predicate function %q", name)
 			return false, nil
 		}
 	}

@@ -99,39 +99,39 @@ func TestMergeActions_CanonicalAnnotations(t *testing.T) {
 	}{
 		{
 			name:     "inherited source default, no annotation",
-			defaults: []string{"source"},
+			defaults: []string{ActionSource},
 			anns:     nil,
-			want:     []Action{{Type: "source"}},
+			want:     []Action{{Type: ActionSource}},
 		},
 		{
 			name:     "action source annotation adds source",
 			defaults: nil,
 			anns:     []annotation.Annotation{{Key: "action", Args: "source"}},
-			want:     []Action{{Type: "source"}},
+			want:     []Action{{Type: ActionSource}},
 		},
 		{
 			name:     "action link annotation adds link",
 			defaults: nil,
 			anns:     []annotation.Annotation{{Key: "action", Args: "link(~/.gitconfig)"}},
-			want:     []Action{{Type: "link", Dest: "~/.gitconfig"}},
+			want:     []Action{{Type: ActionLink, Dest: "~/.gitconfig"}},
 		},
 		{
 			name:     "inherited source suppressed by action no-source",
-			defaults: []string{"source"},
+			defaults: []string{ActionSource},
 			anns:     []annotation.Annotation{{Key: "action", Args: "no-source"}},
-			want:     []Action{{Type: "no-source"}},
+			want:     []Action{{Type: ActionNoSource}},
 		},
 		{
 			name:     "action no-source without inherited source still adds no-source",
 			defaults: nil,
 			anns:     []annotation.Annotation{{Key: "action", Args: "no-source"}},
-			want:     []Action{{Type: "no-source"}},
+			want:     []Action{{Type: ActionNoSource}},
 		},
 		{
 			name:     "action link replaces inherited link dest",
 			defaults: []string{"link(~/old-dest)"},
 			anns:     []annotation.Annotation{{Key: "action", Args: "link(~/new-dest)"}},
-			want:     []Action{{Type: "link", Dest: "~/new-dest"}},
+			want:     []Action{{Type: ActionLink, Dest: "~/new-dest"}},
 		},
 		{
 			name:     "non-action annotation ignored by mergeActions",
@@ -146,7 +146,7 @@ func TestMergeActions_CanonicalAnnotations(t *testing.T) {
 				{Key: "action", Args: "source"},
 				{Key: "action", Args: "link(~/.gitconfig)"},
 			},
-			want: []Action{{Type: "source"}, {Type: "link", Dest: "~/.gitconfig"}},
+			want: []Action{{Type: ActionSource}, {Type: ActionLink, Dest: "~/.gitconfig"}},
 		},
 	}
 
@@ -200,13 +200,13 @@ func TestValidateNodes(t *testing.T) {
 		// --- error cases ---
 		{
 			name:    "compose on file is an error",
-			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "compose"}})},
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: ActionCompose}})},
 			wantErr: true,
 			errMsg:  "compose is only valid on directories",
 		},
 		{
 			name:    "link without dest and no link_root is an error",
-			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "link", Dest: ""}})},
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: ActionLink, Dest: ""}})},
 			wantErr: true,
 			errMsg:  "link requires a destination",
 		},
@@ -214,8 +214,8 @@ func TestValidateNodes(t *testing.T) {
 			name: "link before compose on dir is an error",
 			nodes: []RawNode{
 				withActions(dirNode("shellrc.d"), []Action{
-					{Type: "link", Dest: "~/.zshrc"},
-					{Type: "compose"},
+					{Type: ActionLink, Dest: "~/.zshrc"},
+					{Type: ActionCompose},
 				}),
 			},
 			wantErr: true,
@@ -225,8 +225,8 @@ func TestValidateNodes(t *testing.T) {
 			name: "source before compose on dir is an error",
 			nodes: []RawNode{
 				withActions(dirNode("shellrc.d"), []Action{
-					{Type: "source"},
-					{Type: "compose"},
+					{Type: ActionSource},
+					{Type: ActionCompose},
 				}),
 			},
 			wantErr: true,
@@ -236,9 +236,9 @@ func TestValidateNodes(t *testing.T) {
 			name: "conflicting link destinations is an error",
 			nodes: []RawNode{
 				withActions(dirNode("shellrc.d"), []Action{
-					{Type: "compose"},
-					{Type: "link", Dest: "~/.zshrc"},
-					{Type: "link", Dest: "~/.bashrc"},
+					{Type: ActionCompose},
+					{Type: ActionLink, Dest: "~/.zshrc"},
+					{Type: ActionLink, Dest: "~/.bashrc"},
 				}),
 			},
 			wantErr: true,
@@ -252,12 +252,12 @@ func TestValidateNodes(t *testing.T) {
 		},
 		{
 			name:    "file with source only is valid",
-			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "source"}})},
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: ActionSource}})},
 			wantErr: false,
 		},
 		{
 			name:    "file with link is valid",
-			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: "link", Dest: "~/.foo"}})},
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: ActionLink, Dest: "~/.foo"}})},
 			wantErr: false,
 		},
 		{
@@ -272,7 +272,7 @@ func TestValidateNodes(t *testing.T) {
 				LogicalName: "conf.dot-gitconfig",
 				LinkRoot:    "~",
 				LinkRootDir: "/dotfiles/conf",
-				Actions:     []Action{{Type: "link", Dest: ""}},
+				Actions:     []Action{{Type: ActionLink, Dest: ""}},
 			}},
 			wantErr: false,
 		},
@@ -284,7 +284,7 @@ func TestValidateNodes(t *testing.T) {
 				IsCompose:     true,
 				ComposeTarget: "/dotfiles/conf/dot-tmux.conf.d",
 				LinkRoot:      "~",
-				Actions:       []Action{{Type: "link", Dest: ""}},
+				Actions:       []Action{{Type: ActionLink, Dest: ""}},
 			}},
 			wantErr: false,
 		},
@@ -292,8 +292,8 @@ func TestValidateNodes(t *testing.T) {
 			name: "dir with compose then link is valid",
 			nodes: []RawNode{
 				withActions(dirNode("shellrc.d"), []Action{
-					{Type: "compose"},
-					{Type: "link", Dest: "~/.zshrc"},
+					{Type: ActionCompose},
+					{Type: ActionLink, Dest: "~/.zshrc"},
 				}),
 			},
 			wantErr: false,
@@ -302,9 +302,9 @@ func TestValidateNodes(t *testing.T) {
 			name: "dir with compose then source then link is valid",
 			nodes: []RawNode{
 				withActions(dirNode("shellrc.d"), []Action{
-					{Type: "compose"},
-					{Type: "source"},
-					{Type: "link", Dest: "~/.zshrc"},
+					{Type: ActionCompose},
+					{Type: ActionSource},
+					{Type: ActionLink, Dest: "~/.zshrc"},
 				}),
 			},
 			wantErr: false,
@@ -312,8 +312,8 @@ func TestValidateNodes(t *testing.T) {
 		{
 			name: "multiple errors are all reported",
 			nodes: []RawNode{
-				fileNode("a.sh", []Action{{Type: "compose"}}),
-				fileNode("b.sh", []Action{{Type: "link", Dest: ""}}),
+				fileNode("a.sh", []Action{{Type: ActionCompose}}),
+				fileNode("b.sh", []Action{{Type: ActionLink, Dest: ""}}),
 			},
 			wantErr: true,
 			errMsg:  "compose is only valid on directories",

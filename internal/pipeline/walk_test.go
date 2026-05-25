@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 )
 
 func fixtureRoot(t *testing.T) string {
@@ -44,7 +46,7 @@ func TestWalk_NoDaggerFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, n := range nodes {
-		if filepath.Base(n.Path) == ".dagger" {
+		if filepath.Base(n.Path) == ecosystem.ConfigFile {
 			t.Errorf(".dagger file should not be in output: %s", n.Path)
 		}
 	}
@@ -61,7 +63,7 @@ func TestWalk_DefaultsActions_Inherited(t *testing.T) {
 	if n == nil {
 		t.Fatal("expected node shellrc.base")
 	}
-	if !hasAction(n.Actions, "source") {
+	if !hasAction(n.Actions, ActionSource) {
 		t.Errorf("shellrc.base should have source action, got %v", n.Actions)
 	}
 }
@@ -118,7 +120,7 @@ func TestWalk_FileAnnotation_Link(t *testing.T) {
 	if n == nil {
 		t.Fatal("expected node conf.gitconfig")
 	}
-	if !hasActionWithDest(n.Actions, "link", "~/.gitconfig") {
+	if !hasActionWithDest(n.Actions, ActionLink, "~/.gitconfig") {
 		t.Errorf("conf.gitconfig should have link(~/.gitconfig) action, got %v", n.Actions)
 	}
 }
