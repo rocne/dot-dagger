@@ -26,7 +26,7 @@ test -L /home/e2e/bin/hello \
 
 # symlink target must point back to the fixture file
 TARGET=$(readlink /home/e2e/bin/hello)
-echo "$TARGET" | grep -q "bin/hello" \
+[ "$TARGET" = "/fixture/bin/hello" ] \
   || { printf 'FAIL: bin/hello symlink target wrong: %s\n' "$TARGET"; exit 1; }
 
 # following the symlink must yield an executable
