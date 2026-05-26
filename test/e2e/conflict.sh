@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 TAG="${DOTD_VERSION:?DOTD_VERSION must be set}"
 ASSET="dotd_${TAG}_linux_amd64.tar.gz"
