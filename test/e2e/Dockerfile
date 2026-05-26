@@ -5,3 +5,14 @@ RUN apt-get update \
 COPY binary.sh /tests/binary.sh
 COPY install.sh /tests/install.sh
 COPY combined.sh /tests/combined.sh
+COPY context.sh /tests/context.sh
+COPY dag-order.sh /tests/dag-order.sh
+COPY dry-run.sh /tests/dry-run.sh
+COPY idempotent.sh /tests/idempotent.sh
+COPY check.sh /tests/check.sh
+COPY list.sh /tests/list.sh
+COPY bin.sh /tests/bin.sh
+COPY symlinks-nested.sh /tests/symlinks-nested.sh
+COPY disable.sh /tests/disable.sh
+COPY packages.sh /tests/packages.sh
+COPY conflict.sh /tests/conflict.sh
