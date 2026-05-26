@@ -8,11 +8,10 @@ BASE_URL="https://github.com/rocne/dot-dagger/releases/download/${TAG}"
 curl -fsSL -o "/tmp/${ASSET}" "${BASE_URL}/${ASSET}"
 tar -xzf "/tmp/${ASSET}" -C /tmp
 chmod +x /tmp/dotd
-DOTD=/tmp/dotd
 
 # --- work context ---
 mkdir -p /home/e2e-work/bin /tmp/gen-work
-"${DOTD}" apply \
+/tmp/dotd apply \
   --files /fixture \
   --env-file /fixture/env.yaml \
   --link-root /home/e2e-work \
@@ -29,7 +28,7 @@ grep -q "work.sh" /tmp/init-work.sh \
 
 # --- personal context ---
 mkdir -p /home/e2e-personal/bin /tmp/gen-personal
-"${DOTD}" apply \
+/tmp/dotd apply \
   --files /fixture \
   --env-file /fixture/env.yaml \
   --link-root /home/e2e-personal \
