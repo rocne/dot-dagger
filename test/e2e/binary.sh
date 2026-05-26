@@ -25,6 +25,9 @@ mkdir -p /home/e2e/bin /tmp/generated
 
 # assertions
 test -L /home/e2e/.zshrc              || { printf 'FAIL: .zshrc symlink missing\n';      exit 1; }
+TARGET=$(readlink /home/e2e/.zshrc)
+[ "$TARGET" = "/fixture/conf/dot-zshrc" ] \
+  || { printf 'FAIL: .zshrc symlink target wrong: %s\n' "$TARGET"; exit 1; }
 grep -q "base.sh"    /tmp/init.sh     || { printf 'FAIL: base.sh not in init.sh\n';      exit 1; }
 grep -q "path.sh"    /tmp/init.sh     || { printf 'FAIL: path.sh not in init.sh\n';      exit 1; }
 grep -q "aliases.sh" /tmp/init.sh     || { printf 'FAIL: aliases.sh not in init.sh\n';   exit 1; }

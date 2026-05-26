@@ -42,5 +42,8 @@ mkdir -p /home/e2e-personal/bin /tmp/gen-personal
   || { printf 'FAIL: work.sh should not be in init.sh for context=personal\n'; exit 1; }
 test -L /home/e2e-personal/.gitconfig \
   || { printf 'FAIL: .gitconfig should be linked in personal context\n'; exit 1; }
+TARGET=$(readlink /home/e2e-personal/.gitconfig)
+[ "$TARGET" = "/fixture/conf/dot-gitconfig" ] \
+  || { printf 'FAIL: .gitconfig target wrong: %s\n' "$TARGET"; exit 1; }
 
 printf 'PASS: context test\n'
