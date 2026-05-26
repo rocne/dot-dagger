@@ -9,6 +9,8 @@ curl -fsSL -o "/tmp/${ASSET}" "${BASE_URL}/${ASSET}"
 tar -xzf "/tmp/${ASSET}" -C /tmp
 chmod +x /tmp/dotd
 
+mkdir -p /home/e2e/bin /tmp/generated
+
 COMMON_ARGS="--files /fixture --env-file /fixture/env.yaml --link-root /home/e2e --bin-dir /home/e2e/bin --init-file /tmp/init.sh --generated-dir /tmp/generated --env os=linux --env context=personal"
 
 # Active list should include known active nodes
