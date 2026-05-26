@@ -1,0 +1,14 @@
+package_managers:
+  apt:
+    install: apt-get install -y {package}
+    uninstall: apt-get remove -y {package}
+
+packages:
+  # binary=sh is always on PATH — @require always passes without installing anything
+  fake-installed:
+    binary: sh
+    apt: {}
+
+  # no managers defined — @require always hard-fails, @request silently skips
+  not-installable:
+    binary: definitely-not-a-real-binary-zzz
