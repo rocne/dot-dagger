@@ -106,16 +106,6 @@ func DefaultDotfiles() string {
 	return dir
 }
 
-// DefaultLinkRoot returns the default home directory: $HOME.
-// Used for "~" expansion in link destinations. Not the config dir — see XdgConfigHome.
-func DefaultLinkRoot() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
-	}
-	return home, nil
-}
-
 // ResolvePath returns the first non-empty value from: cliArg, os.Getenv(envVar),
 // envFileVal, then the result of defaultFn. Tilde expansion is not applied here —
 // callers are responsible for expanding paths from env.yaml if needed.

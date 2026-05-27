@@ -77,10 +77,7 @@ func TestGenerate_Atomic(t *testing.T) {
 func TestGenerate_PrependsBinDir(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "init.sh")
-	opts := GenerateOptions{
-		BinDir:  "/home/user/.local/bin/dot-dagger",
-		HomeDir: "/home/user",
-	}
+	opts := GenerateOptions{BinDir: "/home/user/.local/bin/dot-dagger"}
 	if err := Generate(out, nil, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -89,28 +86,8 @@ func TestGenerate_PrependsBinDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(content)
-	if !strings.Contains(s, `export PATH="${HOME}/.local/bin/dot-dagger:${PATH}"`) {
-		t.Errorf("expected portable PATH line, got:\n%s", s)
-	}
-}
-
-func TestGenerate_BinDirAbsoluteWhenNotUnderHome(t *testing.T) {
-	dir := t.TempDir()
-	out := filepath.Join(dir, "init.sh")
-	opts := GenerateOptions{
-		BinDir:  "/usr/local/bin",
-		HomeDir: "/home/user",
-	}
-	if err := Generate(out, nil, opts); err != nil {
-		t.Fatal(err)
-	}
-	content, err := os.ReadFile(out)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := string(content)
-	if !strings.Contains(s, `export PATH="/usr/local/bin:${PATH}"`) {
-		t.Errorf("expected absolute PATH line, got:\n%s", s)
+	if !strings.Contains(s, `export PATH="/home/user/.local/bin/dot-dagger:${PATH}"`) {
+		t.Errorf("expected PATH line with absolute bin dir, got:\n%s", s)
 	}
 }
 
