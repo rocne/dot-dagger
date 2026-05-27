@@ -113,7 +113,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if linkRootDefault == "" {
 		linkRootDefault = cfg.linkRoot
 	}
-	printField(out, "Symlink root", "Base path for dotfile symlinks, usually your home directory.")
+	printField(out, "Link root", "Base path for conf/ symlinks. conf/dot-config/... links to ~/.config/... via dot- prefix transform (default: ~).")
 	linkRoot, err := promptDefault(out, reader, fieldPrompt(), linkRootDefault, false)
 	if err != nil {
 		return err

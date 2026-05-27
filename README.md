@@ -36,7 +36,7 @@ fi
 For **load order**, the standard move is numbered prefixes and split files:
 
 ```
-conf/zsh/
+config/zsh/
   00-env.zsh
   10-path.zsh
   20-aliases.zsh
@@ -90,7 +90,7 @@ The core dotd bet: **conditions belong on files, not in shell code or central ma
 
 **One annotation, one concern.** Each annotation does exactly one thing. `@when` controls inclusion. `@after` controls ordering. `@require` gates on a package. They compose but don't interfere.
 
-**Convention over config.** Put files in `shellrc/`, `conf/`, or `bin/` and they just work. Annotations and `.dotd.yaml` are for exceptions, not the common case.
+**Convention over config.** Put files in `shellrc/`, `config/`, or `bin/` and they just work. Annotations and `.dagger` are for exceptions, not the common case.
 
 **Composable subsystems.** Every subsystem works standalone. `dotd apply` composes them, but you can run individual stages, use only the pieces you need, and understand the system by reading one part at a time.
 
@@ -103,9 +103,9 @@ The core dotd bet: **conditions belong on files, not in shell code or central ma
 dotd runs four stages in sequence:
 
 1. **Env** — detects your environment (OS, distro, shell) and loads any overrides from `env.yaml`. This produces the resolved environment used for all condition evaluation.
-2. **Fileset** — walks the entire dotfiles repo, evaluates `@when` conditions, and builds the active file set for this machine. Files under `shellrc/`, `conf/`, and `bin/` get special treatment (sourced, symlinked, added to PATH respectively); files anywhere else in the repo are included if they carry `@symlink` or `@source` annotations.
+2. **Fileset** — walks the entire dotfiles repo, evaluates `@when` conditions, and builds the active file set for this machine. Files under `shellrc/`, `config/`, and `bin/` get special treatment (sourced, symlinked, added to PATH respectively); files anywhere else in the repo are included if they carry `@symlink` or `@source` annotations.
 3. **Packages** — reads `@require` and `@request` annotations and installs packages using whichever manager is available on this machine.
-4. **Symlinks + init.sh** — creates symlinks for `conf/` and `bin/` files; resolves `@after` dependencies and writes a single `init.sh` that sources only the active scripts in the right order.
+4. **Symlinks + init.sh** — creates symlinks for `config/` and `bin/` files; resolves `@after` dependencies and writes a single `init.sh` that sources only the active scripts in the right order.
 
 Each stage is also available standalone: `dotd env`, `dotd dag`, `dotd link`, `dotd package`.
 
@@ -167,22 +167,22 @@ dotd check -f ~/dotfiles
 ```
 dotfiles/
   shellrc/          ← shell rc fragments sourced into init.sh, in dependency order
-  conf/             ← config files symlinked into $HOME
+  config/           ← config files symlinked into ~/.config
   bin/              ← executables symlinked onto $PATH
   env.yaml          ← your environment context (os, shell, context, etc.)
   packages.yaml     ← package registry
-  .dotd.yaml  ← per-directory config for files that can't carry annotations
+  .dagger           ← per-directory config for files that can't carry annotations
 ```
 
-dotd walks the entire repo. Files under `shellrc/`, `conf/`, or `bin/` are picked up automatically based on their location. Files elsewhere are included if they carry `@symlink` or `@source` annotations. Annotations (comments at the top of a file) control conditions, ordering, and package requirements.
+dotd walks the entire repo. Files under `shellrc/`, `config/`, or `bin/` are picked up automatically based on their location. Files elsewhere are included if they carry `@symlink` or `@source` annotations. Annotations (comments at the top of a file) control conditions, ordering, and package requirements.
 
 ### Naming conventions
 
-**`dot-` prefix** is stripped when computing symlink destinations, so files named with a `dot-` prefix become hidden files in `$HOME`:
+**`dot-` prefix** is stripped when computing symlink destinations, so `dot-` prefixed names become hidden paths:
 
 ```
-conf/dot-config/nvim/init.lua  →  ~/.config/nvim/init.lua
-conf/dot-zshrc                 →  ~/.zshrc
+config/nvim/init.lua           →  ~/.config/nvim/init.lua
+config/dot-config/nvim/init.lua  →  ~/.config/nvim/init.lua
 ```
 
 **`nosync-` prefix** is stripped from path components when computing a file's identity. This is useful for machine-specific directories you don't want to commit — they still participate in the process but don't pollute logical names:
@@ -230,9 +230,9 @@ dotd setup -f ~/my-dotfiles # specify a dotfiles directory
 Copies an existing file into your dotfiles repo, inferring the right destination directory.
 
 ```sh
-dotd adopt ~/.bashrc              # infers conf/dot-bashrc
+dotd adopt ~/.bashrc              # infers config/dot-bashrc
 dotd adopt ~/bin/my-script        # infers bin/my-script (marked executable)
-dotd adopt ~/.gitconfig --to conf/dot-gitconfig-personal
+dotd adopt ~/.gitconfig --to config/dot-gitconfig-personal
 dotd adopt ~/.zshrc --yes         # accept inferred destination without prompting
 ```
 
@@ -242,8 +242,8 @@ dotd adopt ~/.zshrc --yes         # accept inferred destination without promptin
 |--------------------|------------|
 | Marked executable (`chmod +x`) | `bin/<name>` |
 | `.sh`, `.bash`, `.zsh`, `.fish` extension | `shellrc/<name>` |
-| Hidden file (`.bashrc`, `.zshrc`, …) | `conf/dot-<name>` |
-| `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `conf/<name>` |
+| Hidden file (`.bashrc`, `.zshrc`, …) | `config/dot-<name>` |
+| `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `config/<name>` |
 | Anything else | Error — use `--to` |
 
 ### dotd files — inspect the file set
@@ -319,7 +319,7 @@ Every file has a **logical name** derived from its path: `nosync-` and `dot-` pr
 ```
 shellrc/helpers.sh              →  shellrc.helpers
 nosync-work/shellrc/work.sh     →  work.shellrc.work
-conf/dot-config/nvim/init.lua   →  conf.config.nvim.init
+config/dot-config/nvim/init.lua →  config.config.nvim.init
 ```
 
 ### Annotation reference
@@ -447,7 +447,7 @@ Keeps the `dot-` or `nosync-` prefix on the filename in the symlink destination:
 | Annotation | In load order? | Symlinked? | Sourced in init.sh? |
 |-----------|---------------|-----------|-------------------|
 | _(none)_ in `shellrc/` | Yes | No | Yes |
-| _(none)_ in `conf/` | No | Yes | No |
+| _(none)_ in `config/` | No | Yes | No |
 | `@no-source` | Yes | As normal | **No** |
 | `@source` | Yes | As normal | **Yes** |
 | `@disable` | **No** | **No** | **No** |

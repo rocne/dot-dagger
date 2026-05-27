@@ -7,8 +7,8 @@ Items that are known but intentionally deferred. Update this as things get done 
 ## Documentation
 
 - [ ] `CONTRIBUTING.md` — defer until project goes public or has external contributors
-- [ ] **Go public** — make repo public on GitHub (Settings → General → Change visibility)
-- [ ] **Enable GitHub Pages** — after going public: Settings → Pages → Source: GitHub Actions. Docs workflow (`.github/workflows/docs.yml`) deploys automatically on merge to main.
+- [x] **Go public** — repo is public as of 2026-05-25
+- [ ] **Enable GitHub Pages** — Settings → Pages → Source: GitHub Actions. Docs workflow (`.github/workflows/docs.yml`) deploys automatically on merge to main.
 
 ## Features
 
@@ -21,4 +21,5 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## Git / CI Infrastructure
 
-- [ ] Multi-distro integration testing via Docker — spin up Ubuntu/Fedora containers to verify install + apply end-to-end (defer until repo is public)
+- [x] Multi-distro integration testing via Docker — Ubuntu e2e done (PRs #77–78, v0.2.34). Three tests: binary, installer, combined. Failure opens GH issue. Fedora deferred.
+- [ ] **Go public** note: Done. `install.sh` now curl-only (PR #76).

@@ -40,7 +40,7 @@ type CompositionConfig struct {
 type ConventionConfig struct {
 	Shellrc string `yaml:"shellrc"`
 	Bin     string `yaml:"bin"`
-	Conf    string `yaml:"conf"`
+	Config  string `yaml:"config"`
 }
 
 // ComposableNode is the top-level structure of a .dagger file.

@@ -12,7 +12,7 @@ These flags apply to all `dotd` subcommands:
 | `--env-file` | `~/.config/dot-dagger/env.yaml` | Path to env.yaml |
 | `--env key=value` | — | Override a key (repeatable) |
 | `--init-file` | `~/.local/share/dot-dagger/init.sh` | Path to write init.sh |
-| `--link-root` | `$HOME` | Symlink root for conf/ files |
+| `--link-root` | `~/.config` | Config directory for config/ files |
 | `--bin-dir` | — | Bin directory for bin/ files |
 | `--dry-run` | false | Print actions without executing |
 | `--force` | false | Override safety checks |
@@ -63,9 +63,9 @@ Steps through: dotfiles directory, env.yaml path, init.sh output path, and packa
 Copies a file into the dotfiles repo, inferring the destination from the file's name and properties.
 
 ```sh
-dotd adopt ~/.bashrc                  # → conf/dot-bashrc
+dotd adopt ~/.bashrc                  # → config/dot-bashrc
 dotd adopt ~/bin/my-script            # → bin/my-script (marked executable)
-dotd adopt ~/.gitconfig --to conf/dot-gitconfig-personal
+dotd adopt ~/.gitconfig --to config/dot-gitconfig-personal
 dotd adopt ~/.zshrc --yes             # accept inferred destination without prompting
 ```
 
@@ -75,8 +75,8 @@ dotd adopt ~/.zshrc --yes             # accept inferred destination without prom
 |---|---|
 | Marked executable (`chmod +x`) | `bin/<name>` |
 | `.sh`, `.bash`, `.zsh`, `.fish` | `shellrc/<name>` |
-| Hidden file (`.bashrc`, etc.) | `conf/dot-<name>` |
-| `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` | `conf/<name>` |
+| Hidden file (`.bashrc`, etc.) | `config/dot-<name>` |
+| `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` | `config/<name>` |
 | Anything else | Error — use `--to` |
 
 **Flags:**
