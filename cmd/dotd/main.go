@@ -62,7 +62,7 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&cfg.envFile, "env-file", "", "path to env.yaml (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/env.yaml)")
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
 	pf.StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → ~/.local/share/dot-dagger/init.sh)")
-	pf.StringVar(&cfg.linkRoot, "link-root", "", "symlink root override (default: config.yaml link_root → $HOME)")
+	pf.StringVar(&cfg.linkRoot, "link-root", "", "home dir for ~/expansion in link destinations (default: config.yaml link_root → $HOME)")
 	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory override (default: config.yaml bin_dir → ~/.local/bin/dot-dagger)")
 	pf.StringVar(&cfg.generatedDir, "generated-dir", "", "generated files directory (default: config.yaml generated_dir → ~/.local/share/dot-dagger/generated)")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
@@ -219,7 +219,7 @@ func resolvePaths(cfg *config) error {
 		return err
 	}
 
-	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", toolCfg.LinkRoot, ecosystem.DefaultLinkRoot)
+	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", toolCfg.LinkRoot, func() (string, error) { return "", nil })
 	if err != nil {
 		return err
 	}
@@ -252,14 +252,24 @@ func configureLogger(cfg *config, cmd *cobra.Command) error {
 
 // buildActOptions constructs pipeline.ActOptions from cfg.
 // dryRun forces dry-run mode regardless of cfg.dryRun.
-func buildActOptions(cfg *config, dryRun bool) pipeline.ActOptions {
+// HomeDir is cfg.linkRoot when explicitly set (via --link-root or config.yaml),
+// otherwise os.UserHomeDir().
+func buildActOptions(cfg *config, dryRun bool) (pipeline.ActOptions, error) {
+	homeDir := cfg.linkRoot
+	if homeDir == "" {
+		var err error
+		homeDir, err = os.UserHomeDir()
+		if err != nil {
+			return pipeline.ActOptions{}, fmt.Errorf("resolve home dir: %w", err)
+		}
+	}
 	return pipeline.ActOptions{
-		HomeDir:      cfg.linkRoot,
+		HomeDir:      homeDir,
 		BinDir:       cfg.binDir,
 		GeneratedDir: cfg.generatedDir,
 		DryRun:       dryRun || cfg.dryRun,
 		Force:        cfg.force,
-	}
+	}, nil
 }
 
 type pipelineRun struct {
@@ -297,7 +307,11 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 		return nil, fmt.Errorf("order: %w", err)
 	}
 
-	res, err := pipeline.Act(ordered, buildActOptions(cfg, dryRun))
+	actOpts, err := buildActOptions(cfg, dryRun)
+	if err != nil {
+		return nil, err
+	}
+	res, err := pipeline.Act(ordered, actOpts)
 	if err != nil {
 		return nil, fmt.Errorf("act: %w", err)
 	}
@@ -401,8 +415,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	cfg.log.Infof("%s %d symlinks applied", ui.Header("links:"), len(run.result.Links))
 
 	if err := pipeline.Generate(cfg.initFile, run.result.Sourced, pipeline.GenerateOptions{
-		BinDir:  cfg.binDir,
-		HomeDir: cfg.linkRoot,
+		BinDir: cfg.binDir,
 	}); err != nil {
 		return fmt.Errorf("generate init.sh: %w", err)
 	}
