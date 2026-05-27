@@ -65,15 +65,15 @@ See [Your first machine](first-machine.md) for a step-by-step walkthrough.
 
 ```
 dotfiles/
-  scripts/          ← shell scripts sourced into init.sh, in dependency order
+  shellrc/          ← shell scripts sourced into init.sh, in dependency order
   conf/             ← config files symlinked into $HOME
   bin/              ← executables symlinked onto $PATH
   env.yaml          ← your environment context (os, shell, context, etc.)
   packages.yaml     ← package registry
-  .dotd.yaml        ← per-directory config for files that can't carry annotations
+  .dagger           ← per-directory config for files that can't carry annotations
 ```
 
-Any file in `scripts/`, `conf/`, or `bin/` is picked up automatically. [Annotations](../concepts/annotations.md) — comments at the top of each file — control conditions, load order, and package requirements.
+Any file in `shellrc/`, `conf/`, or `bin/` is picked up automatically. [Annotations](../concepts/annotations.md) — comments at the top of each file — control conditions, load order, and package requirements.
 
 ### Naming conventions
 
@@ -87,7 +87,7 @@ conf/dot-config/nvim/init.lua  →  ~/.config/nvim/init.lua
 **`nosync-` prefix** is stripped from path components when computing a file's identity. Useful for machine-specific directories you don't want to commit:
 
 ```
-nosync-work/scripts/aliases.sh  →  identity: work.scripts.aliases
+nosync-work/shellrc/aliases.sh  →  identity: work.shellrc.aliases
 ```
 
 See [File identity](../concepts/file-identity.md) for the full rules.

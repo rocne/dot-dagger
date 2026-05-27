@@ -45,7 +45,7 @@ dotd adopt ~/.gitconfig --to conf/dot-gitconfig-personal
 
 ## 3. Add annotations
 
-Now that your files are in the repo, add annotations to declare conditions and dependencies. Open any file in `scripts/` or `conf/` and add annotations as comments at the very top:
+Now that your files are in the repo, add annotations to declare conditions and dependencies. Open any file in `shellrc/` or `conf/` and add annotations as comments at the very top:
 
 ```sh
 # conf/dot-zshrc
@@ -53,9 +53,9 @@ Now that your files are in the repo, add annotations to declare conditions and d
 ```
 
 ```sh
-# scripts/homebrew.sh
+# shellrc/homebrew.sh
 # @when os=macos AND exists(brew)
-# @after scripts/base/
+# @after shellrc/base/
 ```
 
 Annotations are read at apply time — they have no effect at runtime. See [Annotations](../concepts/annotations.md) for the full reference.

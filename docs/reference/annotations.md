@@ -2,14 +2,14 @@
 
 Annotations are comments placed at the top of a file. Scanning begins at the first line (skipping a shebang if present) and stops at the first blank line or non-comment line.
 
-Shell files use `#`. C-style files use `//`. Files without supported comment syntax use [`.dotd.yaml`](dotd-yaml.md).
+Shell files use `#`. C-style files use `//`. Files without supported comment syntax use [`.dagger`](dagger.md).
 
 ```sh
 #!/bin/bash
 # @when os=macos AND context=work
-# @after scripts/base/
+# @after shellrc/base/
 # @require ripgrep
-# @no-source
+# @action no-source
 
 export EDITOR=nvim
 ```
@@ -37,33 +37,33 @@ See [Conditions](../concepts/conditions.md) for the full expression syntax.
 Overrides the file's logical name. The default logical name is derived from the path by stripping `nosync-`/`dot-` prefixes and extensions.
 
 ```sh
-# @name scripts.aliases
+# @name shellrc.aliases
 ```
 
 Primary use: **variant files** — two files representing the same thing under mutually exclusive conditions:
 
 ```sh
-# scripts/aliases-macos.sh
-# @name scripts.aliases
+# shellrc/aliases-macos.sh
+# @name shellrc.aliases
 # @when os=macos
 
-# scripts/aliases-linux.sh
-# @name scripts.aliases
+# shellrc/aliases-linux.sh
+# @name shellrc.aliases
 # @when os=linux
 ```
 
-Other files can then `@after scripts.aliases` to depend on whichever variant is active. Two active files with the same logical name is an error.
+Other files can then `@after shellrc.aliases` to depend on whichever variant is active. Two active files with the same logical name is an error.
 
 ---
 
 ## @after
 
-Declares a load-order dependency. Only meaningful in `scripts/`. Controls the order scripts appear in `init.sh`.
+Declares a load-order dependency. Only meaningful for files that are sourced into `init.sh`. Controls the order scripts appear in `init.sh`.
 
 ```sh
-# @after scripts/base/        # all active files under scripts/base/
-# @after scripts/env/         # all active files under scripts/env/
-# @after scripts.helpers      # one specific file, by logical name
+# @after shellrc/base/       # all active files under shellrc/base/
+# @after shellrc/env/        # all active files under shellrc/env/
+# @after shellrc.helpers     # one specific file, by logical name
 ```
 
 - A path ending in `/` expands to all active files under that path
@@ -74,16 +74,52 @@ Files with no `@after` are ordered alphabetically by logical name within their p
 
 ---
 
-## @symlink
+## @action
 
-Symlinks the file to an explicit path instead of the conventional destination derived from its location in `conf/` or `bin/`. Absolute paths are used as-is. Relative paths resolve against the effective `link_root` for the directory.
+The unified action annotation. Declares what dotd does with this file. Multiple `@action` lines can appear; they are additive (with the exception that `no-source` cancels `source`).
 
 ```sh
-# @symlink ~/.gitconfig
-# @symlink ~/.config/nvim/init.lua
+# @action source                   # source in init.sh
+# @action no-source                # keep in graph but don't source
+# @action link(~/.gitconfig)       # symlink to explicit path
+# @action link                     # symlink; destination derived from link_root
 ```
 
-Usually unnecessary — files in `conf/` and `bin/` are symlinked automatically. Use `@symlink` to override the destination or to symlink a file that lives outside those directories.
+### Action types
+
+| Action | Effect |
+|---|---|
+| `source` | Source this file in `init.sh`. Default for files in `shellrc/`. |
+| `no-source` | Include in load-order graph so others can `@after` it, but exclude from `init.sh`. |
+| `link(<dest>)` | Symlink this file to the explicit destination. Absolute paths are used as-is; `~/` is expanded to home. |
+| `link` | Symlink this file; destination derived from the directory's `link_root` + relative path. Default for files in `conf/` and `bin/`. |
+| `compose` | Assemble this directory's files into a single generated file. Only valid on directories with `compose: true` in `.dagger`. |
+
+### Aliases
+
+These shorthand annotations normalize to `@action` internally:
+
+| Shorthand | Equivalent |
+|---|---|
+| `@source` | `@action source` |
+| `@no-source` | `@action no-source` |
+| `@link(<dest>)` | `@action link(<dest>)` |
+| `@symlink <dest>` | `@action link(<dest>)` (legacy spelling) |
+
+---
+
+## @link
+
+Symlinks the file to an explicit path. Alias for `@action link(<dest>)`.
+
+```sh
+# @link ~/.gitconfig
+# @link ~/.config/nvim/init.lua
+```
+
+Usually unnecessary — files in `conf/` and `bin/` are symlinked automatically via inherited `.dagger` defaults. Use `@link` to override the destination or to symlink a file that lives outside those directories.
+
+`@symlink` is accepted as a legacy spelling of `@link`.
 
 ---
 
@@ -141,10 +177,10 @@ Useful for keeping files in the repo (for reference, backup, or future use) with
 
 ## @no-source
 
-Keeps the file in the dependency graph so other files can `@after` it, but excludes it from `init.sh`. Only meaningful for files that would otherwise be sourced (files in `scripts/`, or files with `@source`).
+Keeps the file in the dependency graph so other files can `@after` it, but excludes it from `init.sh`. Alias for `@action no-source`.
 
 ```sh
-# scripts/helpers.sh
+# shellrc/helpers.sh
 # @no-source
 ```
 
@@ -154,14 +190,14 @@ Use this when a file defines shared state or functions that other scripts depend
 
 ## @source
 
-Forces a file into `init.sh` sourcing even if it isn't in `scripts/`. Works with any file anywhere in your dotfiles repo.
+Forces a file into `init.sh` sourcing even if it isn't in `shellrc/`. Works with any file anywhere in your dotfiles repo. Alias for `@action source`.
 
 ```sh
 # conf/dot-config/shell/extras.sh
 # @source
 ```
 
-Use `@source` when a shell script also needs to be symlinked as a config file, or when the `scripts/` convention doesn't fit for a particular file.
+Use `@source` when a shell script also needs to be symlinked as a config file, or when the `shellrc/` convention doesn't fit for a particular file.
 
 ---
 
@@ -169,7 +205,7 @@ Use `@source` when a shell script also needs to be symlinked as a config file, o
 
 | Annotation | In load order? | Symlinked? | Sourced in init.sh? |
 |---|---|---|---|
-| _(none)_ in `scripts/` | Yes | No | Yes |
+| _(none)_ in `shellrc/` | Yes | No | Yes |
 | _(none)_ in `conf/` | No | Yes | No |
 | `@no-source` | Yes | As normal | **No** |
 | `@source` | Yes | As normal | **Yes** |
@@ -177,22 +213,22 @@ Use `@source` when a shell script also needs to be symlinked as a config file, o
 
 ---
 
-## .dotd.yaml equivalents
+## .dagger equivalents
 
-For files that can't carry annotations, use `.dotd.yaml` in the same directory:
+For files that can't carry annotations, use `.dagger` in the same directory:
 
 ```yaml
-dotd:
-  files:
-    - path: settings.json
-      when: "os=macos"
-      disable: false
-      no_source: false
-      source: false
-      retain_prefix: false
-      after: ""
-      name: ""
-      symlink: ""
+files:
+  settings.json:
+    when: os=macos
+    name: app.settings
+    actions:
+      - link(~/.config/app/settings.json)
+    after:
+      - shellrc/base/
+    require:
+      - ripgrep
+    disable: false
 ```
 
-See [.dotd.yaml reference](dotd-yaml.md) for the full format.
+See [.dagger reference](dagger.md) for the full format.

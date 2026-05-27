@@ -12,10 +12,10 @@ The logical name is computed from the file's path relative to the repo root:
 4. Join with `.`
 
 ```
-scripts/helpers.sh              →  scripts.helpers
+shellrc/helpers.sh              →  shellrc.helpers
 conf/dot-zshrc                  →  conf.zshrc
 conf/dot-config/nvim/init.lua   →  conf.config.nvim.init
-nosync-work/scripts/work.sh     →  work.scripts.work
+nosync-work/shellrc/work.sh     →  work.shellrc.work
 bin/my-tool                     →  bin.my-tool
 ```
 
@@ -60,7 +60,7 @@ This applies to both `dot-` and `nosync-` on the filename. Directory components 
 The `nosync-` prefix marks directories that you don't want to commit to your dotfiles repo — machine-specific configs, work credentials, or anything else that shouldn't be shared. The prefix is stripped from logical names so files inside still get meaningful identities:
 
 ```
-nosync-work/scripts/vpn.sh  →  work.scripts.vpn
+nosync-work/shellrc/vpn.sh  →  work.shellrc.vpn
 ```
 
 You'd add `nosync-*/` to your `.gitignore` to keep these directories local.
@@ -70,17 +70,17 @@ You'd add `nosync-*/` to your `.gitignore` to keep these directories local.
 Use `@name` to replace the derived logical name entirely. The main use case is **variant files** — two files that represent the same logical unit under mutually exclusive conditions:
 
 ```sh
-# scripts/aliases-macos.sh
-# @name scripts.aliases
+# shellrc/aliases-macos.sh
+# @name shellrc.aliases
 # @when os=macos
 ```
 
 ```sh
-# scripts/aliases-linux.sh
-# @name scripts.aliases
+# shellrc/aliases-linux.sh
+# @name shellrc.aliases
 # @when os=linux
 ```
 
-Since only one is active at a time, they share the same logical name without conflict. Other files can `@after scripts.aliases` to depend on whichever variant is active.
+Since only one is active at a time, they share the same logical name without conflict. Other files can `@after shellrc.aliases` to depend on whichever variant is active.
 
 Two active files with the same logical name is an error. Conditions on variant files must be mutually exclusive.

@@ -13,14 +13,14 @@ Without explicit ordering, dotd falls back to alphabetical order by logical name
 Add `@after` to a file to declare that it should be sourced after another file or directory:
 
 ```sh
-# scripts/aliases.sh
-# @after scripts/base/
-# @after scripts/path/
+# shellrc/aliases.sh
+# @after shellrc/base/
+# @after shellrc/path/
 ```
 
 ```sh
-# scripts/fzf.sh
-# @after scripts/tools/
+# shellrc/fzf.sh
+# @after shellrc/tools/
 ```
 
 ### Depending on a directory
@@ -28,8 +28,8 @@ Add `@after` to a file to declare that it should be sourced after another file o
 A path ending in `/` means "after all active files under this path":
 
 ```sh
-# @after scripts/base/    # after all active files under scripts/base/
-# @after scripts/env/     # after all active files under scripts/env/
+# @after shellrc/base/    # after all active files under shellrc/base/
+# @after shellrc/env/     # after all active files under shellrc/env/
 ```
 
 "Active" means the file passes its `@when` condition on this machine. If no files under the path are active, the dependency is silently ignored — it's never an error to `@after` something that doesn't exist on this machine.
@@ -39,8 +39,8 @@ A path ending in `/` means "after all active files under this path":
 A path without a trailing `/` is matched against [logical names](file-identity.md):
 
 ```sh
-# @after scripts.base           # the file whose logical name is scripts.base
-# @after tmux.scripts.helpers   # a specific helper file
+# @after shellrc.base           # the file whose logical name is shellrc.base
+# @after shellrc.tmux.helpers   # a specific helper file
 ```
 
 ## How ordering works
@@ -56,12 +56,12 @@ Files with no `@after` are ordered alphabetically by logical name within their p
 Given these files:
 
 ```
-scripts/
+shellrc/
   base.sh            # no @after
-  path.sh            # @after scripts/base/
-  aliases.sh         # @after scripts/path/
-  fzf.sh             # @after scripts/aliases/
-  homebrew.sh        # @after scripts/base/, @when os=macos
+  path.sh            # @after shellrc/base/
+  aliases.sh         # @after shellrc/path/
+  fzf.sh             # @after shellrc/aliases/
+  homebrew.sh        # @after shellrc/base/, @when os=macos
 ```
 
 On macOS, `init.sh` sources them in this order:
