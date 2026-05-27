@@ -106,9 +106,14 @@ func DefaultDotfiles() string {
 	return dir
 }
 
-// DefaultLinkRoot returns the default config directory: $XDG_CONFIG_HOME (~/.config).
+// DefaultLinkRoot returns the default home directory: $HOME.
+// Used for "~" expansion in link destinations. Not the config dir — see XdgConfigHome.
 func DefaultLinkRoot() (string, error) {
-	return XdgConfigHome()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+	}
+	return home, nil
 }
 
 // ResolvePath returns the first non-empty value from: cliArg, os.Getenv(envVar),

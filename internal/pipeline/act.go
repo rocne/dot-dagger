@@ -9,7 +9,7 @@ import (
 
 // ActOptions configures Act behaviour.
 type ActOptions struct {
-	HomeDir      string // replaces "~" in link destinations; must be set (use cfg.linkRoot)
+	HomeDir      string // replaces "~" in link destinations; set to cfg.linkRoot ($HOME)
 	BinDir       string // replaces "~bin" in link destinations
 	GeneratedDir string // directory for compose-generated files
 	DryRun       bool   // validate without writing to filesystem
