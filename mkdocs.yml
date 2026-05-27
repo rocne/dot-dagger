@@ -64,4 +64,4 @@ nav:
     - Annotations: reference/annotations.md
     - env.yaml: reference/env-yaml.md
     - packages.yaml: reference/packages-yaml.md
-    - .dotd.yaml: reference/dotd-yaml.md
+    - .dagger: reference/dagger.md

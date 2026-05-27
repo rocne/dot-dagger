@@ -74,7 +74,7 @@ dotd adopt ~/.zshrc --yes             # accept inferred destination without prom
 | Characteristic | Destination |
 |---|---|
 | Marked executable (`chmod +x`) | `bin/<name>` |
-| `.sh`, `.bash`, `.zsh`, `.fish` | `scripts/<name>` |
+| `.sh`, `.bash`, `.zsh`, `.fish` | `shellrc/<name>` |
 | Hidden file (`.bashrc`, etc.) | `conf/dot-<name>` |
 | `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` | `conf/<name>` |
 | Anything else | Error — use `--to` |
@@ -175,3 +175,18 @@ dotd package list              # list all declared packages
 | `installable` | Not installed, but a manager is available |
 | `not available` | Not installed and no manager can install it |
 | `MISSING` | Hard requirement (`@require`) that can't be met |
+
+---
+
+## dotd compose
+
+Composition target management. A compose target is a directory with `compose: true` in its `.dagger` file — dotd concatenates the directory's files into a single generated file.
+
+```sh
+dotd compose list              # list active compose targets
+dotd compose check             # check whether generated files are up to date
+```
+
+`dotd apply` automatically regenerates compose targets when they are stale. Use `dotd compose check` to inspect state without making changes.
+
+See [`.dagger` reference](dagger.md#composition) for how to declare a compose target.

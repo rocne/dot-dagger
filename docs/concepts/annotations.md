@@ -5,7 +5,7 @@ Annotations are metadata written as comments at the top of a file. They tell dot
 ```sh
 #!/bin/bash
 # @when os=macos AND context=work
-# @after scripts/base/
+# @after shellrc/base/
 # @require ripgrep
 
 # --- script body below ---
@@ -23,7 +23,7 @@ Scanning begins at the first line of the file. If the first line is a **shebang*
 | Shell (`.sh`, `.bash`, `.zsh`, `.fish`) | `#` |
 | C-style (`.c`, `.go`, `.js`, `.ts`, etc.) | `//` |
 | Any file with `#` or `//` comments | Works |
-| JSON, binary, XML, etc. | Use [`.dotd.yaml`](../reference/dotd-yaml.md) |
+| JSON, binary, XML, etc. | Use [`.dagger`](../reference/dagger.md) |
 
 ## What annotations exist
 
@@ -32,33 +32,34 @@ Scanning begins at the first line of the file. If the first line is a **shebang*
 | [`@when`](../reference/annotations.md#when) | Gate file inclusion on a condition |
 | [`@name`](../reference/annotations.md#name) | Override the file's logical name |
 | [`@after`](../reference/annotations.md#after) | Declare a load-order dependency |
-| [`@symlink`](../reference/annotations.md#symlink) | Symlink to an explicit path |
+| [`@action`](../reference/annotations.md#action) | Declare what dotd does with this file |
+| [`@link`](../reference/annotations.md#link) | Symlink to an explicit path (alias for `@action link`) |
 | [`@retain-prefix`](../reference/annotations.md#retain-prefix) | Keep `dot-`/`nosync-` prefix on the filename |
 | [`@require`](../reference/annotations.md#require) | Hard package gate |
 | [`@request`](../reference/annotations.md#request) | Soft package ask |
 | [`@disable`](../reference/annotations.md#disable) | Exclude from all processing |
-| [`@no-source`](../reference/annotations.md#no-source) | In load order, not sourced |
-| [`@source`](../reference/annotations.md#source) | Force-source regardless of directory |
+| [`@no-source`](../reference/annotations.md#no-source) | In load order, not sourced (alias for `@action no-source`) |
+| [`@source`](../reference/annotations.md#source) | Force-source regardless of directory (alias for `@action source`) |
 
 ## Files without comment syntax
 
-JSON, compiled binaries, XML, and other files that don't support comments can't carry annotations directly. Use `.dotd.yaml` in the same directory to provide equivalent metadata:
+JSON, compiled binaries, XML, and other files that don't support comments can't carry annotations directly. Use `.dagger` in the same directory to provide equivalent metadata:
 
 ```yaml
-dotd:
-  files:
-    - path: settings.json
-      when: "os=macos"
-      disable: false
+files:
+  settings.json:
+    when: os=macos
+    actions:
+      - link(~/.config/app/settings.json)
 ```
 
-See [`.dotd.yaml` reference](../reference/dotd-yaml.md) for the full format.
+See [`.dagger` reference](../reference/dagger.md) for the full format.
 
 ## Convention vs annotation
 
 Most files don't need any annotations at all. The conventions handle the common cases:
 
-- Files in `scripts/` are automatically sourced in `init.sh`
+- Files in `shellrc/` are automatically sourced in `init.sh`
 - Files in `conf/` are automatically symlinked into `$HOME`
 - Files in `bin/` are automatically symlinked onto `$PATH`
 

@@ -19,7 +19,7 @@ dotd's approach: **annotate files, not shell code**. Each file declares when it 
 ```sh
 #!/bin/bash
 # @when os=macos
-# @after scripts/base/
+# @after shellrc/base/
 # @require ripgrep
 
 alias ls='ls -G'
@@ -35,7 +35,7 @@ The same annotation system drives symlink management and package installation. O
 dotd runs four stages in sequence:
 
 1. **Env** — detects your environment (OS, distro, shell) and loads any overrides from `env.yaml`. This produces the resolved environment used for all condition evaluation.
-2. **Fileset** — walks `scripts/`, `conf/`, and `bin/`, evaluates `@when` conditions, and builds the active file set for this machine.
+2. **Fileset** — walks `shellrc/`, `conf/`, and `bin/`, evaluates `@when` conditions, and builds the active file set for this machine.
 3. **Packages** — reads `@require` and `@request` annotations and installs packages using whichever manager is available.
 4. **Symlinks + init.sh** — creates symlinks for `conf/` and `bin/` files; resolves `@after` dependencies and writes a single `init.sh` that sources only the active scripts in the right order.
 
