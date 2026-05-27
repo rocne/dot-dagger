@@ -79,9 +79,9 @@ var conventionRoles = []conventionRole{
 	},
 	{
 		label:  "Config files",
-		desc:   "Files here are symlinked into your home directory (e.g. ~/.gitconfig).",
+		desc:   "Files here are symlinked into ~/.config by default (e.g. config/nvim/init.lua → ~/.config/nvim/init.lua).",
 		defDir: "config",
-		content: "link_root: \"~\"\ndefaults:\n  actions:\n    - link\n",
+		content: "link_root: \"~/.config\"\ndefaults:\n  actions:\n    - link\n",
 	},
 	{
 		label:  "Bin scripts",
