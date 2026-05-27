@@ -2,13 +2,13 @@
 
 ## 9. Symlink Strategy
 
-### `conf/` → `~` (default)
+### `config/` → `~/.config` (default)
 
 ```
-conf/dot-zshrc                     → ~/.zshrc
-conf/dot-config/tmux/tmux.conf     → ~/.config/tmux/tmux.conf
-conf/dot-config/dot-tmux/tmux.conf → ~/.config/.tmux/tmux.conf
-nosync-work/conf/dot-gitconfig     → ~/.gitconfig
+config/tmux/tmux.conf              → ~/.config/tmux/tmux.conf
+config/dot-config/tmux/tmux.conf   → ~/.config/tmux/tmux.conf
+config/dot-config/dot-tmux/tmux.conf → ~/.config/.tmux/tmux.conf
+nosync-work/config/dot-gitconfig   → ~/.gitconfig (with link_root: ~)
 ```
 
 Every `dot-` prefix at every path level is replaced with `.`. Non-`dot-` components are used as-is. The `nosync-` prefix is stripped from implicit symlink destinations.

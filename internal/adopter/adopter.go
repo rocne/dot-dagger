@@ -15,12 +15,12 @@ import (
 type ConventionNames struct {
 	Shellrc string
 	Bin     string
-	Conf    string
+	Config string
 }
 
 // DefaultConventions returns the standard convention dir names.
 func DefaultConventions() ConventionNames {
-	return ConventionNames{Shellrc: "shellrc", Bin: "bin", Conf: "conf"}
+	return ConventionNames{Shellrc: "shellrc", Bin: "bin", Config: "config"}
 }
 
 // Inference is the result of inferring a dotfiles destination for a source file.
@@ -72,7 +72,7 @@ func Infer(src string, info os.FileInfo, conv ConventionNames) Inference {
 	if strings.HasPrefix(name, ".") && len(name) > 1 {
 		dotName := "dot-" + name[1:]
 		return Inference{
-			DestRel: filepath.Join(conv.Conf, dotName),
+			DestRel: filepath.Join(conv.Config, dotName),
 			Reason:  "dotfile (dot- prefix added)",
 		}
 	}
@@ -81,7 +81,7 @@ func Infer(src string, info os.FileInfo, conv ConventionNames) Inference {
 	switch ext {
 	case ".conf", ".config", ".toml", ".yaml", ".yml", ".ini", ".cfg", ".json":
 		return Inference{
-			DestRel: filepath.Join(conv.Conf, name),
+			DestRel: filepath.Join(conv.Config, name),
 			Reason:  "config file",
 		}
 	}

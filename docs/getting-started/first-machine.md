@@ -30,25 +30,25 @@ dotd setup --yes
 Use `dotd adopt` to move existing files into the repo. It infers the right destination from the file's name and properties:
 
 ```sh
-dotd adopt ~/.zshrc          # → conf/dot-zshrc
-dotd adopt ~/.gitconfig      # → conf/dot-gitconfig
-dotd adopt ~/.bashrc         # → conf/dot-bashrc
+dotd adopt ~/.zshrc          # → config/dot-zshrc
+dotd adopt ~/.gitconfig      # → config/dot-gitconfig
+dotd adopt ~/.bashrc         # → config/dot-bashrc
 ```
 
-Each adoption copies the file into your dotfiles repo and offers to remove the original. After removal, running `dotd apply` creates a symlink from `~/.zshrc` back to `dotfiles/conf/dot-zshrc` — so everything continues to work but is now managed.
+Each adoption copies the file into your dotfiles repo and offers to remove the original. After removal, running `dotd apply` creates a symlink from `~/.zshrc` back to `dotfiles/config/dot-zshrc` — so everything continues to work but is now managed.
 
 You can override the destination with `--to`:
 
 ```sh
-dotd adopt ~/.gitconfig --to conf/dot-gitconfig-personal
+dotd adopt ~/.gitconfig --to config/dot-gitconfig-personal
 ```
 
 ## 3. Add annotations
 
-Now that your files are in the repo, add annotations to declare conditions and dependencies. Open any file in `shellrc/` or `conf/` and add annotations as comments at the very top:
+Now that your files are in the repo, add annotations to declare conditions and dependencies. Open any file in `shellrc/` or `config/` and add annotations as comments at the very top:
 
 ```sh
-# conf/dot-zshrc
+# config/dot-zshrc
 # @when shell=zsh
 ```
 
@@ -89,7 +89,7 @@ This runs all four stages:
 
 1. Resolves your environment
 2. Installs any `@require`/`@request` packages
-3. Creates symlinks for `conf/` and `bin/` files
+3. Creates symlinks for `config/` and `bin/` files
 4. Writes `init.sh` with the active scripts in dependency order
 
 Preview what would change without making any modifications:

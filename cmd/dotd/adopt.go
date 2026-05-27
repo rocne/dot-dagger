@@ -151,8 +151,8 @@ func conventionsFrom(cfg *dagger.ComposableNode) adopter.ConventionNames {
 	if cfg.Conventions.Bin != "" {
 		conv.Bin = cfg.Conventions.Bin
 	}
-	if cfg.Conventions.Conf != "" {
-		conv.Conf = cfg.Conventions.Conf
+	if cfg.Conventions.Config != "" {
+		conv.Config = cfg.Conventions.Config
 	}
 	return conv
 }

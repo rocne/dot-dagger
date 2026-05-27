@@ -13,8 +13,8 @@ The logical name is computed from the file's path relative to the repo root:
 
 ```
 shellrc/helpers.sh              →  shellrc.helpers
-conf/dot-zshrc                  →  conf.zshrc
-conf/dot-config/nvim/init.lua   →  conf.config.nvim.init
+config/dot-zshrc                →  config.zshrc
+config/dot-config/nvim/init.lua →  config.config.nvim.init
 nosync-work/shellrc/work.sh     →  work.shellrc.work
 bin/my-tool                     →  bin.my-tool
 ```
@@ -26,9 +26,9 @@ The `dot-` prefix is a naming convention for files that should become hidden fil
 The convention is to name them with `dot-` instead:
 
 ```
-conf/dot-zshrc     →  symlinked to ~/.zshrc
-conf/dot-gitconfig →  symlinked to ~/.gitconfig
-conf/dot-config/   →  symlinked under ~/.config/
+config/dot-zshrc     →  symlinked to ~/.zshrc (with link_root: ~)
+config/dot-gitconfig →  symlinked to ~/.gitconfig (with link_root: ~)
+config/nvim/         →  symlinked under ~/.config/nvim/ (default link_root: ~/.config)
 ```
 
 The `dot-` prefix is stripped when computing both the logical name and the symlink destination.
@@ -38,19 +38,19 @@ The `dot-` prefix is stripped when computing both the logical name and the symli
 If you actually want a file to remain named with `dot-` or `nosync-` in its destination, use `@retain-prefix`:
 
 ```sh
-# conf/dot-tmux.conf
+# config/dot-tmux.conf
 # @retain-prefix
 # → symlinked to ~/.dot-tmux.conf  (prefix kept)
 ```
 
 Without `@retain-prefix`:
 ```
-conf/dot-tmux.conf  →  ~/.tmux.conf
+config/dot-tmux.conf  →  ~/.tmux.conf
 ```
 
 With `@retain-prefix`:
 ```
-conf/dot-tmux.conf  →  ~/.dot-tmux.conf
+config/dot-tmux.conf  →  ~/.dot-tmux.conf
 ```
 
 This applies to both `dot-` and `nosync-` on the filename. Directory components above the filename are always stripped regardless.

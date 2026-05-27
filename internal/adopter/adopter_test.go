@@ -52,8 +52,8 @@ func TestInfer_HiddenFile(t *testing.T) {
 	}
 	info, _ := os.Stat(f)
 	got := Infer(f, info, DefaultConventions())
-	if got.DestRel != "conf/dot-bashrc" {
-		t.Errorf("DestRel = %q, want %q", got.DestRel, "conf/dot-bashrc")
+	if got.DestRel != "config/dot-bashrc" {
+		t.Errorf("DestRel = %q, want %q", got.DestRel, "config/dot-bashrc")
 	}
 }
 
@@ -62,10 +62,10 @@ func TestInfer_ConfigExt(t *testing.T) {
 		name string
 		want string
 	}{
-		{"starship.toml", "conf/starship.toml"},
-		{"app.yaml", "conf/app.yaml"},
-		{"settings.json", "conf/settings.json"},
-		{"app.conf", "conf/app.conf"},
+		{"starship.toml", "config/starship.toml"},
+		{"app.yaml", "config/app.yaml"},
+		{"settings.json", "config/settings.json"},
+		{"app.conf", "config/app.conf"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestInfer_Unknown(t *testing.T) {
 }
 
 func TestInfer_CustomConventions(t *testing.T) {
-	conv := ConventionNames{Shellrc: "scripts", Bin: "executables", Conf: "dotfiles"}
+	conv := ConventionNames{Shellrc: "scripts", Bin: "executables", Config: "dotfiles"}
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, ".gitconfig")
 	if err := os.WriteFile(f, []byte(""), 0o644); err != nil {
@@ -110,7 +110,7 @@ func TestInfer_CustomConventions(t *testing.T) {
 	}
 }
 
-func TestAdopt_Conf(t *testing.T) {
+func TestAdopt_Config(t *testing.T) {
 	dotfiles := t.TempDir()
 	srcDir := t.TempDir()
 	src := filepath.Join(srcDir, ".bashrc")
@@ -124,7 +124,7 @@ func TestAdopt_Conf(t *testing.T) {
 		LinkRoot:     srcDir,
 	}
 
-	res, err := Adopt(src, "conf/dot-bashrc", opts)
+	res, err := Adopt(src, "config/dot-bashrc", opts)
 	if err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestAdopt_Conf(t *testing.T) {
 	}
 
 	// File present in dotfiles.
-	destAbs := filepath.Join(dotfiles, "conf/dot-bashrc")
+	destAbs := filepath.Join(dotfiles, "config/dot-bashrc")
 	content, err := os.ReadFile(destAbs)
 	if err != nil {
 		t.Fatalf("read dest: %v", err)
@@ -247,7 +247,7 @@ func TestAdopt_Shellrc(t *testing.T) {
 
 func TestAdopt_DestExists(t *testing.T) {
 	dotfiles := t.TempDir()
-	destAbs := filepath.Join(dotfiles, "conf/dot-bashrc")
+	destAbs := filepath.Join(dotfiles, "config/dot-bashrc")
 	if err := os.MkdirAll(filepath.Dir(destAbs), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestAdopt_DestExists(t *testing.T) {
 	}
 
 	opts := AdoptOptions{DotfilesRoot: dotfiles, Conventions: DefaultConventions(), LinkRoot: t.TempDir()}
-	_, err := Adopt(src, "conf/dot-bashrc", opts)
+	_, err := Adopt(src, "config/dot-bashrc", opts)
 	if err == nil {
 		t.Fatal("expected error when dest exists, got nil")
 	}
@@ -281,7 +281,7 @@ func TestAdopt_DryRun(t *testing.T) {
 		DryRun:       true,
 	}
 
-	_, err := Adopt(src, "conf/dot-bashrc", opts)
+	_, err := Adopt(src, "config/dot-bashrc", opts)
 	if err != nil {
 		t.Fatalf("Adopt dry-run: %v", err)
 	}
@@ -292,7 +292,7 @@ func TestAdopt_DryRun(t *testing.T) {
 	}
 
 	// Dest NOT created.
-	destAbs := filepath.Join(dotfiles, "conf/dot-bashrc")
+	destAbs := filepath.Join(dotfiles, "config/dot-bashrc")
 	if _, statErr := os.Stat(destAbs); !os.IsNotExist(statErr) {
 		t.Error("dest should not be created in dry-run")
 	}

@@ -561,8 +561,8 @@ func TestResolveToFlag(t *testing.T) {
 		name string
 		want string
 	}{
-		{"conf/dot-gitconfig-work", ".gitconfig", "conf/dot-gitconfig-work"},
-		{"conf/", ".gitconfig", "conf/.gitconfig"},
+		{"config/dot-gitconfig-work", ".gitconfig", "config/dot-gitconfig-work"},
+		{"config/", ".gitconfig", "config/.gitconfig"},
 		{"bin/", "my-script", "bin/my-script"},
 	}
 	for _, tt := range tests {
@@ -773,7 +773,7 @@ func TestTeardown_CancelExits0(t *testing.T) {
 
 func TestUnapply_RemovesSymlink(t *testing.T) {
 	dotfiles := t.TempDir()
-	confDir := filepath.Join(dotfiles, "conf")
+	confDir := filepath.Join(dotfiles, "config")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -836,7 +836,7 @@ func TestUnapply_NothingToRemove(t *testing.T) {
 
 func TestUnapply_DryRunPreservesSymlink(t *testing.T) {
 	dotfiles := t.TempDir()
-	confDir := filepath.Join(dotfiles, "conf")
+	confDir := filepath.Join(dotfiles, "config")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -879,7 +879,7 @@ func TestUnapply_DryRunPreservesSymlink(t *testing.T) {
 
 func TestUnapply_CancelExits0(t *testing.T) {
 	dotfiles := t.TempDir()
-	confDir := filepath.Join(dotfiles, "conf")
+	confDir := filepath.Join(dotfiles, "config")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

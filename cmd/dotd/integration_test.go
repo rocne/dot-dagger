@@ -198,15 +198,15 @@ func TestApplyLinuxPersonal(t *testing.T) {
 	// --- symlinks ---
 	assertSymlink(t,
 		filepath.Join(e.home, ".zshrc"),
-		filepath.Join(e.dotfiles, "conf/dot-zshrc"),
+		filepath.Join(e.dotfiles, "config/dot-zshrc"),
 	)
 	assertSymlink(t,
 		filepath.Join(e.home, ".gitconfig"),
-		filepath.Join(e.dotfiles, "conf/dot-gitconfig"),
+		filepath.Join(e.dotfiles, "config/dot-gitconfig"),
 	)
 	assertSymlink(t,
 		filepath.Join(e.home, ".config", "nvim", "init.lua"),
-		filepath.Join(e.dotfiles, "conf/dot-config/nvim/init.lua"),
+		filepath.Join(e.dotfiles, "config/dot-config/nvim/init.lua"),
 	)
 	assertSymlink(t,
 		filepath.Join(e.binDir, "hello"),
@@ -342,7 +342,7 @@ func TestSymlinkConflictWithForce(t *testing.T) {
 	if err == nil {
 		// Some implementations warn rather than error; check the symlink is wrong.
 		got, readErr := os.Readlink(filepath.Join(e.home, ".zshrc"))
-		if readErr == nil && got == filepath.Join(e.dotfiles, "conf/dot-zshrc") {
+		if readErr == nil && got == filepath.Join(e.dotfiles, "config/dot-zshrc") {
 			t.Log("apply without --force unexpectedly succeeded; skipping conflict test")
 			return
 		}
@@ -352,7 +352,7 @@ func TestSymlinkConflictWithForce(t *testing.T) {
 	e.run(t, "apply", "--env", "os=linux", "--force")
 	assertSymlink(t,
 		filepath.Join(e.home, ".zshrc"),
-		filepath.Join(e.dotfiles, "conf/dot-zshrc"),
+		filepath.Join(e.dotfiles, "config/dot-zshrc"),
 	)
 }
 
@@ -447,7 +447,7 @@ func TestPackageDryRun(t *testing.T) {
 
 // TestComposeApply verifies that apply assembles compose targets:
 //   - shellrc compose target generates a file that is sourced in init.sh
-//   - conf compose target generates a file and creates a symlink
+//   - config compose target generates a file and creates a symlink
 func TestComposeApply(t *testing.T) {
 	t.Skip("compose action not yet implemented in v2 pipeline")
 	e := newIenv(t)
@@ -457,7 +457,7 @@ func TestComposeApply(t *testing.T) {
 	init := readFile(t, e.initFile)
 	assertInInit(t, init, "shellrc-extras.sh")
 
-	// conf compose target: generated file exists
+	// config compose target: generated file exists
 	generatedTmux := filepath.Join(e.generatedDir, "tmux.conf")
 	if _, err := os.Stat(generatedTmux); err != nil {
 		t.Errorf("compose: generated tmux.conf missing: %v", err)

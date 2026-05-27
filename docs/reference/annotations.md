@@ -92,7 +92,7 @@ The unified action annotation. Declares what dotd does with this file. Multiple 
 | `source` | Source this file in `init.sh`. Default for files in `shellrc/`. |
 | `no-source` | Include in load-order graph so others can `@after` it, but exclude from `init.sh`. |
 | `link(<dest>)` | Symlink this file to the explicit destination. Absolute paths are used as-is; `~/` is expanded to home. |
-| `link` | Symlink this file; destination derived from the directory's `link_root` + relative path. Default for files in `conf/` and `bin/`. |
+| `link` | Symlink this file; destination derived from the directory's `link_root` + relative path. Default for files in `config/` and `bin/`. |
 | `compose` | Assemble this directory's files into a single generated file. Only valid on directories with `compose: true` in `.dagger`. |
 
 ### Aliases
@@ -117,7 +117,7 @@ Symlinks the file to an explicit path. Alias for `@action link(<dest>)`.
 # @link ~/.config/nvim/init.lua
 ```
 
-Usually unnecessary — files in `conf/` and `bin/` are symlinked automatically via inherited `.dagger` defaults. Use `@link` to override the destination or to symlink a file that lives outside those directories.
+Usually unnecessary — files in `config/` and `bin/` are symlinked automatically via inherited `.dagger` defaults. Use `@link` to override the destination or to symlink a file that lives outside those directories.
 
 `@symlink` is accepted as a legacy spelling of `@link`.
 
@@ -193,7 +193,7 @@ Use this when a file defines shared state or functions that other scripts depend
 Forces a file into `init.sh` sourcing even if it isn't in `shellrc/`. Works with any file anywhere in your dotfiles repo. Alias for `@action source`.
 
 ```sh
-# conf/dot-config/shell/extras.sh
+# config/shell/extras.sh
 # @source
 ```
 
@@ -206,7 +206,7 @@ Use `@source` when a shell script also needs to be symlinked as a config file, o
 | Annotation | In load order? | Symlinked? | Sourced in init.sh? |
 |---|---|---|---|
 | _(none)_ in `shellrc/` | Yes | No | Yes |
-| _(none)_ in `conf/` | No | Yes | No |
+| _(none)_ in `config/` | No | Yes | No |
 | `@no-source` | Yes | As normal | **No** |
 | `@source` | Yes | As normal | **Yes** |
 | `@disable` | **No** | **No** | **No** |

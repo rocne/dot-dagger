@@ -38,7 +38,7 @@ composition:
 conventions:
   shellrc: scripts
   bin: bin
-  conf: dotfiles
+  config: dotfiles
 ```
 
 ---
@@ -175,7 +175,7 @@ The `conventions` key (valid only in the root `.dagger`) renames the three conve
 
 - `shellrc` — shell scripts sourced into `init.sh`
 - `bin` — executables symlinked onto `$PATH`
-- `conf` — config files symlinked into `$HOME`
+- `config` — config files symlinked into `~/.config`
 
 Override any or all of them:
 
@@ -183,7 +183,7 @@ Override any or all of them:
 conventions:
   shellrc: scripts
   bin: bin
-  conf: dotfiles
+  config: dotfiles
 ```
 
 ---
@@ -201,8 +201,8 @@ Multiple `.dagger` files cascade from root to leaf. For any given file:
 ```
 dotfiles/
   .dagger              # (empty)
-  conf/
-    .dagger            # link_root: "~"; defaults.actions: [link]
+  config/
+    .dagger            # defaults.actions: [link] (link_root defaults to ~/.config)
     nvim/
       .dagger          # link_root: ~/.config/nvim
       init.lua         # → ~/.config/nvim/init.lua

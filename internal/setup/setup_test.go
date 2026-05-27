@@ -22,7 +22,7 @@ func TestScaffoldCreatesDirectories(t *testing.T) {
 		t.Fatalf("Scaffold error = %v", err)
 	}
 
-	for _, sub := range []string{"shellrc", "conf", "bin"} {
+	for _, sub := range []string{"shellrc", "config", "bin"} {
 		if _, err := os.Stat(filepath.Join(dir, sub)); err != nil {
 			t.Errorf("expected dir %s to exist: %v", sub, err)
 		}
