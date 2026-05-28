@@ -10,6 +10,8 @@ if [ -z "${DOTD_VERSION}" ]; then
     | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
 fi
 
+: "${DOTD_VERSION:?Could not determine release version}"
+
 printf 'e2e: testing release %s\n' "${DOTD_VERSION}"
 
 docker build -t dotd-e2e "${SCRIPT_DIR}/e2e"
