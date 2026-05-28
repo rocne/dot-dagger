@@ -15,3 +15,4 @@ COPY disable.sh /tests/disable.sh
 COPY packages.sh /tests/packages.sh
 COPY conflict.sh /tests/conflict.sh
 COPY procure/ /procure/
+COPY dotd /staged/dotd
