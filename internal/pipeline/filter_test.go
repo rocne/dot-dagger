@@ -80,3 +80,87 @@ func TestFilter_MixedNodes(t *testing.T) {
 		t.Errorf("expected 2 nodes (base + linux), got %d", len(got))
 	}
 }
+
+func TestCollectMissingKeys_SingleMissing(t *testing.T) {
+	nodes := []RawNode{makeNode("a", "context=work")}
+	got, err := CollectMissingKeys(nodes, map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != "context" {
+		t.Errorf("expected [context], got %v", got)
+	}
+}
+
+func TestCollectMissingKeys_AndBothMissing(t *testing.T) {
+	// Both sides of AND must be found — no short-circuit.
+	nodes := []RawNode{makeNode("a", "context=work AND machine=laptop")}
+	got, err := CollectMissingKeys(nodes, map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Errorf("expected 2 missing keys, got %v", got)
+	}
+	keys := map[string]bool{got[0]: true, got[1]: true}
+	if !keys["context"] || !keys["machine"] {
+		t.Errorf("expected context and machine, got %v", got)
+	}
+}
+
+func TestCollectMissingKeys_Dedup(t *testing.T) {
+	// Same key referenced in two nodes — returned once.
+	nodes := []RawNode{
+		makeNode("a", "context=work"),
+		makeNode("b", "context=personal"),
+	}
+	got, err := CollectMissingKeys(nodes, map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != "context" {
+		t.Errorf("expected [context] once, got %v", got)
+	}
+}
+
+func TestCollectMissingKeys_Nonemissing(t *testing.T) {
+	nodes := []RawNode{makeNode("a", "context=work")}
+	got, err := CollectMissingKeys(nodes, map[string]string{"context": "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty, got %v", got)
+	}
+}
+
+func TestCollectMissingKeys_EmptyWhenSkipped(t *testing.T) {
+	nodes := []RawNode{makeNode("base", "")}
+	got, err := CollectMissingKeys(nodes, map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty for empty-when node, got %v", got)
+	}
+}
+
+func TestCollectMissingKeys_ParseError(t *testing.T) {
+	nodes := []RawNode{makeNode("bad", "!!invalid!!")}
+	_, err := CollectMissingKeys(nodes, map[string]string{})
+	if err == nil {
+		t.Error("expected parse error, got nil")
+	}
+}
+
+func TestCollectMissingKeys_PartiallySet(t *testing.T) {
+	// context set, machine missing.
+	nodes := []RawNode{makeNode("a", "context=work AND machine=laptop")}
+	got, err := CollectMissingKeys(nodes, map[string]string{"context": "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != "machine" {
+		t.Errorf("expected [machine], got %v", got)
+	}
+}
