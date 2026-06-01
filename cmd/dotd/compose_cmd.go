@@ -38,9 +38,9 @@ func newComposeListCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
-			active, err := pipeline.Filter(nodes, resolved)
+			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
 			if err != nil {
-				return annotateKeyError(err)
+				return err
 			}
 			for _, n := range active {
 				if !hasComposeAction(n) {
@@ -67,9 +67,9 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
-			active, err := pipeline.Filter(nodes, resolved)
+			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
 			if err != nil {
-				return annotateKeyError(err)
+				return err
 			}
 			ordered, err := pipeline.Order(active)
 			if err != nil {
