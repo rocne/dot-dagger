@@ -51,9 +51,9 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 		return fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
 
-	active, err := pipeline.Filter(nodes, resolved)
+	active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
 	if err != nil {
-		return annotateKeyError(err)
+		return err
 	}
 
 	ordered, err := pipeline.Order(active)

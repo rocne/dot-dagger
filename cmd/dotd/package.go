@@ -36,9 +36,9 @@ func newPackageCheckCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
-			active, err := pipeline.Filter(nodes, resolved)
+			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
 			if err != nil {
-				return annotateKeyError(err)
+				return err
 			}
 
 			reg, regErr := loadRegistry(cfg)
@@ -78,9 +78,9 @@ func newPackageGenerateCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
-			active, err := pipeline.Filter(nodes, resolved)
+			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
 			if err != nil {
-				return annotateKeyError(err)
+				return err
 			}
 
 			reg, regErr := loadRegistry(cfg)
@@ -107,9 +107,9 @@ func newPackageListCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("walk: %w", err)
 			}
-			active, err := pipeline.Filter(nodes, resolved)
+			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
 			if err != nil {
-				return annotateKeyError(err)
+				return err
 			}
 
 			reqs := collectPackageRequests(active)

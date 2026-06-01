@@ -297,9 +297,9 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 		return nil, err
 	}
 
-	active, err := pipeline.Filter(nodes, resolved)
+	active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
 	if err != nil {
-		return nil, annotateKeyError(err)
+		return nil, err
 	}
 
 	ordered, err := pipeline.Order(active)
