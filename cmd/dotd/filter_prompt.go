@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -33,6 +34,9 @@ func filterWithPrompt(nodes []pipeline.RawNode, resolved map[string]string, isTT
 
 	filled, err := promptMissingKeys(missing)
 	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			os.Exit(1)
+		}
 		return nil, err
 	}
 
@@ -51,7 +55,6 @@ func promptMissingKeys(keys []string) (map[string]string, error) {
 	vals := make([]string, len(keys))
 	fields := make([]huh.Field, len(keys))
 	for i, k := range keys {
-		i, k := i, k
 		fields[i] = huh.NewInput().
 			Title(fmt.Sprintf("env key %q is not set", k)).
 			Value(&vals[i]).

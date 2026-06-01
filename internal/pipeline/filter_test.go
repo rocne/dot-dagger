@@ -123,7 +123,7 @@ func TestCollectMissingKeys_Dedup(t *testing.T) {
 	}
 }
 
-func TestCollectMissingKeys_Nonemissing(t *testing.T) {
+func TestCollectMissingKeys_NoneMissing(t *testing.T) {
 	nodes := []RawNode{makeNode("a", "context=work")}
 	got, err := CollectMissingKeys(nodes, map[string]string{"context": "work"})
 	if err != nil {

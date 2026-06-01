@@ -37,6 +37,10 @@ func evalWhen(expr string, env map[string]string) (bool, error) {
 // CollectMissingKeys returns env keys referenced by predicate expressions across
 // all nodes that are absent from env. Uses AST key extraction (no evaluation),
 // so AND/OR short-circuiting cannot hide keys. Returns keys in encounter order.
+//
+// Note: for OR expressions, keys from all branches are collected even if one
+// branch is already satisfied. This may prompt for unnecessary keys in rare
+// configurations that use OR between different keys.
 func CollectMissingKeys(nodes []RawNode, env map[string]string) ([]string, error) {
 	seen := map[string]bool{}
 	var keys []string
