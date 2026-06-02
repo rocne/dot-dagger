@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/x/term"
 	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/dagger"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -89,7 +88,7 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 	}
 
 	// Confirmation prompt (skip if --yes or not a TTY).
-	nonInteractive := yes || !term.IsTerminal(os.Stdin.Fd())
+	nonInteractive := yes || !isTTYStdin()
 	if !nonInteractive {
 		confirmed, promptErr := promptAdoptConfirm(srcAbs, destRel)
 		if promptErr != nil {
