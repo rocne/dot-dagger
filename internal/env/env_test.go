@@ -121,6 +121,81 @@ func TestResolve_MergesAll(t *testing.T) {
 	}
 }
 
+// TestResolve_TripleOverride exercises all three layers overriding the same key
+// — cli wins per the precedence contract.
+func TestResolve_TripleOverride(t *testing.T) {
+	expanded := map[string]string{"os": "expanded"}
+	shellVars := map[string]string{"os": "shell"}
+	cliFlags := map[string]string{"os": "cli"}
+
+	got := Resolve(cliFlags, shellVars, expanded)
+	if got["os"] != "cli" {
+		t.Errorf("cli should win triple-override, got %q", got["os"])
+	}
+}
+
+// TestSave_UnwritableDirErrors verifies that Save wraps the underlying
+// filesystem error so callers can detect "couldn't write env file".
+func TestSave_UnwritableDirErrors(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	path := filepath.Join(dir, "subdir", "env.yaml")
+	err := Save(path, map[string]string{"k": "v"})
+	if err == nil {
+		t.Fatal("expected Save to fail on unwritable dir")
+	}
+}
+
+// TestLoad_MalformedYAMLErrors verifies that load returns a wrapped error
+// when the input isn't valid YAML.
+func TestLoad_MalformedYAMLErrors(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(path, []byte("not valid: :yaml:\n  - bad"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected malformed YAML to error")
+	}
+}
+
+// TestResolve_DoesNotMutateInputs verifies that Resolve treats its arguments
+// as read-only — callers can pass shared maps without fearing aliasing bugs.
+func TestResolve_DoesNotMutateInputs(t *testing.T) {
+	expanded := map[string]string{"a": "e"}
+	shellVars := map[string]string{"b": "s"}
+	cliFlags := map[string]string{"c": "c"}
+
+	expandedSnap := map[string]string{"a": "e"}
+	shellVarsSnap := map[string]string{"b": "s"}
+	cliFlagsSnap := map[string]string{"c": "c"}
+
+	_ = Resolve(cliFlags, shellVars, expanded)
+
+	for k, v := range expandedSnap {
+		if expanded[k] != v {
+			t.Errorf("expanded mutated: key %q now %q, was %q", k, expanded[k], v)
+		}
+	}
+	if len(expanded) != len(expandedSnap) {
+		t.Errorf("expanded grew/shrunk: %d entries, want %d", len(expanded), len(expandedSnap))
+	}
+	for k, v := range shellVarsSnap {
+		if shellVars[k] != v {
+			t.Errorf("shellVars mutated: key %q now %q, was %q", k, shellVars[k], v)
+		}
+	}
+	for k, v := range cliFlagsSnap {
+		if cliFlags[k] != v {
+			t.Errorf("cliFlags mutated: key %q now %q, was %q", k, cliFlags[k], v)
+		}
+	}
+}
+
 func TestParseFlags_Valid(t *testing.T) {
 	m, err := parseFlags("context=work,os=linux")
 	if err != nil {

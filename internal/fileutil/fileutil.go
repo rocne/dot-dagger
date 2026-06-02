@@ -9,10 +9,41 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ModeDir is the standard permission for created directories (rwxr-xr-x).
+const ModeDir os.FileMode = 0o755
+
+// ModeFile is the standard permission for written files (rw-r--r--).
+const ModeFile os.FileMode = 0o644
+
+// POSIXShebang is the standard POSIX shell shebang line.
+const POSIXShebang = "#!/bin/sh"
+
+// Exists reports whether path exists. Any stat error (including ENOENT and
+// permission denied) is treated as non-existence.
+func Exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// ExpandHome expands "~" → home and "~/x" → home/x. Any other input is
+// returned unchanged. Pass "" for home to short-circuit expansion.
+func ExpandHome(path, home string) string {
+	if home == "" {
+		return path
+	}
+	if path == "~" {
+		return home
+	}
+	if len(path) >= 2 && path[0] == '~' && path[1] == '/' {
+		return filepath.Join(home, path[2:])
+	}
+	return path
+}
+
 // SaveYAML encodes v as YAML and writes it to path atomically (temp file + rename).
 // Creates parent directories as needed.
 func SaveYAML(path string, v any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), ModeDir); err != nil {
 		return fmt.Errorf("fileutil: mkdir: %w", err)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".*.yaml.tmp")

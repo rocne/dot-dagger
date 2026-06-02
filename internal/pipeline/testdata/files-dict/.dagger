@@ -1,0 +1,28 @@
+defaults:
+  when: "os=linux"
+files:
+  disabled-file.json:
+    disable: true
+  named-file.json:
+    name: "my.custom.name"
+    actions:
+      - source
+  when-file.json:
+    when: "shell=bash"
+    actions:
+      - source
+  actions-file.json:
+    actions:
+      - source
+  dedup-file.json:
+    actions:
+      - source
+      - source
+  after-file.json:
+    actions:
+      - source
+    after:
+      - some.other.file
+  missing-file.json:
+    actions:
+      - source

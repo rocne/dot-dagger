@@ -30,24 +30,15 @@ func newComposeListCmd(cfg *config) *cobra.Command {
 		Use:   "list",
 		Short: "List active compose targets",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolved, err := resolveEnv(cfg)
-			if err != nil {
-				return annotateKeyError(err)
-			}
-			nodes, _, err := pipeline.Walk(cfg.files)
-			if err != nil {
-				return fmt.Errorf("walk: %w", err)
-			}
-			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+			ordered, err := cfg.walkOrdered()
 			if err != nil {
 				return err
 			}
-			for _, n := range active {
-				if !hasComposeAction(n) {
+			for _, n := range ordered {
+				if !n.HasCompose() {
 					continue
 				}
-				genName := composeGenName(n)
-				fmt.Fprintln(cmd.OutOrStdout(), genName)
+				fmt.Fprintln(cmd.OutOrStdout(), pipeline.ComposeFileName(n.Path))
 			}
 			return nil
 		},
@@ -59,21 +50,9 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 		Use:   "check",
 		Short: "Check compose targets for staleness",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolved, err := resolveEnv(cfg)
-			if err != nil {
-				return annotateKeyError(err)
-			}
-			nodes, _, err := pipeline.Walk(cfg.files)
-			if err != nil {
-				return fmt.Errorf("walk: %w", err)
-			}
-			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+			ordered, err := cfg.walkOrdered()
 			if err != nil {
 				return err
-			}
-			ordered, err := pipeline.Order(active)
-			if err != nil {
-				return fmt.Errorf("order: %w", err)
 			}
 			actOpts, err := buildActOptions(cfg, true)
 			if err != nil {
@@ -81,9 +60,10 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 			}
 			res, err := pipeline.Act(ordered, actOpts)
 			if err != nil {
-				return fmt.Errorf("act: %w", err)
+				return fmt.Errorf("compose check: %w", err)
 			}
 
+			errOut := cmd.ErrOrStderr()
 			var hasStale bool
 			for _, gen := range res.Generated {
 				if gen.Path == "" {
@@ -91,15 +71,15 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 				}
 				existing, readErr := os.ReadFile(gen.Path)
 				if errors.Is(readErr, fs.ErrNotExist) {
-					ui.Missingf(cmd.OutOrStdout(), "%s", filepath.Base(gen.Path))
+					ui.Missingf(errOut, "%s", filepath.Base(gen.Path))
 					hasStale = true
 					continue
 				}
 				if readErr != nil {
-					return fmt.Errorf("read %s: %w", gen.Path, readErr)
+					return fmt.Errorf("compose check: read %s: %w", gen.Path, readErr)
 				}
 				if !bytes.Equal(existing, gen.Content) {
-					ui.Wrongf(cmd.OutOrStdout(), "%s", filepath.Base(gen.Path))
+					ui.Wrongf(errOut, "%s", filepath.Base(gen.Path))
 					hasStale = true
 				}
 			}
@@ -114,15 +94,3 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 	}
 }
 
-func hasComposeAction(n pipeline.RawNode) bool {
-	for _, a := range n.Actions {
-		if a.Type == pipeline.ActionCompose {
-			return true
-		}
-	}
-	return false
-}
-
-func composeGenName(n pipeline.RawNode) string {
-	return pipeline.ComposeFileName(n.Path)
-}

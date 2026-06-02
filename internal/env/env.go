@@ -17,6 +17,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// dotdPrefix is the shell-variable prefix used to override env values.
+// DOTD_CONTEXT=work → context=work in the resolved env map.
+const dotdPrefix = "DOTD_"
+
 // Load parses env.yaml at path as a flat map[string]string.
 // Values are returned raw — call Expand to evaluate $(…) expressions.
 // If the file does not exist, returns an empty map without error.
@@ -122,10 +126,10 @@ func parseFlags(s string) (map[string]string, error) {
 func ShellVars(environ []string) map[string]string {
 	out := make(map[string]string)
 	for _, e := range environ {
-		if !strings.HasPrefix(e, "DOTD_") {
+		if !strings.HasPrefix(e, dotdPrefix) {
 			continue
 		}
-		rest := e[len("DOTD_"):]
+		rest := e[len(dotdPrefix):]
 		idx := strings.IndexByte(rest, '=')
 		if idx <= 0 {
 			continue

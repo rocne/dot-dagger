@@ -224,6 +224,116 @@ func TestCheckAfterApply_Unit(t *testing.T) {
 	}
 }
 
+// TestCheck_DetectsMissingSymlink verifies that check exits non-zero AND emits
+// a "missing" report when an expected symlink is absent on disk (AUDIT-061).
+func TestCheck_DetectsMissingSymlink(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n[core]\n  autocrlf = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	// init.sh must exist so the missing-symlink case is the only failure.
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	// Now sabotage: delete the symlink apply just created.
+	if err := os.Remove(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "check",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err == nil {
+		t.Fatalf("check should fail when symlink is missing; out=%q", out)
+	}
+	if !strings.Contains(out, "missing") {
+		t.Errorf("check output should mention 'missing'; got %q", out)
+	}
+}
+
+// TestCheck_DetectsWrongTarget verifies that check exits non-zero when the
+// symlink exists but points at a different file (AUDIT-061).
+func TestCheck_DetectsWrongTarget(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	// Replace the symlink with one pointing elsewhere.
+	link := filepath.Join(home, ".gitconfig")
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/tmp/elsewhere", link); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "check",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err == nil {
+		t.Fatalf("check should fail on wrong-target symlink; out=%q", out)
+	}
+	if !strings.Contains(out, "wrong") {
+		t.Errorf("check output should mention 'wrong'; got %q", out)
+	}
+}
+
+// TestCheck_DetectsMissingInitSh verifies that check exits non-zero when
+// init.sh is absent (AUDIT-061).
+func TestCheck_DetectsMissingInitSh(t *testing.T) {
+	dotfiles := t.TempDir()
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh") // intentionally not created
+	envFile := emptyEnvFile(t)
+
+	_, err := run(t, "check",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err == nil {
+		t.Fatal("check should fail when init.sh is absent")
+	}
+}
+
 // --- dotd apply --dry-run ---
 
 func TestApplyDryRunEmptyRepo(t *testing.T) {
@@ -818,6 +928,55 @@ func TestUnapply_RemovesSymlink(t *testing.T) {
 	}
 }
 
+// TestUnapply_PartialFailureExits1 verifies that when os.Remove fails on
+// one of the planned targets, unapply exits non-zero and writes the failure
+// message to stderr (AUDIT-033).
+func TestUnapply_PartialFailureExits1(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n[core]\n  autocrlf = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// Sabotage the planned removal: strip write permission on the parent dir
+	// so os.Remove on the symlink fails. We restore perms via t.Cleanup so
+	// t.TempDir's own cleanup can run.
+	if err := os.Chmod(home, 0o555); err != nil {
+		t.Fatalf("chmod home: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(home, 0o755) })
+
+	out, err := run(t, "unapply", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err == nil {
+		t.Fatalf("unapply should have failed; output: %s", out)
+	}
+	if !strings.Contains(out, "removing") {
+		t.Errorf("expected failure message containing 'removing', got: %s", out)
+	}
+}
+
 func TestUnapply_NothingToRemove(t *testing.T) {
 	home := t.TempDir()
 	out, err := run(t, "unapply", "--yes",
@@ -921,5 +1080,475 @@ func TestUnapply_CancelExits0(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "cancelled") {
 		t.Errorf("expected 'cancelled' in output: %q", buf.String())
+	}
+}
+
+// --- AUDIT-001: linkRoot default ---
+
+// TestAdopt_DefaultLinkRoot verifies that adopt succeeds without --link-root by
+// resolving $HOME as the default. Before the fix, cfg.linkRoot was empty and
+// adopt would error with "act: HomeDir is required".
+func TestAdopt_DefaultLinkRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	// Clear DOTD_LINK_ROOT so the test exercises the default-fn path (priority 4),
+	// not the env-var path (priority 2).
+	t.Setenv("DOTD_LINK_ROOT", "")
+
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// A plain config file to adopt (hidden → conf/dot-testrc).
+	src := filepath.Join(home, ".testrc")
+	if err := os.WriteFile(src, []byte("# test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "adopt", "--yes",
+		"--files", dotfiles,
+		"--env-file", emptyEnvFile(t),
+		src,
+	)
+	if err != nil && strings.Contains(err.Error(), "HomeDir is required") {
+		t.Fatalf("adopt failed with HomeDir error — linkRoot default not set: %v", err)
+	}
+	// If adopt errors for another reason (e.g. missing .dagger conventions) that
+	// is acceptable; what matters is that the HomeDir error does not appear.
+}
+
+// TestTeardown_UsesLinkRoot verifies that teardown resolves the shell RC file
+// under cfg.linkRoot (set via --link-root), not under $HOME or cwd.
+//
+// Setup:
+//   - linkRoot is a separate temp dir from $HOME — any RC lookup under $HOME
+//     would find no file and leave the source line untouched.
+//   - env.yaml contains shell: bash so DetectShellConfig is invoked and the
+//     RC path is built as <linkRoot>/.bashrc.
+//   - <linkRoot>/.bashrc contains the dot-dagger source line so teardown has
+//     something to remove.
+//
+// Pass criterion: the source line is gone from <linkRoot>/.bashrc after teardown.
+// Fail criterion: if the bug returns (linkRoot ignored → $HOME used instead),
+// the RC under linkRoot would not be found, the source line would not be
+// removed, and the assertion below would fail.
+func TestTeardown_UsesLinkRoot(t *testing.T) {
+	// $HOME is intentionally different from linkRoot so a mix-up is detectable.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	xdgData := t.TempDir()
+	xdgConfig := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
+	t.Setenv("XDG_CONFIG_HOME", xdgConfig)
+	t.Setenv("DOTD_LINK_ROOT", "") // ensure env var doesn't override --link-root
+
+	// linkRoot is the directory teardown must use when building the RC path.
+	linkRoot := t.TempDir()
+
+	// Compute the initFile path that resolvePaths will resolve:
+	// DOTD_INIT_FILE is unset, so it falls through to DefaultInitFile →
+	// $XDG_DATA_HOME/dot-dagger/init.sh.
+	t.Setenv("DOTD_INIT_FILE", "") // force default-fn resolution
+	initFile := filepath.Join(xdgData, "dot-dagger", "init.sh")
+
+	// Create the XDG config dir and env.yaml with shell: bash.
+	configDir := filepath.Join(xdgConfig, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	envPath := filepath.Join(configDir, "env.yaml")
+	if err := os.WriteFile(envPath, []byte("shell: bash\nos: linux\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create <linkRoot>/.bashrc containing the dot-dagger source line.
+	// DetectShellConfig(bash, linux, linkRoot) → linkRoot/.bashrc.
+	// HasSourceLine and RemoveSourceLine both key on filepath.Base(initFile) = "init.sh".
+	bashrc := filepath.Join(linkRoot, ".bashrc")
+	sourceLine := `source "$HOME/.local/share/dot-dagger/init.sh"`
+	bashrcContents := "# existing rc\n\n# dotd \xe2\x80\x94 generated shell init\n" + sourceLine + "\n"
+	if err := os.WriteFile(bashrc, []byte(bashrcContents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Confirm $HOME/.bashrc does NOT exist — so if teardown wrongly uses $HOME
+	// it will silently skip removal rather than succeed.
+	homeBashrc := filepath.Join(home, ".bashrc")
+
+	_, err := run(t, "teardown", "--yes",
+		"--link-root", linkRoot,
+		"--init-file", initFile,
+		"--files", emptyDotfiles(t),
+		"--env-file", envPath,
+	)
+	if err != nil {
+		t.Fatalf("teardown error = %v", err)
+	}
+
+	// The source line must be gone from <linkRoot>/.bashrc.
+	got, readErr := os.ReadFile(bashrc)
+	if readErr != nil {
+		t.Fatalf("read %s: %v", bashrc, readErr)
+	}
+	if strings.Contains(string(got), "init.sh") {
+		t.Errorf("source line still present in %s — teardown did not strip it:\n%s", bashrc, got)
+	}
+
+	// $HOME/.bashrc must not have been created — teardown must not have touched $HOME.
+	if _, statErr := os.Stat(homeBashrc); statErr == nil {
+		t.Errorf("teardown created %s — it looked up RC under $HOME instead of linkRoot", homeBashrc)
+	}
+}
+
+// --- AUDIT-002: configPath overridable via --config / DOTD_CONFIG_FILE ---
+
+// minimalCfg returns an appConfig pre-populated with an empty envFile so that
+// resolvePaths can run without touching the real XDG config dir.
+func minimalCfg(t *testing.T) *appConfig {
+	t.Helper()
+	return &appConfig{
+		envFile: emptyEnvFile(t),
+	}
+}
+
+// TestConfigPath_FlagOverride verifies that --config /tmp/x.yaml makes
+// cfg.configPath resolve to that path after resolvePaths runs.
+func TestConfigPath_FlagOverride(t *testing.T) {
+	dir := t.TempDir()
+	customConfig := filepath.Join(dir, "custom-config.yaml")
+	// File need not exist — resolvePaths only resolves the path, not loads it
+	// (Load handles the missing-file case gracefully).
+
+	t.Setenv("DOTD_CONFIG_FILE", "") // ensure env var doesn't interfere
+
+	cfg := minimalCfg(t)
+	cfg.configPath = customConfig // simulates --config flag binding
+
+	if err := resolvePaths(cfg); err != nil {
+		t.Fatalf("resolvePaths error = %v", err)
+	}
+
+	if cfg.configPath != customConfig {
+		t.Errorf("cfg.configPath = %q, want %q", cfg.configPath, customConfig)
+	}
+}
+
+// --- AUDIT-003: setup/init honor --config override (cfg.configPath) ---
+
+// TestSetup_HonorsConfigFlag verifies that "dotd setup --config /tmp/x.yaml"
+// writes config.yaml to the override path and NOT to the XDG default.
+// Before AUDIT-003 the fix, setup called dotcfg.DefaultPath() directly and
+// silently ignored the --config override.
+func TestSetup_HonorsConfigFlag(t *testing.T) {
+	// Use a fresh XDG dir so the default path is somewhere we can detect.
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", t.TempDir()) // valid dotfiles default
+	t.Setenv("DOTD_CONFIG_FILE", "")  // ensure env var doesn't interfere
+
+	// The override config path — must not be inside xdg so we can distinguish.
+	overrideDir := t.TempDir()
+	overrideConfig := filepath.Join(overrideDir, "my-config.yaml")
+
+	// Simulate pressing Enter for all prompts (accept all defaults).
+	input := strings.Repeat("\n", 10)
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(input))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"setup", "--config", overrideConfig})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup --config error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	// Override path must have been written.
+	if _, err := os.Stat(overrideConfig); err != nil {
+		t.Errorf("config.yaml not written to override path %s: %v", overrideConfig, err)
+	}
+
+	// Default XDG config must NOT exist (setup must not have written there).
+	defaultConfig := filepath.Join(xdg, "dot-dagger", "config.yaml")
+	if _, err := os.Stat(defaultConfig); err == nil {
+		t.Errorf("config.yaml written to default XDG path %s — --config override was ignored", defaultConfig)
+	}
+}
+
+// TestInit_HonorsConfigFlag verifies that "dotd init --config /tmp/missing.yaml"
+// errors with "no config found" when the override path does not exist.
+// Before AUDIT-003, init called dotcfg.DefaultPath() and would check the XDG
+// default instead of the override, masking the wrong path.
+func TestInit_HonorsConfigFlag(t *testing.T) {
+	// Ensure the XDG default config.yaml exists so that if init ignores the
+	// --config override and checks the default, it would NOT error — letting us
+	// detect the regression.
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTD_CONFIG_FILE", "") // ensure env var doesn't interfere
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Write the default config so it exists — init must still error because the
+	// override path is missing.
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"),
+		[]byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override path that does NOT exist.
+	missingConfig := filepath.Join(t.TempDir(), "no-such-config.yaml")
+
+	_, err := run(t, "init",
+		"--config", missingConfig,
+		"--files", emptyDotfiles(t),
+		"--env-file", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatal("expected error when --config path is missing, got nil — --config override was ignored")
+	}
+	if !strings.Contains(err.Error(), "no config found") {
+		t.Errorf("expected 'no config found' error, got: %v", err)
+	}
+}
+
+// TestConfigPath_EnvVarOverride verifies that DOTD_CONFIG_FILE=/tmp/x.yaml
+// makes cfg.configPath resolve to that path after resolvePaths runs.
+func TestConfigPath_EnvVarOverride(t *testing.T) {
+	dir := t.TempDir()
+	customConfig := filepath.Join(dir, "env-config.yaml")
+
+	t.Setenv("DOTD_CONFIG_FILE", customConfig)
+
+	cfg := minimalCfg(t)
+	// configPath is empty — DOTD_CONFIG_FILE should win.
+
+	if err := resolvePaths(cfg); err != nil {
+		t.Fatalf("resolvePaths error = %v", err)
+	}
+
+	if cfg.configPath != customConfig {
+		t.Errorf("cfg.configPath = %q, want %q", cfg.configPath, customConfig)
+	}
+}
+
+// --- dotd unapply --all (AUDIT-059) ---
+
+// buildLinkDotfiles creates a temp dotfiles repo with two link nodes:
+//   - "unconditional" (no @when predicate — always active)
+//   - "conditional"   (guarded by @when(os=special) — inactive under normal env)
+//
+// Returns (dotfilesDir, homeDir, initFile, envFile).
+func buildLinkDotfiles(t *testing.T) (dotfiles, home, initFile, envFile string) {
+	t.Helper()
+	dotfiles = t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Unconditional link node.
+	if err := os.WriteFile(filepath.Join(confDir, "dot-bashrc"),
+		[]byte("# @link(~/.bashrc)\n# bashrc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Predicate-gated link node — inactive unless os=special.
+	if err := os.WriteFile(filepath.Join(confDir, "dot-specialrc"),
+		[]byte("# @link(~/.specialrc)\n# @when(os=special)\n# specialrc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home = t.TempDir()
+	initFile = filepath.Join(t.TempDir(), "init.sh")
+	envFile = emptyEnvFile(t)
+	return
+}
+
+// TestUnapply_All_RemovesAllDotfilesSymlinks verifies that unapply --all removes
+// every symlink pointing into the dotfiles repo regardless of @when predicates,
+// even when the current env would not activate all nodes (AUDIT-059).
+//
+// Strategy:
+//  1. Apply with os=special so BOTH nodes are active → two symlinks created.
+//  2. Unapply --all with os=linux (so the predicate-gated node is INACTIVE under
+//     normal pipeline) → both symlinks must be removed anyway.
+func TestUnapply_All_RemovesAllDotfilesSymlinks(t *testing.T) {
+	dotfiles, home, initFile, envFile := buildLinkDotfiles(t)
+
+	// Apply with os=special so both nodes are created.
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+		"--env", "os=special",
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// Confirm both symlinks exist before unapply.
+	bashrc := filepath.Join(home, ".bashrc")
+	specialrc := filepath.Join(home, ".specialrc")
+	for _, p := range []string{bashrc, specialrc} {
+		if _, err := os.Lstat(p); err != nil {
+			t.Fatalf("symlink not created by apply: %s: %v", p, err)
+		}
+	}
+
+	// Unapply --all with a DIFFERENT env (os=linux, so predicate-gated node is inactive).
+	if _, err := run(t, "unapply", "--all", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+		"--env", "os=linux",
+	); err != nil {
+		t.Fatalf("unapply --all error = %v", err)
+	}
+
+	// Both symlinks must be gone: --all ignores predicate gating.
+	for _, p := range []string{bashrc, specialrc} {
+		if _, err := os.Lstat(p); !os.IsNotExist(err) {
+			t.Errorf("symlink should be removed by unapply --all: %s", p)
+		}
+	}
+}
+
+// TestUnapply_All_OnlyRemovesDotfilesSymlinks verifies that --all does not
+// remove symlinks that do NOT point into the dotfiles repo (AUDIT-059).
+func TestUnapply_All_OnlyRemovesDotfilesSymlinks(t *testing.T) {
+	dotfiles, home, initFile, envFile := buildLinkDotfiles(t)
+
+	// Apply with os=special so both nodes are created.
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+		"--env", "os=special",
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// Place a non-dotfiles symlink in home.
+	outsideTarget := filepath.Join(t.TempDir(), "other.txt")
+	if err := os.WriteFile(outsideTarget, []byte("other\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outsideLink := filepath.Join(home, ".otherrc")
+	if err := os.Symlink(outsideTarget, outsideLink); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := run(t, "unapply", "--all", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("unapply --all error = %v", err)
+	}
+
+	// Non-dotfiles symlink must be untouched.
+	if _, err := os.Lstat(outsideLink); err != nil {
+		t.Errorf("non-dotfiles symlink removed by unapply --all: %v", err)
+	}
+}
+
+// TestUnapply_YesFlagSkipsConfirmation verifies that the local --yes flag on
+// unapply skips the confirmation prompt (flag binding test — AUDIT-059).
+func TestUnapply_YesFlagSkipsConfirmation(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-vimrc"),
+		[]byte("# @link(~/.vimrc)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// --yes bypasses the prompt; no stdin input needed.
+	_, err := run(t, "unapply", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err != nil {
+		t.Fatalf("unapply --yes error = %v (prompt may not have been bypassed)", err)
+	}
+
+	// Symlink must be removed — confirming --yes actually executed the removal.
+	if _, err := os.Lstat(filepath.Join(home, ".vimrc")); !os.IsNotExist(err) {
+		t.Error("symlink should be removed when --yes is set")
+	}
+}
+
+// --- Real env.yaml expansion path (AUDIT-068) ---
+
+// TestEnvResolution_ShellExpandedValue verifies the full env.yaml → Expand →
+// Resolve → normalize chain for shell-expanded values. An env.yaml that
+// contains `os: $(echo linux)` must produce the same predicate result as
+// passing `--env os=linux` directly, i.e. a @when(os=linux) node appears
+// in dotd list output (AUDIT-068).
+func TestEnvResolution_ShellExpandedValue(t *testing.T) {
+	// env.yaml with a shell-expanded value: $(echo linux) must evaluate to "linux".
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(envFile, []byte("os: $(echo linux)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dotfiles with a node gated on @when(os=linux).
+	dotfiles := t.TempDir()
+	shellrcDir := filepath.Join(dotfiles, "shellrc")
+	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, ecosystem.ConfigFile),
+		[]byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// This node is active only when os=linux.
+	if err := os.WriteFile(filepath.Join(shellrcDir, "linux.sh"),
+		[]byte("# @when(os=linux)\nexport LINUX=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// This node is active only when os=macos — must NOT appear.
+	if err := os.WriteFile(filepath.Join(shellrcDir, "macos.sh"),
+		[]byte("# @when(os=macos)\nexport MACOS=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run dotd list — no --env flag; env resolution must come entirely from
+	// the shell-expanded env.yaml value.
+	out, err := run(t, "list",
+		"--env-file", envFile,
+		"--files", dotfiles,
+	)
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+
+	// linux.sh should be active (os expanded to "linux").
+	if !strings.Contains(out, "shellrc.linux") {
+		t.Errorf("expected shellrc.linux in list output (shell-expanded os=linux); got %q", out)
+	}
+	// macos.sh must be inactive.
+	if strings.Contains(out, "shellrc.macos") {
+		t.Errorf("shellrc.macos should be inactive when os=linux; got %q", out)
 	}
 }

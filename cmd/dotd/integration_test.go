@@ -337,15 +337,16 @@ func TestSymlinkConflictWithForce(t *testing.T) {
 		t.Fatalf("setup conflict: %v", err)
 	}
 
-	// Without --force, apply should report conflict (non-zero exit or conflict in check).
+	// Without --force, apply MUST error AND leave the plain file intact.
 	_, err := e.runMayFail(t, "apply", "--env", "os=linux")
 	if err == nil {
-		// Some implementations warn rather than error; check the symlink is wrong.
-		got, readErr := os.Readlink(filepath.Join(e.home, ".zshrc"))
-		if readErr == nil && got == filepath.Join(e.dotfiles, "config/dot-zshrc") {
-			t.Log("apply without --force unexpectedly succeeded; skipping conflict test")
-			return
-		}
+		t.Fatal("apply without --force must error when a plain file blocks the symlink target")
+	}
+	// The plain file at ~/.zshrc must NOT have been replaced with a symlink.
+	if fi, statErr := os.Lstat(filepath.Join(e.home, ".zshrc")); statErr != nil {
+		t.Fatalf("zshrc disappeared after failed apply: %v", statErr)
+	} else if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("zshrc was replaced with a symlink despite --force absence")
 	}
 
 	// With --force it should succeed and the symlink should be correct.
@@ -398,7 +399,6 @@ func TestPackageRequestSoftSkip(t *testing.T) {
 // @require package has no installable manager. apply itself no longer validates
 // packages — that is the responsibility of `dotd package generate`.
 func TestPackageRequireHardFail(t *testing.T) {
-	t.Skip("dotd package generate not yet migrated to v2")
 	e := newIenv(t)
 
 	// Write a script with a hard requirement that can never be met.
@@ -417,7 +417,6 @@ func TestPackageRequireHardFail(t *testing.T) {
 // TestPackageCheckOutput verifies that `dotd package check` reports the right
 // status for each package type.
 func TestPackageCheckOutput(t *testing.T) {
-	t.Skip("dotd package check not yet migrated to v2")
 	e := newIenv(t)
 	out := e.run(t, "package", "check", "--env", "os=linux", "--env", "context=personal")
 
@@ -449,7 +448,6 @@ func TestPackageDryRun(t *testing.T) {
 //   - shellrc compose target generates a file that is sourced in init.sh
 //   - config compose target generates a file and creates a symlink
 func TestComposeApply(t *testing.T) {
-	t.Skip("compose action not yet implemented in v2 pipeline")
 	e := newIenv(t)
 	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
 
@@ -469,7 +467,6 @@ func TestComposeApply(t *testing.T) {
 // TestComposePredicateGating verifies that inactive fragments are excluded from
 // the generated file and active ones are included.
 func TestComposePredicateGating(t *testing.T) {
-	t.Skip("compose action not yet implemented in v2 pipeline")
 	// context=personal: nosync-work.sh inactive
 	ep := newIenv(t)
 	ep.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
@@ -492,7 +489,6 @@ func TestComposePredicateGating(t *testing.T) {
 
 // TestComposeList verifies that dotd compose list reports active compose targets.
 func TestComposeList(t *testing.T) {
-	t.Skip("dotd compose list not yet implemented in v2")
 	e := newIenv(t)
 	out := e.run(t, "compose", "list", "--env", "os=linux", "--env", "context=personal")
 
@@ -506,7 +502,6 @@ func TestComposeList(t *testing.T) {
 
 // TestComposeCheck_AfterApply verifies that compose check exits cleanly after apply.
 func TestComposeCheck_AfterApply(t *testing.T) {
-	t.Skip("dotd compose check not yet implemented in v2")
 	e := newIenv(t)
 	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
 	e.run(t, "compose", "check", "--env", "os=linux", "--env", "context=personal")
@@ -514,7 +509,6 @@ func TestComposeCheck_AfterApply(t *testing.T) {
 
 // TestComposeCheck_Stale verifies that compose check detects a stale generated file.
 func TestComposeCheck_Stale(t *testing.T) {
-	t.Skip("dotd compose check not yet implemented in v2")
 	e := newIenv(t)
 	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
 

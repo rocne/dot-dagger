@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
@@ -21,21 +20,9 @@ func newDagCheckCmd(cfg *config) *cobra.Command {
 		Use:   "check",
 		Short: "Print nodes in dependency order",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolved, err := resolveEnv(cfg)
-			if err != nil {
-				return annotateKeyError(err)
-			}
-			nodes, _, err := pipeline.Walk(cfg.files)
-			if err != nil {
-				return fmt.Errorf("walk: %w", err)
-			}
-			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+			ordered, err := cfg.walkOrdered()
 			if err != nil {
 				return err
-			}
-			ordered, err := pipeline.Order(active)
-			if err != nil {
-				return fmt.Errorf("order: %w", err)
 			}
 			for i, n := range ordered {
 				fmt.Fprintf(cmd.OutOrStdout(), "%3d  %s\n", i+1, n.LogicalName)

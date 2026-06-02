@@ -148,6 +148,29 @@ func TestMergeActions_CanonicalAnnotations(t *testing.T) {
 			},
 			want: []Action{{Type: ActionSource}, {Type: ActionLink, Dest: "~/.gitconfig"}},
 		},
+		// AUDIT-055: two-explicit-link merge handoff
+		{
+			name:     "two explicit link annotations with different dests — both kept for validateNode",
+			defaults: nil,
+			anns: []annotation.Annotation{
+				{Key: "action", Args: "link(~/foo)"},
+				{Key: "action", Args: "link(~/bar)"},
+			},
+			// Both must be retained so validateNode can flag the conflict.
+			want: []Action{
+				{Type: ActionLink, Dest: "~/foo"},
+				{Type: ActionLink, Dest: "~/bar"},
+			},
+		},
+		{
+			name:     "two explicit link annotations with same dest — deduped to one",
+			defaults: nil,
+			anns: []annotation.Annotation{
+				{Key: "action", Args: "link(~/foo)"},
+				{Key: "action", Args: "link(~/foo)"},
+			},
+			want: []Action{{Type: ActionLink, Dest: "~/foo"}},
+		},
 	}
 
 	for _, tc := range tests {
@@ -194,6 +217,7 @@ func TestValidateNodes(t *testing.T) {
 	tests := []struct {
 		name    string
 		nodes   []RawNode
+		opts    ActOptions
 		wantErr bool
 		errMsg  string
 	}{
@@ -318,11 +342,32 @@ func TestValidateNodes(t *testing.T) {
 			wantErr: true,
 			errMsg:  "compose is only valid on directories",
 		},
+		// Cross-node link conflict: ~ vs absolute path resolve to the same dest.
+		{
+			name: "cross-node link conflict via ~ vs absolute path",
+			nodes: []RawNode{
+				fileNode("a", []Action{{Type: ActionLink, Dest: "~/.x"}}),
+				fileNode("b", []Action{{Type: ActionLink, Dest: "/home/user/.x"}}),
+			},
+			opts:    ActOptions{HomeDir: "/home/user"},
+			wantErr: true,
+			errMsg:  "link conflict",
+		},
+		// Same cross-node conflict without HomeDir: raw strings differ, so no error.
+		{
+			name: "cross-node ~ vs absolute — no HomeDir, raw strings differ, no conflict",
+			nodes: []RawNode{
+				fileNode("a", []Action{{Type: ActionLink, Dest: "~/.x"}}),
+				fileNode("b", []Action{{Type: ActionLink, Dest: "/home/user/.x"}}),
+			},
+			opts:    ActOptions{},
+			wantErr: false,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateNodes(tc.nodes)
+			err := ValidateNodes(tc.nodes, tc.opts)
 			if tc.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}

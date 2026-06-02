@@ -21,15 +21,6 @@ const (
 	ActionLink     = "link"
 )
 
-// Annotation key constants used internally after normalizeActionAnnotations.
-const (
-	annAction  = "action"
-	annAfter   = "after"
-	annRequire = "require"
-	annRequest = "request"
-	annDisable = "disable"
-	annName    = "name"
-)
 
 // Action is a single action declared for a node.
 type Action struct {
@@ -50,6 +41,28 @@ type RawNode struct {
 	LinkRootDir   string   // abs path of dir where link_root was declared
 	IsCompose     bool     // true if this file is a compose fragment
 	ComposeTarget string   // abs path of compose target dir
+}
+
+// NewFileNode constructs a RawNode suitable for single-file processing by Act
+// (e.g., the adopt command, where Walk is not used). Sets the minimum fields
+// Act requires: Path, LogicalName, Actions. EffectiveWhen is empty so the node
+// is always active; LinkRoot/IsCompose are zero-valued.
+func NewFileNode(path, logicalName string, actions []Action) RawNode {
+	return RawNode{
+		Path:        path,
+		LogicalName: logicalName,
+		Actions:     actions,
+	}
+}
+
+// HasCompose reports whether n has the compose action.
+func (n RawNode) HasCompose() bool {
+	for _, a := range n.Actions {
+		if a.Type == ActionCompose {
+			return true
+		}
+	}
+	return false
 }
 
 // dirState is the accumulated defaults for a directory at walk time.
@@ -185,7 +198,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 		anns = normalizeActionAnnotations(anns)
 
 		// @disable: skip this file entirely.
-		if _, ok := annotation.First(anns, annDisable); ok {
+		if _, ok := annotation.First(anns, annotation.KeyDisable); ok {
 			disabled = append(disabled, path)
 			return nil
 		}
@@ -199,7 +212,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Collect @after dependencies.
 		var after []string
-		for _, a := range annotation.Get(anns, annAfter) {
+		for _, a := range annotation.Get(anns, annotation.KeyAfter) {
 			if a.Args != "" {
 				after = append(after, a.Args)
 			}
@@ -207,12 +220,12 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Collect @require / @request package deps.
 		var require, request []string
-		for _, a := range annotation.Get(anns, annRequire) {
+		for _, a := range annotation.Get(anns, annotation.KeyRequire) {
 			if a.Args != "" {
 				require = append(require, a.Args)
 			}
 		}
-		for _, a := range annotation.Get(anns, annRequest) {
+		for _, a := range annotation.Get(anns, annotation.KeyRequest) {
 			if a.Args != "" {
 				request = append(request, a.Args)
 			}
@@ -220,7 +233,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Apply @name override if present.
 		logicalName := node.DeriveName(rel)
-		if a, ok := annotation.First(anns, annName); ok && a.Args != "" {
+		if a, ok := annotation.First(anns, annotation.KeyName); ok && a.Args != "" {
 			logicalName = a.Args
 		}
 
@@ -302,6 +315,8 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 }
 
 // parseDaggerActions converts .dagger action strings (e.g. "link(~/.tmux.conf)") to Action structs.
+// It delegates to parseActionString so dir-level actions: accepts the same arbitrary type(dest)
+// syntax as file-level annotations, including unknown types that pass through harmlessly.
 func parseDaggerActions(strs []string) []Action {
 	var actions []Action
 	for _, s := range strs {
@@ -309,16 +324,7 @@ func parseDaggerActions(strs []string) []Action {
 		if s == "" {
 			continue
 		}
-		if s == ActionCompose {
-			actions = append(actions, Action{Type: ActionCompose})
-		} else if s == ActionSource {
-			actions = append(actions, Action{Type: ActionSource})
-		} else if s == ActionNoSource {
-			actions = append(actions, Action{Type: ActionNoSource})
-		} else if strings.HasPrefix(s, "link(") && strings.HasSuffix(s, ")") {
-			dest := s[5 : len(s)-1]
-			actions = append(actions, Action{Type: ActionLink, Dest: dest})
-		}
+		actions = append(actions, parseActionString(s))
 	}
 	return actions
 }
@@ -404,23 +410,16 @@ func scanFileAnnotations(path string) ([]annotation.Annotation, error) {
 // parseActionString converts an action string like "link(~/.gitconfig)" or "source"
 // into an Action. Handles the "type(dest)" function-call syntax from .dagger files.
 func parseActionString(s string) Action {
-	s = strings.TrimSpace(s)
-	i := strings.IndexByte(s, '(')
-	if i < 0 {
-		return Action{Type: s}
-	}
-	typ := strings.TrimSpace(s[:i])
-	rest := s[i+1:]
-	j := strings.LastIndexByte(rest, ')')
-	if j < 0 {
-		return Action{Type: s} // malformed, treat whole string as type
-	}
-	return Action{Type: typ, Dest: strings.TrimSpace(rest[:j])}
+	head, body, _ := annotation.SplitParen(s)
+	return Action{Type: head, Dest: body}
 }
 
 // mergeActions produces the final Action list for a node.
-// anns must be pre-normalized by normalizeActionAnnotations — only Key=="action" entries
-// are processed; all other annotation keys are ignored.
+//
+// Precondition: anns must be pre-normalized by normalizeActionAnnotations
+// (only Key=="action" entries are processed; all other annotation keys are
+// ignored). All known callers within Walk run that normalization first; if
+// a future caller is added outside Walk, it must normalize before calling.
 func mergeActions(defaultActions []string, anns []annotation.Annotation) []Action {
 	var actions []Action
 	seen := map[string]bool{}
@@ -442,7 +441,7 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 
 	// Apply normalized action annotations.
 	for _, a := range anns {
-		if a.Key != annAction {
+		if a.Key != annotation.KeyAction {
 			continue
 		}
 		act := parseActionString(a.Args)

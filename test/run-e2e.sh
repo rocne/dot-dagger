@@ -1,30 +1,31 @@
 #!/bin/sh
+# run-e2e.sh — canonical pre-merge e2e gate. Builds dotd from source HEAD.
+#
+# This script compiles dotd for linux/amd64 from the current working tree
+# and runs the full exerciser suite inside Docker. It is the default e2e
+# gate and should be run before merging to main.
+#
+# For the release-install smoke test (post-publish), use run-e2e-release.sh.
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-if [ -z "${DOTD_VERSION}" ]; then
-  DOTD_VERSION="$(curl -fsSL "https://api.github.com/repos/rocne/dot-dagger/releases/latest" \
-    | grep '"tag_name"' \
-    | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
-fi
+trap 'rm -f "${SCRIPT_DIR}/e2e/dotd"' EXIT
 
-: "${DOTD_VERSION:?Could not determine release version}"
+printf 'e2e: building dotd from source (linux/amd64)\n'
+GOOS=linux GOARCH=amd64 go build -o "${SCRIPT_DIR}/e2e/dotd" "${REPO_ROOT}/cmd/dotd"
 
-printf 'e2e: testing release %s\n' "${DOTD_VERSION}"
-
-docker build -t dotd-e2e "${SCRIPT_DIR}/e2e"
+printf 'e2e: building docker image\n'
+docker build -t dotd-e2e -f "${SCRIPT_DIR}/e2e/Dockerfile.local" "${SCRIPT_DIR}/e2e"
 
 run_test() {
   EXERCISER="$1"
   printf '\n=== %s ===\n' "${EXERCISER}"
   docker run --rm \
-    -e DOTD_VERSION="${DOTD_VERSION}" \
     -v "${SCRIPT_DIR}/e2e/fixture:/fixture:ro" \
-    -v "${REPO_ROOT}/install.sh:/repo/install.sh:ro" \
     dotd-e2e \
-    sh -c ". /procure/release.sh && sh /tests/${EXERCISER}"
+    sh -c ". /procure/local.sh && sh /tests/${EXERCISER}"
 }
 
 run_test apply.sh

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"sort"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/spf13/cobra"
 )
@@ -13,7 +14,7 @@ import (
 func newEnvCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "env",
-		Short: "Inspect and modify env.yaml",
+		Short: fmt.Sprintf("Inspect and modify %s", ecosystem.EnvFileName),
 	}
 	cmd.AddCommand(
 		newEnvShowCmd(cfg),
@@ -74,7 +75,7 @@ func newEnvGetCmd(cfg *config) *cobra.Command {
 func newEnvSetCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <key> <value>",
-		Short: "Set a key in env.yaml",
+		Short: fmt.Sprintf("Set a key in %s", ecosystem.EnvFileName),
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := envYamlPath(cfg)
@@ -91,7 +92,7 @@ func newEnvSetCmd(cfg *config) *cobra.Command {
 func newEnvEditCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
-		Short: "Open env.yaml in $EDITOR",
+		Short: fmt.Sprintf("Open %s in $EDITOR", ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := envYamlPath(cfg)
 			editor := os.Getenv("EDITOR")
@@ -110,7 +111,7 @@ func newEnvEditCmd(cfg *config) *cobra.Command {
 func newEnvDiffCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "diff",
-		Short: "Show env.yaml keys that override shell-detected values",
+		Short: fmt.Sprintf("Show %s keys that override shell-detected values", ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Intentionally compares env.yaml values against DOTD_* shell vars,
 			// not the final resolved env. --env CLI overrides are not included —
@@ -139,14 +140,14 @@ func newEnvDiffCmd(cfg *config) *cobra.Command {
 					continue
 				}
 				if inShell {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: %q (shell) → %q (env.yaml)\n", k, shellVal, envVal)
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: %q (shell) → %q (%s)\n", k, shellVal, envVal, ecosystem.EnvFileName)
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: (unset) → %q (env.yaml)\n", k, envVal)
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: (unset) → %q (%s)\n", k, envVal, ecosystem.EnvFileName)
 				}
 				hasAny = true
 			}
 			if !hasAny {
-				fmt.Fprintln(cmd.OutOrStdout(), "no overrides — env.yaml values match shell")
+				fmt.Fprintf(cmd.OutOrStdout(), "no overrides — %s values match shell\n", ecosystem.EnvFileName)
 			}
 			return nil
 		},

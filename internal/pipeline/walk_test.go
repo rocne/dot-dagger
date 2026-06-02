@@ -206,3 +206,383 @@ func hasActionWithDest(actions []Action, typ, dest string) bool {
 	}
 	return false
 }
+
+// filesDictRoot returns the absolute path to the files-dict fixture directory.
+func filesDictRoot(t *testing.T) string {
+	t.Helper()
+	abs, err := filepath.Abs("testdata/files-dict")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return abs
+}
+
+// nodeByPath returns the first RawNode whose Path base matches the given filename, or nil.
+func nodeByPath(nodes []RawNode, filename string) *RawNode {
+	for i := range nodes {
+		if filepath.Base(nodes[i].Path) == filename {
+			return &nodes[i]
+		}
+	}
+	return nil
+}
+
+// TestWalk_FilesDict_Disable checks that a file with disable: true in the files: dict
+// appears in the disabled slice and NOT in nodes.
+func TestWalk_FilesDict_Disable(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, disabled, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Must NOT appear in nodes.
+	if n := nodeByPath(nodes, "disabled-file.json"); n != nil {
+		t.Errorf("disabled-file.json should not appear in nodes, but got node: %+v", n)
+	}
+
+	// Must appear in disabled.
+	found := false
+	for _, p := range disabled {
+		if filepath.Base(p) == "disabled-file.json" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("disabled-file.json should appear in disabled slice, got: %v", disabled)
+	}
+}
+
+// TestWalk_AtDisable_AnnotationPath checks that a file carrying a # @disable annotation
+// (walk.go:188-191) is absent from nodes AND present in the disabled return slice.
+// This exercises the inline annotation code path, distinct from the files-dict
+// disable: true path tested by TestWalk_FilesDict_Disable.
+func TestWalk_AtDisable_AnnotationPath(t *testing.T) {
+	root := fixtureRoot(t)
+	nodes, disabled, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// shellrc/disabled.sh carries # @disable — must NOT appear in nodes.
+	if n := nodeByPath(nodes, "disabled.sh"); n != nil {
+		t.Errorf("disabled.sh should not appear in nodes (has @disable annotation), got node: %+v", n)
+	}
+
+	// Must appear in the disabled return slice.
+	found := false
+	for _, p := range disabled {
+		if filepath.Base(p) == "disabled.sh" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("disabled.sh should appear in disabled slice (has @disable annotation), got: %v", disabled)
+	}
+}
+
+// TestWalk_FilesDict_NameOverride checks that name: in the files: dict overrides the
+// derived logical name.
+func TestWalk_FilesDict_NameOverride(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "named-file.json")
+	if n == nil {
+		names := make([]string, len(nodes))
+		for i, nd := range nodes {
+			names[i] = nd.LogicalName
+		}
+		t.Fatalf("named-file.json not found in nodes; got: %v", names)
+	}
+	if n.LogicalName != "my.custom.name" {
+		t.Errorf("LogicalName = %q, want %q", n.LogicalName, "my.custom.name")
+	}
+}
+
+// TestWalk_FilesDict_WhenCascade checks that per-file when: is combined with the
+// directory-level defaults.when via AND.
+func TestWalk_FilesDict_WhenCascade(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "when-file.json")
+	if n == nil {
+		t.Fatal("when-file.json not found in nodes")
+	}
+	// defaults.when = "os=linux" → state.when = "(os=linux)"
+	// file when = "shell=bash"  → fileWhen = "(shell=bash)"
+	// combined → "(os=linux) AND (shell=bash)"
+	want := "(os=linux) AND (shell=bash)"
+	if n.EffectiveWhen != want {
+		t.Errorf("EffectiveWhen = %q, want %q", n.EffectiveWhen, want)
+	}
+}
+
+// TestWalk_FilesDict_Actions checks that actions listed in the files: dict entry
+// are emitted as the node's actions.
+func TestWalk_FilesDict_Actions(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "actions-file.json")
+	if n == nil {
+		t.Fatal("actions-file.json not found in nodes")
+	}
+	if !hasAction(n.Actions, ActionSource) {
+		t.Errorf("actions-file.json should have source action, got %v", n.Actions)
+	}
+}
+
+// TestWalk_FilesDict_DedupByType checks that duplicate action types in the files: dict
+// entry are collapsed so only one action per type survives.
+func TestWalk_FilesDict_DedupByType(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "dedup-file.json")
+	if n == nil {
+		t.Fatal("dedup-file.json not found in nodes")
+	}
+	// actions: [source, source] → only one source action should survive.
+	count := 0
+	for _, a := range n.Actions {
+		if a.Type == ActionSource {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected exactly 1 source action after dedup, got %d: %v", count, n.Actions)
+	}
+}
+
+// TestWalk_FilesDict_After checks that after: in the files: dict entry is propagated
+// to the node's After slice.
+func TestWalk_FilesDict_After(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "after-file.json")
+	if n == nil {
+		t.Fatal("after-file.json not found in nodes")
+	}
+	found := false
+	for _, dep := range n.After {
+		if dep == "some.other.file" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("after-file.json After should contain %q, got: %v", "some.other.file", n.After)
+	}
+}
+
+// TestWalk_FilesDict_MissingFileSkip checks that a file listed in the files: dict
+// but absent on disk is silently skipped — it appears neither in nodes nor in disabled.
+func TestWalk_FilesDict_MissingFileSkip(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, disabled, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Confirm the file genuinely does not exist on disk.
+	missingPath := filepath.Join(root, "missing-file.json")
+	if _, statErr := os.Stat(missingPath); statErr == nil {
+		t.Fatal("test setup error: missing-file.json exists on disk; it should be absent")
+	}
+
+	// Must NOT appear in nodes.
+	if n := nodeByPath(nodes, "missing-file.json"); n != nil {
+		t.Errorf("missing-file.json should not appear in nodes, but got: %+v", n)
+	}
+
+	// Must NOT appear in disabled.
+	for _, p := range disabled {
+		if filepath.Base(p) == "missing-file.json" {
+			t.Errorf("missing-file.json should not appear in disabled, but found: %s", p)
+		}
+	}
+}
+
+// TestParseDaggerActions exercises parseDaggerActions directly, covering the
+// zero-coverage path identified in AUDIT-037.
+func TestParseDaggerActions(t *testing.T) {
+	cases := []struct {
+		name   string
+		input  []string
+		checks func(t *testing.T, actions []Action)
+	}{
+		{
+			name:  "empty input returns nil",
+			input: []string{},
+			checks: func(t *testing.T, actions []Action) {
+				if len(actions) != 0 {
+					t.Errorf("expected empty, got %v", actions)
+				}
+			},
+		},
+		{
+			name:  "source action",
+			input: []string{"source"},
+			checks: func(t *testing.T, actions []Action) {
+				if !hasAction(actions, ActionSource) {
+					t.Errorf("expected source action, got %v", actions)
+				}
+			},
+		},
+		{
+			name:  "compose action string",
+			input: []string{"compose"},
+			checks: func(t *testing.T, actions []Action) {
+				if !hasAction(actions, ActionCompose) {
+					t.Errorf("expected compose action, got %v", actions)
+				}
+			},
+		},
+		{
+			name:  "no-source action",
+			input: []string{"no-source"},
+			checks: func(t *testing.T, actions []Action) {
+				if !hasAction(actions, ActionNoSource) {
+					t.Errorf("expected no-source action, got %v", actions)
+				}
+			},
+		},
+		{
+			name:  "link with destination",
+			input: []string{"link(~/.tmux.conf)"},
+			checks: func(t *testing.T, actions []Action) {
+				if !hasActionWithDest(actions, ActionLink, "~/.tmux.conf") {
+					t.Errorf("expected link(~/.tmux.conf), got %v", actions)
+				}
+			},
+		},
+		{
+			// After unification with parseActionString, bare unknown types pass through
+			// rather than being silently dropped. Downstream (mergeActions/Act) ignores
+			// types it doesn't recognise, so this is harmless.
+			name:  "unknown bare action passes through as Action{Type}",
+			input: []string{"bogus"},
+			checks: func(t *testing.T, actions []Action) {
+				if len(actions) != 1 || actions[0].Type != "bogus" {
+					t.Errorf("expected Action{Type:\"bogus\"}, got %v", actions)
+				}
+			},
+		},
+		{
+			// Arbitrary type(dest) syntax previously silently dropped at dir level;
+			// after unification it is parsed and emitted (AUDIT-013).
+			name:  "arbitrary type(dest) is parsed and emitted",
+			input: []string{"custom(arg)"},
+			checks: func(t *testing.T, actions []Action) {
+				if len(actions) != 1 || actions[0].Type != "custom" || actions[0].Dest != "arg" {
+					t.Errorf("expected Action{Type:\"custom\", Dest:\"arg\"}, got %v", actions)
+				}
+			},
+		},
+		{
+			name:  "blank string is ignored",
+			input: []string{""},
+			checks: func(t *testing.T, actions []Action) {
+				if len(actions) != 0 {
+					t.Errorf("expected blank to be ignored, got %v", actions)
+				}
+			},
+		},
+		{
+			name:  "mixed actions",
+			input: []string{"source", "link(~/bin/tool)", "no-source"},
+			checks: func(t *testing.T, actions []Action) {
+				if !hasAction(actions, ActionSource) {
+					t.Errorf("missing source action in %v", actions)
+				}
+				if !hasActionWithDest(actions, ActionLink, "~/bin/tool") {
+					t.Errorf("missing link action in %v", actions)
+				}
+				if !hasAction(actions, ActionNoSource) {
+					t.Errorf("missing no-source action in %v", actions)
+				}
+				if len(actions) != 3 {
+					t.Errorf("expected 3 actions, got %d: %v", len(actions), actions)
+				}
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			actions := parseDaggerActions(c.input)
+			c.checks(t, actions)
+		})
+	}
+}
+
+// TestWalk_ComposeTarget_EmitsDirectoryNode verifies that Walk emits a compose-target
+// directory node (IsCompose=false, ActionCompose present) for dirs with
+// composition.enabled: true, and emits fragment file nodes with IsCompose=true.
+func TestWalk_ComposeTarget_EmitsDirectoryNode(t *testing.T) {
+	root := fixtureRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Find the compose-target directory node for dot-tmux.conf.d.
+	var targetNode *RawNode
+	var fragNodes []RawNode
+	for i := range nodes {
+		n := &nodes[i]
+		if filepath.Base(n.Path) == "dot-tmux.conf.d" {
+			targetNode = n
+		}
+		if n.IsCompose && n.ComposeTarget != "" && filepath.Base(n.ComposeTarget) == "dot-tmux.conf.d" {
+			fragNodes = append(fragNodes, *n)
+		}
+	}
+
+	if targetNode == nil {
+		names := make([]string, len(nodes))
+		for i, n := range nodes {
+			names[i] = n.LogicalName
+		}
+		t.Fatalf("expected compose-target node for dot-tmux.conf.d, got nodes: %v", names)
+	}
+	if targetNode.IsCompose {
+		t.Error("compose-target directory node should have IsCompose=false")
+	}
+	if !hasAction(targetNode.Actions, ActionCompose) {
+		t.Errorf("compose-target node should have ActionCompose, got %v", targetNode.Actions)
+	}
+	if !hasActionWithDest(targetNode.Actions, ActionLink, "~/.tmux.conf") {
+		t.Errorf("compose-target node should have link(~/.tmux.conf), got %v", targetNode.Actions)
+	}
+
+	// dot-tmux.conf.d contains exactly 2 fragment files: base.conf and nosync-work.conf.
+	if len(fragNodes) != 2 {
+		t.Errorf("expected 2 fragment nodes for dot-tmux.conf.d, got %d", len(fragNodes))
+	}
+	for _, f := range fragNodes {
+		if f.ComposeTarget == "" {
+			t.Errorf("fragment %s has empty ComposeTarget", f.Path)
+		}
+	}
+}

@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run e2e tests (${{ matrix.distro }})
-        run: ./test/run-e2e.sh
+        run: ./test/run-e2e-release.sh
         env:
           DOTD_VERSION: ${{ github.ref_name }}
 

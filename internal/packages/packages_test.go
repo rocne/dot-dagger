@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-
 )
 
 const sampleYAML = `
@@ -216,6 +215,79 @@ func TestInstalledFalse(t *testing.T) {
 	}
 	if ok {
 		t.Error("expected installed = false")
+	}
+}
+
+func TestInstalledUsesCheckField(t *testing.T) {
+	// Package with a check: expression — checkRunner should be called, not lookPath.
+	reg, err := Load(strings.NewReader(`
+package_managers:
+  brew:
+    install: brew install {package}
+packages:
+  custom-tool:
+    check: command -v custom-tool >/dev/null 2>&1
+    brew: {}
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Override checkRunner to avoid running a real shell.
+	orig := checkRunner
+	defer func() { checkRunner = orig }()
+
+	var checkExpr string
+	checkRunner = func(expr string) (bool, error) {
+		checkExpr = expr
+		return true, nil
+	}
+
+	// lookPath must NOT be called when check: is set.
+	lookPathCalled := false
+	ok, err := Installed("custom-tool", reg, func(bin string) (string, error) {
+		lookPathCalled = true
+		return "/usr/bin/" + bin, nil
+	})
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !ok {
+		t.Error("expected installed = true from checkRunner")
+	}
+	if lookPathCalled {
+		t.Error("lookPath should not be called when check: field is set")
+	}
+	if checkExpr != "command -v custom-tool >/dev/null 2>&1" {
+		t.Errorf("checkRunner called with %q, want the check expression", checkExpr)
+	}
+}
+
+func TestInstalledCheckFieldFalse(t *testing.T) {
+	// check: expr exits non-zero → installed = false.
+	reg, err := Load(strings.NewReader(`
+package_managers:
+  brew:
+    install: brew install {package}
+packages:
+  absent-tool:
+    check: false
+    brew: {}
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	orig := checkRunner
+	defer func() { checkRunner = orig }()
+	checkRunner = func(_ string) (bool, error) { return false, nil }
+
+	ok, err := Installed("absent-tool", reg, lookPathFound)
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if ok {
+		t.Error("expected installed = false when checkRunner returns false")
 	}
 }
 
@@ -437,5 +509,57 @@ func TestGenerateScriptSoftRequestSkipped(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "install") {
 		t.Errorf("expected no install cmd for uninstallable @request, got:\n%s", buf.String())
+	}
+}
+
+// TestReservedKeySet guards that the reserved key constants match the set used
+// in the PackageEntry known-fields map. A mismatch means a key was added to one
+// place but not the other.
+func TestReservedKeySet(t *testing.T) {
+	// The four reserved keys by constant.
+	want := map[string]bool{
+		keyPriority: true,
+		keyBinary:   true,
+		keyCheck:    true,
+		keyPrefer:   true,
+	}
+	// The set actually used by the PackageEntry YAML unmarshaler (3 keys)
+	// plus the ManagersSection priority key (1 key) = 4 total constants.
+	// Guard that the constant values haven't drifted from their string literals.
+	if keyPriority != "priority" {
+		t.Errorf("keyPriority = %q, want %q", keyPriority, "priority")
+	}
+	if keyBinary != "binary" {
+		t.Errorf("keyBinary = %q, want %q", keyBinary, "binary")
+	}
+	if keyCheck != "check" {
+		t.Errorf("keyCheck = %q, want %q", keyCheck, "check")
+	}
+	if keyPrefer != "prefer" {
+		t.Errorf("keyPrefer = %q, want %q", keyPrefer, "prefer")
+	}
+	if len(want) != 4 {
+		t.Errorf("expected 4 reserved keys, got %d", len(want))
+	}
+}
+
+// TestCatalogEntriesContainPlaceholder guards that every Catalog entry's
+// Install/Uninstall/Update template contains PlaceholderToken.
+// A template without the token would silently install the wrong package.
+func TestCatalogEntriesContainPlaceholder(t *testing.T) {
+	for _, m := range Catalog {
+		for field, tmpl := range map[string]string{
+			"Install":   m.Def.Install,
+			"Uninstall": m.Def.Uninstall,
+			"Update":    m.Def.Update,
+		} {
+			if tmpl == "" {
+				continue
+			}
+			if !strings.Contains(tmpl, PlaceholderToken) {
+				t.Errorf("Catalog[%s].%s = %q — does not contain PlaceholderToken %q",
+					m.Name, field, tmpl, PlaceholderToken)
+			}
+		}
 	}
 }

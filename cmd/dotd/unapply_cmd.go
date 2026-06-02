@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -53,11 +54,11 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 		// Walk all nodes (no predicate filter), get all link destinations.
 		nodes, _, err := pipeline.Walk(cfg.files)
 		if err != nil {
-			return fmt.Errorf("walk %s: %w", cfg.files, err)
+			return fmt.Errorf("unapply: walk %s: %w", cfg.files, err)
 		}
 		ordered, err := pipeline.Order(nodes)
 		if err != nil {
-			return fmt.Errorf("order: %w", err)
+			return fmt.Errorf("unapply: order: %w", err)
 		}
 		actOpts, err := buildActOptions(cfg, true)
 		if err != nil {
@@ -65,7 +66,7 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 		}
 		res, err := pipeline.Act(ordered, actOpts)
 		if err != nil {
-			return fmt.Errorf("act: %w", err)
+			return fmt.Errorf("unapply: %w", err)
 		}
 		for _, lnk := range res.Links {
 			planned = append(planned, linkPair{src: lnk.Src, dest: lnk.Dest})
@@ -102,7 +103,7 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	}
 
 	// Check for init.sh.
-	initShExists := fileExists(cfg.initFile)
+	initShExists := fileutil.Exists(cfg.initFile)
 
 	if len(toRemove) == 0 && !initShExists {
 		ui.Skipf(out, "nothing to remove")
@@ -132,21 +133,37 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 		return nil
 	}
 
-	// Execute.
+	// Execute. Failures go to stderr and bubble up as a non-zero exit so
+	// scripts can tell the difference between "nothing removed" and "tried
+	// to remove but couldn't".
+	errOut := cmd.ErrOrStderr()
+	var failures int
 	for _, dest := range toRemove {
 		if err := os.Remove(dest); err != nil {
-			ui.Errf(out, "removing %s: %v", dest, err)
+			ui.Errf(errOut, "removing %s: %v", dest, err)
+			failures++
 			continue
 		}
 		ui.OKf(out, "removed %s", dest)
 	}
 	if initShExists {
 		if err := os.Remove(cfg.initFile); err != nil {
-			ui.Errf(out, "removing %s: %v", cfg.initFile, err)
+			ui.Errf(errOut, "removing %s: %v", cfg.initFile, err)
+			failures++
 		} else {
 			ui.OKf(out, "removed %s", cfg.initFile)
 		}
 	}
 
+	if failures > 0 {
+		return fmt.Errorf("unapply: %d of %d targets failed to remove", failures, len(toRemove)+boolToInt(initShExists))
+	}
 	return nil
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

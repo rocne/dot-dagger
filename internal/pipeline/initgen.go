@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rocne/dot-dagger/internal/fileutil"
 )
 
 // GenerateOptions configures init.sh generation.
@@ -38,7 +40,7 @@ func singleQuote(s string) string {
 }
 
 func writeAtomic(path string, content []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), fileutil.ModeDir); err != nil {
 		return fmt.Errorf("initgen: mkdir: %w", err)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".init-*.sh.tmp")

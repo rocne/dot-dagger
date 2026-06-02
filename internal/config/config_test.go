@@ -128,3 +128,35 @@ func TestDefaultPath(t *testing.T) {
 		t.Errorf("unexpected default path: %q", path)
 	}
 }
+
+// TestSave_UnwritableDirErrors verifies Save returns an error wrapped with
+// "config:" when the destination dir cannot be written.
+func TestSave_UnwritableDirErrors(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	path := filepath.Join(dir, "subdir", "config.yaml")
+	err := Save(path, &Config{Dotfiles: "~/d"})
+	if err == nil {
+		t.Fatal("expected Save to fail on unwritable dir")
+	}
+	if !strings.Contains(err.Error(), "config:") {
+		t.Errorf("error not prefixed with config:, got %q", err.Error())
+	}
+}
+
+// TestLoadFrom_RejectsUnknownField verifies KnownFields(true) makes loadFrom
+// error out when the YAML has a field not in the Config struct.
+func TestLoadFrom_RejectsUnknownField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("dotfiles: ~/d\nunknown_field: yes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected Load to reject unknown field via KnownFields(true)")
+	}
+}

@@ -36,4 +36,4 @@ jobs:
           go-version-file: go.mod
 
       - name: Pre-release e2e
-        run: ./test/run-e2e-local.sh
+        run: ./test/run-e2e.sh

@@ -87,7 +87,7 @@ func newConfigSetCmd(cfg *config) *cobra.Command {
 func newConfigEditCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
-		Short: "Open dotcfg.yaml in $EDITOR",
+		Short: "Open config.yaml in $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			editor := os.Getenv("EDITOR")
 			if editor == "" {

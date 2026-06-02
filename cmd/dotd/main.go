@@ -25,6 +25,11 @@ var version = "dev"
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
+		if errors.Is(err, errUserAborted) {
+			fmt.Fprintln(os.Stderr, "cancelled")
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -52,14 +57,16 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     ecosystem.ToolD,
-		Short:   "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
-		Version: version,
+		Use:          ecosystem.ToolD,
+		Short:        "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
+		Version:      version,
+		SilenceErrors: true,
 	}
 
 	pf := root.PersistentFlags()
 	pf.StringVarP(&cfg.files, "files", "f", "", "path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → config.yaml dotfiles → cwd)")
-	pf.StringVar(&cfg.envFile, "env-file", "", "path to env.yaml (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/env.yaml)")
+	pf.StringVar(&cfg.configPath, "config", "", "path to config.yaml (default: $DOTD_CONFIG_FILE → ~/.config/dot-dagger/config.yaml)")
+	pf.StringVar(&cfg.envFile, "env-file", "", fmt.Sprintf("path to %s (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/%s)", ecosystem.EnvFileName, ecosystem.EnvFileName))
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
 	pf.StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → ~/.local/share/dot-dagger/init.sh)")
 	pf.StringVar(&cfg.linkRoot, "link-root", "", "home dir for ~/expansion in link destinations (default: config.yaml link_root → $HOME)")
@@ -198,7 +205,8 @@ func resolvePaths(cfg *config) error {
 	}
 
 	// Tool preferences from config.yaml. Path stored in cfg so config subcommands don't re-resolve it.
-	cfg.configPath, err = dotcfg.DefaultPath()
+	// No config-file value tier (third arg "") — config.yaml is what we're resolving; would be circular.
+	cfg.configPath, err = ecosystem.ResolvePath(cfg.configPath, "DOTD_CONFIG_FILE", "", ecosystem.DefaultConfigFile)
 	if err != nil {
 		return err
 	}
@@ -219,7 +227,7 @@ func resolvePaths(cfg *config) error {
 		return err
 	}
 
-	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", toolCfg.LinkRoot, func() (string, error) { return "", nil })
+	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", toolCfg.LinkRoot, ecosystem.DefaultLinkRoot)
 	if err != nil {
 		return err
 	}
@@ -252,19 +260,10 @@ func configureLogger(cfg *config, cmd *cobra.Command) error {
 
 // buildActOptions constructs pipeline.ActOptions from cfg.
 // dryRun forces dry-run mode regardless of cfg.dryRun.
-// HomeDir is cfg.linkRoot when explicitly set (via --link-root or config.yaml),
-// otherwise os.UserHomeDir().
+// cfg.linkRoot is guaranteed non-empty after resolvePaths succeeds.
 func buildActOptions(cfg *config, dryRun bool) (pipeline.ActOptions, error) {
-	homeDir := cfg.linkRoot
-	if homeDir == "" {
-		var err error
-		homeDir, err = os.UserHomeDir()
-		if err != nil {
-			return pipeline.ActOptions{}, fmt.Errorf("resolve home dir: %w", err)
-		}
-	}
 	return pipeline.ActOptions{
-		HomeDir:      homeDir,
+		HomeDir:      cfg.linkRoot,
 		BinDir:       cfg.binDir,
 		GeneratedDir: cfg.generatedDir,
 		DryRun:       dryRun || cfg.dryRun,
@@ -293,7 +292,7 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 		cfg.log.Debugf("disabled: %s", p)
 	}
 
-	if err := pipeline.ValidateNodes(nodes); err != nil {
+	if err := pipeline.ValidateNodes(nodes, pipeline.ActOptions{HomeDir: cfg.linkRoot, BinDir: cfg.binDir}); err != nil {
 		return nil, err
 	}
 
@@ -324,10 +323,42 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 	}, nil
 }
 
+// walkOrdered runs the read-path pipeline preamble:
+//
+//	resolveEnv → Walk → filterWithPrompt → Order → ValidateNodes
+//
+// Returns the ordered active node slice ready for read-only commands.
+// Write-path commands use runPipeline instead, which additionally performs Act.
+//
+// Validation is shared with the write path so a config that apply/check
+// rejects also fails under list/dag/bundle/compose/package.
+func (cfg *appConfig) walkOrdered() ([]pipeline.RawNode, error) {
+	resolved, err := resolveEnv(cfg)
+	if err != nil {
+		return nil, annotateKeyError(err)
+	}
+	nodes, _, err := pipeline.Walk(cfg.files)
+	if err != nil {
+		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
+	}
+	active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+	if err != nil {
+		return nil, err
+	}
+	ordered, err := pipeline.Order(active)
+	if err != nil {
+		return nil, fmt.Errorf("order: %w", err)
+	}
+	if err := pipeline.ValidateNodes(ordered, pipeline.ActOptions{HomeDir: cfg.linkRoot, BinDir: cfg.binDir}); err != nil {
+		return nil, err
+	}
+	return ordered, nil
+}
+
 func annotateKeyError(err error) error {
 	var mke *predicate.MissingKeyError
 	if errors.As(err, &mke) {
-		return fmt.Errorf("%w\n\nHint: set it with --env %s=<value> or add it to env.yaml", err, mke.Key)
+		return fmt.Errorf("%w\n\nHint: set it with --env %s=<value> or add it to %s", err, mke.Key, ecosystem.EnvFileName)
 	}
 	return err
 }
@@ -336,10 +367,10 @@ func newApplyCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "apply",
 		Short: "Reconcile dotfiles: walk → filter → order → act → init.sh",
-		Long: `Reconcile the dotfiles repo against the current machine.
+		Long: fmt.Sprintf(`Reconcile the dotfiles repo against the current machine.
 
 Stages run in order:
-  1. env    — load env.yaml, merge DOTD_* shell vars and --env overrides
+  1. env    — load %s, merge DOTD_* shell vars and --env overrides
   2. walk   — traverse dotfiles repo, load .dagger configs, produce raw nodes
   3. filter — evaluate @when predicates against resolved env
   4. order  — topological sort via @after annotations (alphabetical tie-break)
@@ -349,7 +380,7 @@ Stages run in order:
 Examples:
   dotd apply
   dotd apply --dry-run            # preview without making changes
-  dotd apply --env context=work   # override a single env key`,
+  dotd apply --env context=work   # override a single env key`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runApply(cmd, cfg)
 		},

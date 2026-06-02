@@ -10,9 +10,19 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/x/term"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	yaml "gopkg.in/yaml.v3"
 )
+
+// errUserAborted is returned when the user cancels an interactive prompt.
+// main() maps this sentinel to a clean exit-1 with "cancelled" on stderr,
+// avoiding the noisy "Error: user aborted" that Cobra would otherwise print.
+var errUserAborted = errors.New("user aborted")
+
+// prompter is the function used to prompt for missing keys.
+// It defaults to promptMissingKeys; tests may replace it with a stub.
+var prompter = promptMissingKeys
 
 // filterWithPrompt wraps pipeline.Filter with TTY-aware missing-key prompting.
 // Non-TTY: identical to Filter + annotateKeyError.
@@ -32,10 +42,10 @@ func filterWithPrompt(nodes []pipeline.RawNode, resolved map[string]string, isTT
 		return active, annotateKeyError(err)
 	}
 
-	filled, err := promptMissingKeys(missing)
+	filled, err := prompter(missing)
 	if err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
-			os.Exit(1)
+			return nil, errUserAborted
 		}
 		return nil, err
 	}
@@ -79,13 +89,13 @@ func printPersistHint(w io.Writer, filled map[string]string) {
 	out, err := yaml.Marshal(filled)
 	if err != nil {
 		// Fallback to raw output if marshaling fails (shouldn't happen for string maps).
-		fmt.Fprintln(w, "\nHint: to persist, add to env.yaml:")
+		fmt.Fprintf(w, "\nHint: to persist, add to %s:\n", ecosystem.EnvFileName)
 		for k, v := range filled {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)
 		}
 		return
 	}
-	fmt.Fprintln(w, "\nHint: to persist, add to env.yaml:")
+	fmt.Fprintf(w, "\nHint: to persist, add to %s:\n", ecosystem.EnvFileName)
 	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
 		fmt.Fprintf(w, "  %s\n", line)
 	}

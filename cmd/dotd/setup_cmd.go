@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -19,13 +19,13 @@ func newSetupCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "setup",
 		Short: "Interactive wizard: configure dot-dagger at the system level",
-		Long: `Configure dot-dagger for this machine.
+		Long: fmt.Sprintf(`Configure dot-dagger for this machine.
 
-Writes config.yaml and (if absent) env.yaml to the platform config dir.
+Writes config.yaml and (if absent) %s to the platform config dir.
 If config.yaml already exists, current values are shown as defaults.
 
 Does not create symlinks or scaffold .dagger files.
-Run 'dotd init' next to scaffold your dotfiles repo.`,
+Run 'dotd init' next to scaffold your dotfiles repo.`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSetup(cmd, cfg)
 		},
@@ -41,12 +41,9 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 
+	// cfg.configPath is resolved by PersistentPreRunE.
 	// Load existing config.yaml — returns empty Config (no error) if absent.
-	configPath, err := dotcfg.DefaultPath()
-	if err != nil {
-		return err
-	}
-	existing, err := dotcfg.Load(configPath)
+	existing, err := dotcfg.Load(cfg.configPath)
 	if err != nil {
 		return fmt.Errorf("setup: load existing config: %w", err)
 	}
@@ -70,7 +67,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	dotfilesPath = expandTildeStr(dotfilesPath, home)
+	dotfilesPath = fileutil.ExpandHome(dotfilesPath, home)
 	dotfilesPath, err = filepath.Abs(dotfilesPath)
 	if err != nil {
 		return err
@@ -86,7 +83,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	binDir = expandTildeStr(binDir, home)
+	binDir = fileutil.ExpandHome(binDir, home)
 	binDir, err = filepath.Abs(binDir)
 	if err != nil {
 		return err
@@ -102,7 +99,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	generatedDir = expandTildeStr(generatedDir, home)
+	generatedDir = fileutil.ExpandHome(generatedDir, home)
 	generatedDir, err = filepath.Abs(generatedDir)
 	if err != nil {
 		return err
@@ -118,7 +115,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	linkRoot = expandTildeStr(linkRoot, home)
+	linkRoot = fileutil.ExpandHome(linkRoot, home)
 	linkRoot, err = filepath.Abs(linkRoot)
 	if err != nil {
 		return err
@@ -133,20 +130,20 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 		GeneratedDir: generatedDir,
 		LinkRoot:     linkRoot,
 	}
-	if err := dotcfg.Save(configPath, toolCfg); err != nil {
+	if err := dotcfg.Save(cfg.configPath, toolCfg); err != nil {
 		return fmt.Errorf("setup: save config.yaml: %w", err)
 	}
-	ui.OKf(out, "  wrote %s", configPath)
+	ui.OKf(out, "  wrote %s", cfg.configPath)
 
 	// Write env.yaml only if absent. cfg.envFile is already resolved by resolvePaths.
 	envPath := cfg.envFile
 	if _, err := os.Stat(envPath); errors.Is(err, fs.ErrNotExist) {
-		if err := os.MkdirAll(filepath.Dir(envPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(envPath), fileutil.ModeDir); err != nil {
 			return fmt.Errorf("setup: mkdir %s: %w", filepath.Dir(envPath), err)
 		}
 		envContent := fmt.Sprintf("os: $(dotd get-os)\nhostname: $(%s get-hostname)\n", ecosystem.ToolD)
-		if err := os.WriteFile(envPath, []byte(envContent), 0o644); err != nil {
-			return fmt.Errorf("setup: write env.yaml: %w", err)
+		if err := os.WriteFile(envPath, []byte(envContent), fileutil.ModeFile); err != nil {
+			return fmt.Errorf("setup: write %s: %w", ecosystem.EnvFileName, err)
 		}
 		ui.OKf(out, "  wrote %s", envPath)
 	} else {
@@ -160,13 +157,3 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	return nil
 }
 
-// printField prints a bold field label and a faint description, then a blank line.
-func printField(w io.Writer, label, desc string) {
-	fmt.Fprintf(w, "\n  %s\n", ui.Key(label))
-	fmt.Fprintf(w, "  %s\n", ui.Skip(desc))
-}
-
-// fieldPrompt returns the prompt text used after a printField call.
-func fieldPrompt() string {
-	return "  " + ui.Arrow("›")
-}

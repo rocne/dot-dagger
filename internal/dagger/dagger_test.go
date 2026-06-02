@@ -3,8 +3,11 @@ package dagger
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/rocne/dot-dagger/internal/annotation"
 )
 
 func TestLoad_Empty(t *testing.T) {
@@ -156,3 +159,49 @@ func TestLoad_Conventions(t *testing.T) {
 		t.Errorf("Conventions.Config = %q, want %q", node.Conventions.Config, "dotfiles")
 	}
 }
+
+// TestBasicNodeYAMLTagsMatchKeys guards that BasicNode and NamedNode yaml struct
+// tags stay in sync with the annotation.Key* vocabulary constants. A one-sided
+// rename (tag but not const, or const but not tag) fails this test.
+func TestBasicNodeYAMLTagsMatchKeys(t *testing.T) {
+	basicTests := []struct {
+		field   string
+		wantTag string
+	}{
+		{"When", annotation.KeyWhen},
+		{"After", annotation.KeyAfter},
+		{"Require", annotation.KeyRequire},
+		{"Request", annotation.KeyRequest},
+		{"Disable", annotation.KeyDisable},
+	}
+	rt := reflect.TypeOf(BasicNode{})
+	for _, tc := range basicTests {
+		f, ok := rt.FieldByName(tc.field)
+		if !ok {
+			t.Errorf("BasicNode: missing field %s", tc.field)
+			continue
+		}
+		if got := f.Tag.Get("yaml"); got != tc.wantTag {
+			t.Errorf("BasicNode.%s yaml tag: got %q, want %q", tc.field, got, tc.wantTag)
+		}
+	}
+
+	namedTests := []struct {
+		field   string
+		wantTag string
+	}{
+		{"Name", annotation.KeyName},
+	}
+	rtn := reflect.TypeOf(NamedNode{})
+	for _, tc := range namedTests {
+		f, ok := rtn.FieldByName(tc.field)
+		if !ok {
+			t.Errorf("NamedNode: missing field %s", tc.field)
+			continue
+		}
+		if got := f.Tag.Get("yaml"); got != tc.wantTag {
+			t.Errorf("NamedNode.%s yaml tag: got %q, want %q", tc.field, got, tc.wantTag)
+		}
+	}
+}
+

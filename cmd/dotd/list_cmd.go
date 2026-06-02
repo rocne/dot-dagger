@@ -44,27 +44,12 @@ type listEntry struct {
 }
 
 func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return annotateKeyError(err)
-	}
-
-	nodes, _, err := pipeline.Walk(cfg.files)
-	if err != nil {
-		return fmt.Errorf("walk %s: %w", cfg.files, err)
-	}
-
-	active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+	ordered, err := cfg.walkOrdered()
 	if err != nil {
 		return err
 	}
 
-	ordered, err := pipeline.Order(active)
-	if err != nil {
-		return fmt.Errorf("order: %w", err)
-	}
-
-	// Build active set for tagging.
+	// Build active set for tagging (used when showInactive=true).
 	activeSet := map[string]bool{}
 	for _, n := range ordered {
 		activeSet[n.Path] = true
@@ -72,7 +57,12 @@ func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) err
 
 	var entries []listEntry
 	if showInactive {
-		// Show all nodes with active/inactive tag.
+		// Walk all nodes (active + inactive) so we can tag each.
+		// This is the only path that needs the full unfiltered node list.
+		nodes, _, err := pipeline.Walk(cfg.files)
+		if err != nil {
+			return fmt.Errorf("walk %s: %w", cfg.files, err)
+		}
 		for _, n := range nodes {
 			entries = append(entries, toEntry(n, activeSet[n.Path]))
 		}

@@ -9,6 +9,20 @@ import (
 	"strings"
 )
 
+// Key constants for the supported .dagger annotation vocabulary.
+// These are the canonical names for annotation keys used in file headers and
+// .dagger YAML files. Code that matches or compares annotation keys must use
+// these constants; the yaml struct tags in internal/dagger must match them.
+const (
+	KeyAction  = "action"
+	KeyAfter   = "after"
+	KeyRequire = "require"
+	KeyRequest = "request"
+	KeyDisable = "disable"
+	KeyName    = "name"
+	KeyWhen    = "when"
+)
+
 // Annotation is a single @key or @key(args) found in a comment line.
 type Annotation struct {
 	Key  string
@@ -72,22 +86,30 @@ func Scan(r io.Reader) ([]Annotation, error) {
 	return anns, nil
 }
 
-// parseKeyArgs splits "key(args)" into key and args.
-// For "key" with no parens, args is "".
-func parseKeyArgs(s string) (key, args string) {
+// SplitParen parses "head(body)" syntax.
+// Returns (head, body, true) for "head(body)" — both trimmed.
+// Returns (s, "", false) for "head" (no parens) — s is trimmed.
+// Returns (s, "", false) for malformed input (e.g. missing closing paren) — s is the trimmed original.
+func SplitParen(s string) (head, body string, ok bool) {
+	s = strings.TrimSpace(s)
 	i := strings.IndexByte(s, '(')
 	if i < 0 {
-		return strings.TrimSpace(s), ""
+		return s, "", false
 	}
-	key = strings.TrimSpace(s[:i])
+	head = strings.TrimSpace(s[:i])
 	rest := s[i+1:]
 	j := strings.LastIndexByte(rest, ')')
 	if j < 0 {
-		// Malformed — treat whole thing as key, no args.
-		return strings.TrimSpace(s), ""
+		return s, "", false
 	}
-	args = strings.TrimSpace(rest[:j])
-	return key, args
+	return head, strings.TrimSpace(rest[:j]), true
+}
+
+// parseKeyArgs splits "key(args)" into key and args.
+// For "key" with no parens, args is "".
+func parseKeyArgs(s string) (key, args string) {
+	head, body, _ := SplitParen(s)
+	return head, body
 }
 
 // Get returns all annotations with the given key.
@@ -118,7 +140,7 @@ func First(anns []Annotation, key string) (Annotation, bool) {
 func CombineWhen(anns []Annotation) string {
 	var parts []string
 	for _, a := range anns {
-		if a.Key == "when" && a.Args != "" {
+		if a.Key == KeyWhen && a.Args != "" {
 			parts = append(parts, "("+a.Args+")")
 		}
 	}

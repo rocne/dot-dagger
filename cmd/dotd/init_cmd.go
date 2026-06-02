@@ -6,10 +6,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
-	dotcfg "github.com/rocne/dot-dagger/internal/config"
+	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/fileutil"
+	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -31,13 +32,8 @@ Requires config.yaml — run 'dotd setup' first if you haven't already.`,
 }
 
 func runInit(cmd *cobra.Command, cfg *config) error {
-	// Precondition: config.yaml must exist. DefaultPath() called directly here —
-	// bootstrap check that runs before any config is loaded (legitimate exception).
-	configPath, err := dotcfg.DefaultPath()
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	// cfg.configPath is resolved by PersistentPreRunE.
+	if _, err := os.Stat(cfg.configPath); os.IsNotExist(err) {
 		return fmt.Errorf("no config found — run 'dotd setup' first")
 	}
 
@@ -57,9 +53,59 @@ func runInit(cmd *cobra.Command, cfg *config) error {
 		ui.OKf(out, "  wrote %s", path)
 	}
 
+	if err := maybeAddSourceLine(out, reader, cfg); err != nil {
+		return err
+	}
+
 	ui.Headerf(out, "Next steps:")
 	fmt.Fprintln(out, "  1. Add dotfiles to your repo")
 	fmt.Fprintf(out, "  2. %s\n", ui.Key("dotd apply"))
+	return nil
+}
+
+// maybeAddSourceLine checks if the shell RC file already sources the dotd init
+// file and, if not, prompts the user to add it. Shell and OS are resolved from
+// the canonical env map (never queried directly from the OS here).
+func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
+	if err != nil {
+		// env.yaml not yet present (edge case); skip silently.
+		return nil
+	}
+	shell := resolved["shell"]
+	if shell == "" {
+		return nil
+	}
+	sc, ok, err := setup.DetectShellConfig(shell, resolved["os"], cfg.linkRoot)
+	if err != nil {
+		return fmt.Errorf("init: detect shell config: %w", err)
+	}
+	if !ok {
+		return nil // unrecognised shell — skip
+	}
+
+	has, err := setup.HasSourceLine(sc.RCFile, cfg.initFile)
+	if err != nil {
+		return fmt.Errorf("init: check RC file: %w", err)
+	}
+	if has {
+		ui.OKf(out, "  source line already present in %s", sc.RCFile)
+		return nil
+	}
+
+	yes, err := promptYN(out, reader, fmt.Sprintf("Add dotd source line to %s?", sc.RCFile))
+	if err != nil {
+		return err
+	}
+	if !yes {
+		ui.Skipf(out, "  skipping source line — add manually: source %q", cfg.initFile)
+		return nil
+	}
+
+	if err := setup.AppendSourceLine(sc.RCFile, cfg.initFile, cfg.linkRoot); err != nil {
+		return fmt.Errorf("init: append source line: %w", err)
+	}
+	ui.OKf(out, "  added source line to %s", sc.RCFile)
 	return nil
 }
 
@@ -74,19 +120,19 @@ var conventionRoles = []conventionRole{
 	{
 		label:  "Shell scripts",
 		desc:   "Files here are auto-sourced by your shell on startup.",
-		defDir: "shellrc",
+		defDir: adopter.DirShellrc,
 		content: "defaults:\n  actions:\n    - source\n",
 	},
 	{
 		label:  "Config files",
 		desc:   "Files here are symlinked into ~/.config by default (e.g. config/nvim/init.lua → ~/.config/nvim/init.lua).",
-		defDir: "config",
+		defDir: adopter.DirConfig,
 		content: "link_root: \"~/.config\"\ndefaults:\n  actions:\n    - link\n",
 	},
 	{
 		label:  "Bin scripts",
 		desc:   "Executable scripts here are linked to your bin directory.",
-		defDir: "bin",
+		defDir: adopter.DirBin,
 		content: "link_root: \"~bin\"\ndefaults:\n  actions:\n    - link\n",
 	},
 }
@@ -131,52 +177,9 @@ func scaffoldDagger(dir, content string) error {
 	if _, err := os.Stat(path); err == nil {
 		return nil // already exists — skip
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, fileutil.ModeDir); err != nil {
 		return fmt.Errorf("init: mkdir %s: %w", dir, err)
 	}
-	return os.WriteFile(path, []byte(content), 0o644)
+	return os.WriteFile(path, []byte(content), fileutil.ModeFile)
 }
 
-// promptDefault prints "msg [default]: " and reads input.
-// Returns defaultVal if input is empty.
-func promptDefault(w io.Writer, reader *bufio.Reader, msg, defaultVal string, nonInteractive bool) (string, error) {
-	if nonInteractive {
-		return defaultVal, nil
-	}
-	if defaultVal != "" {
-		fmt.Fprintf(w, "%s [%s]: ", msg, ui.Skip(defaultVal))
-	} else {
-		fmt.Fprintf(w, "%s: ", msg)
-	}
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return defaultVal, nil // EOF — use default
-	}
-	line = strings.TrimSpace(line)
-	if line == "" {
-		return defaultVal, nil
-	}
-	return line, nil
-}
-
-// promptYN prints "msg [Y/n]: " and returns true unless user types n/no.
-// Empty input and EOF both default to yes.
-func promptYN(w io.Writer, reader *bufio.Reader, msg string) (bool, error) {
-	fmt.Fprintf(w, "  %s [Y/n]: ", msg)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return true, nil // EOF → default yes
-	}
-	line = strings.ToLower(strings.TrimSpace(line))
-	return line == "" || line == "y" || line == "yes", nil
-}
-
-func expandTildeStr(path, home string) string {
-	if path == "~" {
-		return home
-	}
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(home, path[2:])
-	}
-	return path
-}

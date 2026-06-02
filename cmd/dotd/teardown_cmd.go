@@ -9,6 +9,7 @@ import (
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -18,18 +19,18 @@ func newTeardownCmd(cfg *config) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "teardown",
-		Short: "Remove dot-dagger system config (config.yaml, env.yaml, RC source line)",
-		Long: `Remove dot-dagger system-level configuration from this machine.
+		Short: fmt.Sprintf("Remove dot-dagger system config (config.yaml, %s, RC source line)", ecosystem.EnvFileName),
+		Long: fmt.Sprintf(`Remove dot-dagger system-level configuration from this machine.
 
 Removes:
   - config.yaml from the platform config dir
-  - env.yaml from the platform config dir
+  - %s from the platform config dir
   - The dotd source line from the shell RC file (if detected)
 
 Does NOT remove symlinks or .dagger files.
 Run 'dotd unapply' first to remove symlinks, then 'dotd teardown'.
 
-Shows a preview and prompts for confirmation before making any changes.`,
+Shows a preview and prompts for confirmation before making any changes.`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTeardown(cmd, cfg, yes)
 		},
@@ -40,18 +41,19 @@ Shows a preview and prompts for confirmation before making any changes.`,
 
 func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	out := cmd.OutOrStdout()
+	errOut := cmd.ErrOrStderr()
 
 	// Pre-action check: warn if active symlinks detected.
 	// Non-fatal if walk fails (env.yaml or dotfiles repo may be absent).
 	if prun, err := runPipeline(cfg, true); err == nil {
 		if len(prun.result.Links) > 0 {
-			ui.Warnf(out, "%d symlink(s) still active — consider running 'dotd unapply' first", len(prun.result.Links))
+			ui.Warnf(errOut, "%d symlink(s) still active — consider running 'dotd unapply' first", len(prun.result.Links))
 		}
 	}
 
 	// Pre-action check: warn if .dagger files still present.
 	if cfg.files != "" && hasDaggerFiles(cfg.files) {
-		ui.Warnf(out, ".dagger files present in dotfiles repo — these will not be removed")
+		ui.Warnf(errOut, ".dagger files present in dotfiles repo — these will not be removed")
 	}
 
 	// Determine paths. Both call DefaultPath() directly — teardown removes the
@@ -82,8 +84,8 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	}
 
 	// Stat each file to determine what exists.
-	configExists := fileExists(configPath)
-	envExists := fileExists(envPath)
+	configExists := fileutil.Exists(configPath)
+	envExists := fileutil.Exists(envPath)
 
 	// Preview.
 	ui.Headerf(out, "Will remove:")
@@ -143,11 +145,6 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	}
 
 	return nil
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 // hasDaggerFiles reports whether any .dagger file exists under root.

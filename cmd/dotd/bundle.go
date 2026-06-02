@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/spf13/cobra"
 )
@@ -41,24 +42,9 @@ Examples:
 }
 
 func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, includeEnv bool) error {
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return annotateKeyError(err)
-	}
-
-	nodes, _, err := pipeline.Walk(cfg.files)
-	if err != nil {
-		return fmt.Errorf("walk %s: %w", cfg.files, err)
-	}
-
-	active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+	ordered, err := cfg.walkOrdered()
 	if err != nil {
 		return err
-	}
-
-	ordered, err := pipeline.Order(active)
-	if err != nil {
-		return fmt.Errorf("order: %w", err)
 	}
 
 	// Resolve target to absolute path.
@@ -87,10 +73,14 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 	// Build output.
 	var sb strings.Builder
 
-	sb.WriteString("#!/bin/sh\n")
+	sb.WriteString(fileutil.POSIXShebang + "\n")
 	sb.WriteString("# Bundled by dotd — do not edit by hand.\n\n")
 
 	if includeEnv {
+		resolved, resolveErr := resolveEnv(cfg)
+		if resolveErr != nil {
+			return annotateKeyError(resolveErr)
+		}
 		for k, v := range resolved {
 			fmt.Fprintf(&sb, "export %s=%s\n", k, shellQuote(v))
 		}
@@ -118,7 +108,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 	out := sb.String()
 
 	if outputFile != "" {
-		if err := os.WriteFile(outputFile, []byte(out), 0o644); err != nil {
+		if err := os.WriteFile(outputFile, []byte(out), fileutil.ModeFile); err != nil {
 			return fmt.Errorf("bundle: write %s: %w", outputFile, err)
 		}
 		return nil

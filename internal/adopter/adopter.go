@@ -7,20 +7,30 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/node"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 )
+
+// DirShellrc is the canonical name for the shell-scripts convention directory.
+const DirShellrc = "shellrc"
+
+// DirBin is the canonical name for the bin-scripts convention directory.
+const DirBin = "bin"
+
+// DirConfig is the canonical name for the config-files convention directory.
+const DirConfig = "config"
 
 // ConventionNames holds the active names for the three convention directories.
 type ConventionNames struct {
 	Shellrc string
 	Bin     string
-	Config string
+	Config  string
 }
 
 // DefaultConventions returns the standard convention dir names.
 func DefaultConventions() ConventionNames {
-	return ConventionNames{Shellrc: "shellrc", Bin: "bin", Config: "config"}
+	return ConventionNames{Shellrc: DirShellrc, Bin: DirBin, Config: DirConfig}
 }
 
 // Inference is the result of inferring a dotfiles destination for a source file.
@@ -106,11 +116,7 @@ func Adopt(src, destRel string, opts AdoptOptions) (*pipeline.ActResult, error) 
 	}
 
 	actions := actionsFor(destRel, src, opts)
-	n := pipeline.RawNode{
-		Path:        destAbs,
-		LogicalName: node.DeriveName(rel),
-		Actions:     actions,
-	}
+	n := pipeline.NewFileNode(destAbs, node.DeriveName(rel), actions)
 	actOpts := pipeline.ActOptions{
 		HomeDir: opts.LinkRoot,
 		BinDir:  opts.BinDir,
@@ -166,7 +172,7 @@ func actionsFor(destRel, src string, opts AdoptOptions) []pipeline.Action {
 }
 
 func copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), fileutil.ModeDir); err != nil {
 		return fmt.Errorf("adopt: mkdir %s: %w", filepath.Dir(dst), err)
 	}
 

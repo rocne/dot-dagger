@@ -17,6 +17,12 @@ const ConfigFile = ".dagger"
 // LegacyConfigFile is the old per-directory config filename, kept for defensive skipping during walks.
 const LegacyConfigFile = ".dotd.yaml"
 
+// PackagesFileName is the canonical filename for the packages registry inside a dotfiles repo.
+const PackagesFileName = "packages.yaml"
+
+// EnvFileName is the canonical filename for the per-machine env configuration.
+const EnvFileName = "env.yaml"
+
 // ToolD is the CLI binary name.
 const ToolD = "dotd"
 
@@ -74,6 +80,16 @@ func DefaultInitFile() (string, error) {
 		return "", err
 	}
 	return filepath.Join(base, Name, "init.sh"), nil
+}
+
+// DefaultLinkRoot returns the default link root directory: $HOME.
+// This is the directory used to expand "~" in link destinations.
+func DefaultLinkRoot() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+	}
+	return home, nil
 }
 
 // DefaultBinDir returns the default path for user-managed binaries: ~/.local/bin/dot-dagger.

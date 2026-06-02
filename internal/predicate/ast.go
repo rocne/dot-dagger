@@ -69,21 +69,6 @@ type TrueExpr struct{}
 func (TrueExpr) expr() {}
 func (TrueExpr) Keys() []string { return nil }
 
-// And returns the conjunction of exprs.
-// If exprs is empty, returns TrueExpr.
-// If exprs has one element, returns it directly.
-// Otherwise returns an AndExpr.
-func And(exprs []Expr) Expr {
-	switch len(exprs) {
-	case 0:
-		return TrueExpr{}
-	case 1:
-		return exprs[0]
-	default:
-		return AndExpr{Operands: exprs}
-	}
-}
-
 func collectKeys(exprs []Expr) []string {
 	seen := make(map[string]bool)
 	var keys []string
