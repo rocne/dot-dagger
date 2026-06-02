@@ -398,7 +398,6 @@ func TestPackageRequestSoftSkip(t *testing.T) {
 // @require package has no installable manager. apply itself no longer validates
 // packages — that is the responsibility of `dotd package generate`.
 func TestPackageRequireHardFail(t *testing.T) {
-	t.Skip("dotd package generate not yet migrated to v2")
 	e := newIenv(t)
 
 	// Write a script with a hard requirement that can never be met.
@@ -417,7 +416,6 @@ func TestPackageRequireHardFail(t *testing.T) {
 // TestPackageCheckOutput verifies that `dotd package check` reports the right
 // status for each package type.
 func TestPackageCheckOutput(t *testing.T) {
-	t.Skip("dotd package check not yet migrated to v2")
 	e := newIenv(t)
 	out := e.run(t, "package", "check", "--env", "os=linux", "--env", "context=personal")
 
