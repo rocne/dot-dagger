@@ -72,22 +72,30 @@ func Scan(r io.Reader) ([]Annotation, error) {
 	return anns, nil
 }
 
-// parseKeyArgs splits "key(args)" into key and args.
-// For "key" with no parens, args is "".
-func parseKeyArgs(s string) (key, args string) {
+// SplitParen parses "head(body)" syntax.
+// Returns (head, body, true) for "head(body)" — both trimmed.
+// Returns (s, "", false) for "head" (no parens) — s is trimmed.
+// Returns (s, "", false) for malformed input (e.g. missing closing paren) — s is the trimmed original.
+func SplitParen(s string) (head, body string, ok bool) {
+	s = strings.TrimSpace(s)
 	i := strings.IndexByte(s, '(')
 	if i < 0 {
-		return strings.TrimSpace(s), ""
+		return s, "", false
 	}
-	key = strings.TrimSpace(s[:i])
+	head = strings.TrimSpace(s[:i])
 	rest := s[i+1:]
 	j := strings.LastIndexByte(rest, ')')
 	if j < 0 {
-		// Malformed — treat whole thing as key, no args.
-		return strings.TrimSpace(s), ""
+		return s, "", false
 	}
-	args = strings.TrimSpace(rest[:j])
-	return key, args
+	return head, strings.TrimSpace(rest[:j]), true
+}
+
+// parseKeyArgs splits "key(args)" into key and args.
+// For "key" with no parens, args is "".
+func parseKeyArgs(s string) (key, args string) {
+	head, body, _ := SplitParen(s)
+	return head, body
 }
 
 // Get returns all annotations with the given key.

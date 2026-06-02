@@ -397,18 +397,8 @@ func scanFileAnnotations(path string) ([]annotation.Annotation, error) {
 // parseActionString converts an action string like "link(~/.gitconfig)" or "source"
 // into an Action. Handles the "type(dest)" function-call syntax from .dagger files.
 func parseActionString(s string) Action {
-	s = strings.TrimSpace(s)
-	i := strings.IndexByte(s, '(')
-	if i < 0 {
-		return Action{Type: s}
-	}
-	typ := strings.TrimSpace(s[:i])
-	rest := s[i+1:]
-	j := strings.LastIndexByte(rest, ')')
-	if j < 0 {
-		return Action{Type: s} // malformed, treat whole string as type
-	}
-	return Action{Type: typ, Dest: strings.TrimSpace(rest[:j])}
+	head, body, _ := annotation.SplitParen(s)
+	return Action{Type: head, Dest: body}
 }
 
 // mergeActions produces the final Action list for a node.
