@@ -2,6 +2,7 @@ package predicate
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -569,4 +570,45 @@ func exprEqual(a, b Expr) bool {
 		return true
 	}
 	return false
+}
+
+// TestFuncRegistry_RegisterPanicsOnDuplicate verifies that Register panics if
+// the same name is registered twice. Override is the documented escape hatch.
+func TestFuncRegistry_RegisterPanicsOnDuplicate(t *testing.T) {
+	reg := NewFuncRegistry(Strict)
+	reg.Register("foo", func(arg string) (bool, error) { return true, nil })
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on duplicate Register")
+		}
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("panic value is %T %v, want string", r, r)
+		}
+		if !strings.Contains(msg, "foo") || !strings.Contains(msg, "already registered") {
+			t.Errorf("panic message %q missing expected substrings", msg)
+		}
+	}()
+	reg.Register("foo", func(arg string) (bool, error) { return false, nil })
+}
+
+// TestMissingKeyError verifies error message format and errors.As extraction.
+func TestMissingKeyError(t *testing.T) {
+	err := &MissingKeyError{Key: "context"}
+	wantMsg := `predicate: env key "context" not set`
+	if got := err.Error(); got != wantMsg {
+		t.Errorf("Error() = %q, want %q", got, wantMsg)
+	}
+
+	// errors.As round-trip — wrapping should preserve the type.
+	wrapped := fmt.Errorf("outer: %w", err)
+	var mke *MissingKeyError
+	if !errors.As(wrapped, &mke) {
+		t.Fatal("errors.As failed to unwrap MissingKeyError")
+	}
+	if mke.Key != "context" {
+		t.Errorf("unwrapped Key = %q, want %q", mke.Key, "context")
+	}
 }
