@@ -75,7 +75,7 @@ func Scaffold(opts Options) (*Result, error) {
 	}{
 		{opts.EnvFilePath, envYAML(opts)},
 		{filepath.Join(opts.DotfilesDir, ecosystem.ConfigFile), daggerYAML()},
-		{filepath.Join(opts.DotfilesDir, "packages.yaml"), packagesYAML(opts.SelectedManagers)},
+		{filepath.Join(opts.DotfilesDir, ecosystem.PackagesFileName), packagesYAML(opts.SelectedManagers)},
 	}
 	for _, f := range files {
 		act, err := ensureFile(f.path, f.content)

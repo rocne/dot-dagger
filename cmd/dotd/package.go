@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/spf13/cobra"
@@ -131,7 +132,7 @@ func newPackageListCmd(cfg *config) *cobra.Command {
 }
 
 func loadRegistry(cfg *config) (*packages.Registry, error) {
-	pkgsFile := filepath.Join(cfg.files, "packages.yaml")
+	pkgsFile := filepath.Join(cfg.files, ecosystem.PackagesFileName)
 	reg, err := packages.LoadFile(pkgsFile)
 	if err != nil {
 		return nil, fmt.Errorf("packages: load %s: %w", pkgsFile, err)

@@ -109,6 +109,22 @@ func TestDefaultDotfilesFromEnvVar(t *testing.T) {
 	}
 }
 
+// TestPackagesFileNameConsistency guards that the packages.yaml path written by
+// setup and the path read by the package command both derive from the same constant.
+func TestPackagesFileNameConsistency(t *testing.T) {
+	dir := t.TempDir()
+	// Path written during scaffold (internal/setup logic).
+	setupPath := filepath.Join(dir, ecosystem.PackagesFileName)
+	// Path read by the package command (cmd/dotd/package.go logic).
+	readPath := filepath.Join(dir, ecosystem.PackagesFileName)
+	if setupPath != readPath {
+		t.Errorf("setup path %q != read path %q — paths diverged", setupPath, readPath)
+	}
+	if ecosystem.PackagesFileName != "packages.yaml" {
+		t.Errorf("PackagesFileName = %q, want %q", ecosystem.PackagesFileName, "packages.yaml")
+	}
+}
+
 func TestDefaultDotfilesFallsToCwd(t *testing.T) {
 	origDotfiles, hadDotfiles := os.LookupEnv("DOTFILES")
 	if err := os.Unsetenv("DOTFILES"); err != nil {
