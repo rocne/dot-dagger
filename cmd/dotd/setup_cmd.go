@@ -41,12 +41,9 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 		return err
 	}
 
+	// cfg.configPath is resolved by PersistentPreRunE.
 	// Load existing config.yaml — returns empty Config (no error) if absent.
-	configPath, err := dotcfg.DefaultPath()
-	if err != nil {
-		return err
-	}
-	existing, err := dotcfg.Load(configPath)
+	existing, err := dotcfg.Load(cfg.configPath)
 	if err != nil {
 		return fmt.Errorf("setup: load existing config: %w", err)
 	}
@@ -133,10 +130,10 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 		GeneratedDir: generatedDir,
 		LinkRoot:     linkRoot,
 	}
-	if err := dotcfg.Save(configPath, toolCfg); err != nil {
+	if err := dotcfg.Save(cfg.configPath, toolCfg); err != nil {
 		return fmt.Errorf("setup: save config.yaml: %w", err)
 	}
-	ui.OKf(out, "  wrote %s", configPath)
+	ui.OKf(out, "  wrote %s", cfg.configPath)
 
 	// Write env.yaml only if absent. cfg.envFile is already resolved by resolvePaths.
 	envPath := cfg.envFile

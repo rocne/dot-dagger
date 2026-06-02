@@ -1077,6 +1077,86 @@ func TestConfigPath_FlagOverride(t *testing.T) {
 	}
 }
 
+// --- AUDIT-003: setup/init honor --config override (cfg.configPath) ---
+
+// TestSetup_HonorsConfigFlag verifies that "dotd setup --config /tmp/x.yaml"
+// writes config.yaml to the override path and NOT to the XDG default.
+// Before AUDIT-003 the fix, setup called dotcfg.DefaultPath() directly and
+// silently ignored the --config override.
+func TestSetup_HonorsConfigFlag(t *testing.T) {
+	// Use a fresh XDG dir so the default path is somewhere we can detect.
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", t.TempDir()) // valid dotfiles default
+	t.Setenv("DOTD_CONFIG_FILE", "")  // ensure env var doesn't interfere
+
+	// The override config path — must not be inside xdg so we can distinguish.
+	overrideDir := t.TempDir()
+	overrideConfig := filepath.Join(overrideDir, "my-config.yaml")
+
+	// Simulate pressing Enter for all prompts (accept all defaults).
+	input := strings.Repeat("\n", 10)
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(input))
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"setup", "--config", overrideConfig})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup --config error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	// Override path must have been written.
+	if _, err := os.Stat(overrideConfig); err != nil {
+		t.Errorf("config.yaml not written to override path %s: %v", overrideConfig, err)
+	}
+
+	// Default XDG config must NOT exist (setup must not have written there).
+	defaultConfig := filepath.Join(xdg, "dot-dagger", "config.yaml")
+	if _, err := os.Stat(defaultConfig); err == nil {
+		t.Errorf("config.yaml written to default XDG path %s — --config override was ignored", defaultConfig)
+	}
+}
+
+// TestInit_HonorsConfigFlag verifies that "dotd init --config /tmp/missing.yaml"
+// errors with "no config found" when the override path does not exist.
+// Before AUDIT-003, init called dotcfg.DefaultPath() and would check the XDG
+// default instead of the override, masking the wrong path.
+func TestInit_HonorsConfigFlag(t *testing.T) {
+	// Ensure the XDG default config.yaml exists so that if init ignores the
+	// --config override and checks the default, it would NOT error — letting us
+	// detect the regression.
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTD_CONFIG_FILE", "") // ensure env var doesn't interfere
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Write the default config so it exists — init must still error because the
+	// override path is missing.
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"),
+		[]byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override path that does NOT exist.
+	missingConfig := filepath.Join(t.TempDir(), "no-such-config.yaml")
+
+	_, err := run(t, "init",
+		"--config", missingConfig,
+		"--files", emptyDotfiles(t),
+		"--env-file", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatal("expected error when --config path is missing, got nil — --config override was ignored")
+	}
+	if !strings.Contains(err.Error(), "no config found") {
+		t.Errorf("expected 'no config found' error, got: %v", err)
+	}
+}
+
 // TestConfigPath_EnvVarOverride verifies that DOTD_CONFIG_FILE=/tmp/x.yaml
 // makes cfg.configPath resolve to that path after resolvePaths runs.
 func TestConfigPath_EnvVarOverride(t *testing.T) {

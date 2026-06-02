@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -31,13 +30,8 @@ Requires config.yaml — run 'dotd setup' first if you haven't already.`,
 }
 
 func runInit(cmd *cobra.Command, cfg *config) error {
-	// Precondition: config.yaml must exist. DefaultPath() called directly here —
-	// bootstrap check that runs before any config is loaded (legitimate exception).
-	configPath, err := dotcfg.DefaultPath()
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	// cfg.configPath is resolved by PersistentPreRunE.
+	if _, err := os.Stat(cfg.configPath); os.IsNotExist(err) {
 		return fmt.Errorf("no config found — run 'dotd setup' first")
 	}
 
