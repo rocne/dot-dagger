@@ -818,6 +818,55 @@ func TestUnapply_RemovesSymlink(t *testing.T) {
 	}
 }
 
+// TestUnapply_PartialFailureExits1 verifies that when os.Remove fails on
+// one of the planned targets, unapply exits non-zero and writes the failure
+// message to stderr (AUDIT-033).
+func TestUnapply_PartialFailureExits1(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n[core]\n  autocrlf = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// Sabotage the planned removal: strip write permission on the parent dir
+	// so os.Remove on the symlink fails. We restore perms via t.Cleanup so
+	// t.TempDir's own cleanup can run.
+	if err := os.Chmod(home, 0o555); err != nil {
+		t.Fatalf("chmod home: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(home, 0o755) })
+
+	out, err := run(t, "unapply", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err == nil {
+		t.Fatalf("unapply should have failed; output: %s", out)
+	}
+	if !strings.Contains(out, "removing") {
+		t.Errorf("expected failure message containing 'removing', got: %s", out)
+	}
+}
+
 func TestUnapply_NothingToRemove(t *testing.T) {
 	home := t.TempDir()
 	out, err := run(t, "unapply", "--yes",

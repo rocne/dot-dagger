@@ -133,21 +133,37 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 		return nil
 	}
 
-	// Execute.
+	// Execute. Failures go to stderr and bubble up as a non-zero exit so
+	// scripts can tell the difference between "nothing removed" and "tried
+	// to remove but couldn't".
+	errOut := cmd.ErrOrStderr()
+	var failures int
 	for _, dest := range toRemove {
 		if err := os.Remove(dest); err != nil {
-			ui.Errf(out, "removing %s: %v", dest, err)
+			ui.Errf(errOut, "removing %s: %v", dest, err)
+			failures++
 			continue
 		}
 		ui.OKf(out, "removed %s", dest)
 	}
 	if initShExists {
 		if err := os.Remove(cfg.initFile); err != nil {
-			ui.Errf(out, "removing %s: %v", cfg.initFile, err)
+			ui.Errf(errOut, "removing %s: %v", cfg.initFile, err)
+			failures++
 		} else {
 			ui.OKf(out, "removed %s", cfg.initFile)
 		}
 	}
 
+	if failures > 0 {
+		return fmt.Errorf("unapply: %d of %d targets failed to remove", failures, len(toRemove)+boolToInt(initShExists))
+	}
 	return nil
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
