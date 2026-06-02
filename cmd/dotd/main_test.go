@@ -1043,3 +1043,56 @@ func TestTeardown_UsesLinkRoot(t *testing.T) {
 		t.Errorf("teardown created %s — it looked up RC under $HOME instead of linkRoot", homeBashrc)
 	}
 }
+
+// --- AUDIT-002: configPath overridable via --config / DOTD_CONFIG_FILE ---
+
+// minimalCfg returns an appConfig pre-populated with an empty envFile so that
+// resolvePaths can run without touching the real XDG config dir.
+func minimalCfg(t *testing.T) *appConfig {
+	t.Helper()
+	return &appConfig{
+		envFile: emptyEnvFile(t),
+	}
+}
+
+// TestConfigPath_FlagOverride verifies that --config /tmp/x.yaml makes
+// cfg.configPath resolve to that path after resolvePaths runs.
+func TestConfigPath_FlagOverride(t *testing.T) {
+	dir := t.TempDir()
+	customConfig := filepath.Join(dir, "custom-config.yaml")
+	// File need not exist — resolvePaths only resolves the path, not loads it
+	// (Load handles the missing-file case gracefully).
+
+	t.Setenv("DOTD_CONFIG_FILE", "") // ensure env var doesn't interfere
+
+	cfg := minimalCfg(t)
+	cfg.configPath = customConfig // simulates --config flag binding
+
+	if err := resolvePaths(cfg); err != nil {
+		t.Fatalf("resolvePaths error = %v", err)
+	}
+
+	if cfg.configPath != customConfig {
+		t.Errorf("cfg.configPath = %q, want %q", cfg.configPath, customConfig)
+	}
+}
+
+// TestConfigPath_EnvVarOverride verifies that DOTD_CONFIG_FILE=/tmp/x.yaml
+// makes cfg.configPath resolve to that path after resolvePaths runs.
+func TestConfigPath_EnvVarOverride(t *testing.T) {
+	dir := t.TempDir()
+	customConfig := filepath.Join(dir, "env-config.yaml")
+
+	t.Setenv("DOTD_CONFIG_FILE", customConfig)
+
+	cfg := minimalCfg(t)
+	// configPath is empty — DOTD_CONFIG_FILE should win.
+
+	if err := resolvePaths(cfg); err != nil {
+		t.Fatalf("resolvePaths error = %v", err)
+	}
+
+	if cfg.configPath != customConfig {
+		t.Errorf("cfg.configPath = %q, want %q", cfg.configPath, customConfig)
+	}
+}

@@ -59,6 +59,7 @@ func newRootCmd() *cobra.Command {
 
 	pf := root.PersistentFlags()
 	pf.StringVarP(&cfg.files, "files", "f", "", "path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → config.yaml dotfiles → cwd)")
+	pf.StringVar(&cfg.configPath, "config", "", "path to config.yaml (default: $DOTD_CONFIG_FILE → ~/.config/dot-dagger/config.yaml)")
 	pf.StringVar(&cfg.envFile, "env-file", "", "path to env.yaml (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/env.yaml)")
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
 	pf.StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → ~/.local/share/dot-dagger/init.sh)")
@@ -198,7 +199,8 @@ func resolvePaths(cfg *config) error {
 	}
 
 	// Tool preferences from config.yaml. Path stored in cfg so config subcommands don't re-resolve it.
-	cfg.configPath, err = dotcfg.DefaultPath()
+	// No config-file value tier (third arg "") — config.yaml is what we're resolving; would be circular.
+	cfg.configPath, err = ecosystem.ResolvePath(cfg.configPath, "DOTD_CONFIG_FILE", "", ecosystem.DefaultConfigFile)
 	if err != nil {
 		return err
 	}
