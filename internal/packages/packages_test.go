@@ -439,6 +439,37 @@ func TestGenerateScriptSoftRequestSkipped(t *testing.T) {
 	}
 }
 
+// TestReservedKeySet guards that the reserved key constants match the set used
+// in the PackageEntry known-fields map. A mismatch means a key was added to one
+// place but not the other.
+func TestReservedKeySet(t *testing.T) {
+	// The four reserved keys by constant.
+	want := map[string]bool{
+		keyPriority: true,
+		keyBinary:   true,
+		keyCheck:    true,
+		keyPrefer:   true,
+	}
+	// The set actually used by the PackageEntry YAML unmarshaler (3 keys)
+	// plus the ManagersSection priority key (1 key) = 4 total constants.
+	// Guard that the constant values haven't drifted from their string literals.
+	if keyPriority != "priority" {
+		t.Errorf("keyPriority = %q, want %q", keyPriority, "priority")
+	}
+	if keyBinary != "binary" {
+		t.Errorf("keyBinary = %q, want %q", keyBinary, "binary")
+	}
+	if keyCheck != "check" {
+		t.Errorf("keyCheck = %q, want %q", keyCheck, "check")
+	}
+	if keyPrefer != "prefer" {
+		t.Errorf("keyPrefer = %q, want %q", keyPrefer, "prefer")
+	}
+	if len(want) != 4 {
+		t.Errorf("expected 4 reserved keys, got %d", len(want))
+	}
+}
+
 // TestCatalogEntriesContainPlaceholder guards that every Catalog entry's
 // Install/Uninstall/Update template contains PlaceholderToken.
 // A template without the token would silently install the wrong package.

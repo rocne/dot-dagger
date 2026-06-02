@@ -21,6 +21,15 @@ import (
 // command templates. Every Install/Uninstall/Update template must contain this token.
 const PlaceholderToken = "{package}"
 
+// Reserved key names for PackageEntry fields. These are parsed out of the YAML
+// map before treating remaining keys as package-manager entries.
+const (
+	keyPriority = "priority"
+	keyBinary   = "binary"
+	keyCheck    = "check"
+	keyPrefer   = "prefer"
+)
+
 // PackageManagerDef defines the command templates for a package manager.
 // {package} is substituted with the package name at runtime.
 type PackageManagerDef struct {
@@ -58,7 +67,7 @@ func (ms *ManagersSection) UnmarshalYAML(value *yaml.Node) error {
 	ms.Defs = make(map[string]PackageManagerDef)
 	for i := 0; i+1 < len(value.Content); i += 2 {
 		key := value.Content[i].Value
-		if key == "priority" {
+		if key == keyPriority {
 			if err := value.Content[i+1].Decode(&ms.Priority); err != nil {
 				return fmt.Errorf("packages: decode priority: %w", err)
 			}
@@ -103,7 +112,7 @@ func (e *PackageEntry) UnmarshalYAML(value *yaml.Node) error {
 	e.Prefer = kf.Prefer
 	e.Managers = make(map[string]ManagerEntry)
 
-	known := map[string]bool{"binary": true, "check": true, "prefer": true}
+	known := map[string]bool{keyBinary: true, keyCheck: true, keyPrefer: true}
 	for i := 0; i+1 < len(value.Content); i += 2 {
 		key := value.Content[i].Value
 		if known[key] {
