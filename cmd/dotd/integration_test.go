@@ -449,7 +449,6 @@ func TestPackageDryRun(t *testing.T) {
 //   - shellrc compose target generates a file that is sourced in init.sh
 //   - config compose target generates a file and creates a symlink
 func TestComposeApply(t *testing.T) {
-	t.Skip("compose action not yet implemented in v2 pipeline")
 	e := newIenv(t)
 	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
 
@@ -469,7 +468,6 @@ func TestComposeApply(t *testing.T) {
 // TestComposePredicateGating verifies that inactive fragments are excluded from
 // the generated file and active ones are included.
 func TestComposePredicateGating(t *testing.T) {
-	t.Skip("compose action not yet implemented in v2 pipeline")
 	// context=personal: nosync-work.sh inactive
 	ep := newIenv(t)
 	ep.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
@@ -492,7 +490,6 @@ func TestComposePredicateGating(t *testing.T) {
 
 // TestComposeList verifies that dotd compose list reports active compose targets.
 func TestComposeList(t *testing.T) {
-	t.Skip("dotd compose list not yet implemented in v2")
 	e := newIenv(t)
 	out := e.run(t, "compose", "list", "--env", "os=linux", "--env", "context=personal")
 
@@ -506,7 +503,6 @@ func TestComposeList(t *testing.T) {
 
 // TestComposeCheck_AfterApply verifies that compose check exits cleanly after apply.
 func TestComposeCheck_AfterApply(t *testing.T) {
-	t.Skip("dotd compose check not yet implemented in v2")
 	e := newIenv(t)
 	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
 	e.run(t, "compose", "check", "--env", "os=linux", "--env", "context=personal")
@@ -514,7 +510,6 @@ func TestComposeCheck_AfterApply(t *testing.T) {
 
 // TestComposeCheck_Stale verifies that compose check detects a stale generated file.
 func TestComposeCheck_Stale(t *testing.T) {
-	t.Skip("dotd compose check not yet implemented in v2")
 	e := newIenv(t)
 	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
 

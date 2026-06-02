@@ -111,3 +111,211 @@ func TestAct_DryRun_NoWrite(t *testing.T) {
 		t.Error("dry run should not create symlink")
 	}
 }
+
+// composeDir creates a compose-target directory with .dagger fragments and
+// returns the dir path and a compose-target RawNode for use in Act tests.
+func composeDir(t *testing.T, root, dirName string, frags map[string]string, actions []Action) (string, RawNode) {
+	t.Helper()
+	compDir := filepath.Join(root, dirName)
+	if err := os.MkdirAll(compDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range frags {
+		if err := os.WriteFile(filepath.Join(compDir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	targetNode := RawNode{
+		Path:          compDir,
+		LogicalName:   dirName,
+		Actions:       append([]Action{{Type: ActionCompose}}, actions...),
+		ComposeTarget: compDir,
+	}
+	return compDir, targetNode
+}
+
+// composeFragNode builds a RawNode representing a compose fragment backed by a real file.
+func composeFragNode(t *testing.T, fragDir, name string) RawNode {
+	t.Helper()
+	path := filepath.Join(fragDir, name)
+	return RawNode{
+		Path:          path,
+		LogicalName:   name,
+		IsCompose:     true,
+		ComposeTarget: fragDir,
+	}
+}
+
+// TestAct_Compose_Assembled verifies that Act assembles compose fragments into
+// a Generated result with the correct content, filename, and no symlink action.
+func TestAct_Compose_Assembled(t *testing.T) {
+	root := t.TempDir()
+	genDir := t.TempDir()
+	home := t.TempDir()
+
+	frags := map[string]string{
+		"base.conf":        "line1\n",
+		"nosync-work.conf": "line2\n",
+	}
+	compDir, targetNode := composeDir(t, root, "dot-tmux.conf.d", frags, nil)
+
+	frag1 := composeFragNode(t, compDir, "base.conf")
+	frag2 := composeFragNode(t, compDir, "nosync-work.conf")
+
+	nodes := []RawNode{targetNode, frag1, frag2}
+	res, err := Act(nodes, ActOptions{HomeDir: home, GeneratedDir: genDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Generated) != 1 {
+		t.Fatalf("expected 1 Generated, got %d", len(res.Generated))
+	}
+	gen := res.Generated[0]
+
+	// ComposeFileName: "dot-tmux.conf.d" → "tmux.conf"
+	wantName := "tmux.conf"
+	if filepath.Base(gen.Path) != wantName {
+		t.Errorf("Generated filename = %q, want %q", filepath.Base(gen.Path), wantName)
+	}
+
+	// Content is concatenation of both fragments.
+	wantContent := "line1\nline2\n"
+	if string(gen.Content) != wantContent {
+		t.Errorf("Generated content = %q, want %q", string(gen.Content), wantContent)
+	}
+
+	// File should have been written to disk.
+	data, err := os.ReadFile(gen.Path)
+	if err != nil {
+		t.Fatalf("generated file not written: %v", err)
+	}
+	if string(data) != wantContent {
+		t.Errorf("on-disk content = %q, want %q", string(data), wantContent)
+	}
+}
+
+// TestAct_Compose_Link verifies that a compose target with an ActionLink creates
+// a symlink from the link destination to the generated file.
+func TestAct_Compose_Link(t *testing.T) {
+	root := t.TempDir()
+	genDir := t.TempDir()
+	home := t.TempDir()
+
+	frags := map[string]string{
+		"base.conf": "config-line\n",
+	}
+	dest := filepath.Join(home, ".tmux.conf")
+	compDir, targetNode := composeDir(t, root, "dot-tmux.conf.d", frags, []Action{{Type: ActionLink, Dest: dest}})
+
+	frag := composeFragNode(t, compDir, "base.conf")
+
+	res, err := Act([]RawNode{targetNode, frag}, ActOptions{HomeDir: home, GeneratedDir: genDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Links) != 1 {
+		t.Fatalf("expected 1 link, got %d", len(res.Links))
+	}
+	lnk := res.Links[0]
+
+	// Symlink should point to the generated file.
+	wantSrc := filepath.Join(genDir, "tmux.conf")
+	if lnk.Src != wantSrc {
+		t.Errorf("link.Src = %q, want %q", lnk.Src, wantSrc)
+	}
+	if lnk.Dest != dest {
+		t.Errorf("link.Dest = %q, want %q", lnk.Dest, dest)
+	}
+
+	// Symlink on disk: dest → generated file.
+	target, err := os.Readlink(dest)
+	if err != nil {
+		t.Fatalf("symlink not created at %s: %v", dest, err)
+	}
+	if target != wantSrc {
+		t.Errorf("symlink target = %q, want %q", target, wantSrc)
+	}
+}
+
+// TestAct_Compose_Source verifies that a compose target with ActionSource adds a
+// synthetic node (pointing to the generated file) to res.Sourced.
+func TestAct_Compose_Source(t *testing.T) {
+	root := t.TempDir()
+	genDir := t.TempDir()
+	home := t.TempDir()
+
+	frags := map[string]string{
+		"base.sh": "export FOO=1\n",
+	}
+	compDir, targetNode := composeDir(t, root, "dot-shellrc-extras.sh.d", frags, []Action{{Type: ActionSource}})
+
+	frag := composeFragNode(t, compDir, "base.sh")
+
+	res, err := Act([]RawNode{targetNode, frag}, ActOptions{HomeDir: home, GeneratedDir: genDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// "dot-shellrc-extras.sh.d" → "shellrc-extras.sh"
+	wantGenName := "shellrc-extras.sh"
+	if len(res.Generated) != 1 || filepath.Base(res.Generated[0].Path) != wantGenName {
+		t.Errorf("Generated = %v, want one entry named %q", res.Generated, wantGenName)
+	}
+
+	// A synthetic sourced node with the generated file path.
+	if len(res.Sourced) != 1 {
+		t.Fatalf("expected 1 Sourced node, got %d", len(res.Sourced))
+	}
+	if res.Sourced[0].Path != res.Generated[0].Path {
+		t.Errorf("sourced.Path = %q, want %q", res.Sourced[0].Path, res.Generated[0].Path)
+	}
+}
+
+// TestAct_Compose_DryRun verifies that DryRun mode produces the correct Generated
+// metadata without writing files to disk.
+func TestAct_Compose_DryRun(t *testing.T) {
+	root := t.TempDir()
+	genDir := t.TempDir()
+	home := t.TempDir()
+
+	// In DryRun mode, os.ReadFile is skipped so fragment content will be nil/empty.
+	frags := map[string]string{
+		"base.conf": "irrelevant\n",
+	}
+	compDir, targetNode := composeDir(t, root, "dot-tmux.conf.d", frags, nil)
+	frag := composeFragNode(t, compDir, "base.conf")
+
+	res, err := Act([]RawNode{targetNode, frag}, ActOptions{HomeDir: home, GeneratedDir: genDir, DryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Generated) != 1 {
+		t.Fatalf("expected 1 Generated, got %d", len(res.Generated))
+	}
+	// No file should have been written in dry-run mode.
+	genPath := filepath.Join(genDir, "tmux.conf")
+	if _, err := os.Lstat(genPath); !os.IsNotExist(err) {
+		t.Error("dry run should not write the generated file")
+	}
+}
+
+// TestComposeFileName_Variants covers the naming rules for ComposeFileName.
+func TestComposeFileName_Variants(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"/a/b/dot-tmux.conf.d", "tmux.conf"},
+		{"/a/b/nosync-dot-shellrc.d", "shellrc"},
+		{"/a/b/dot-shellrc-extras.sh.d", "shellrc-extras.sh"},
+		{"/a/b/nosync-work.d", "work"},
+	}
+	for _, c := range cases {
+		got := ComposeFileName(c.input)
+		if got != c.want {
+			t.Errorf("ComposeFileName(%q) = %q, want %q", c.input, got, c.want)
+		}
+	}
+}
