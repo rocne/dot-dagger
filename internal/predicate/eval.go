@@ -64,6 +64,13 @@ func (r *FuncRegistry) Register(name string, f Func) {
 	r.funcs[name] = f
 }
 
+// Override registers or replaces f under the given name without panicking.
+// Use this when upgrading a default registration (e.g. wiring a real package
+// registry on top of the PATH-only default set by NewEvaluator).
+func (r *FuncRegistry) Override(name string, f Func) {
+	r.funcs[name] = f
+}
+
 // Call invokes the function registered under name with arg.
 // If name is not registered, behaviour depends on Mode:
 //   - Strict: returns an error
@@ -86,10 +93,19 @@ func (r *FuncRegistry) Call(name, arg string) (bool, error) {
 // pre-populated with the default built-in functions. Use this constructor
 // rather than an inline struct literal so that both filter and manifest
 // evaluation share identical capabilities.
+//
+// The built-in functions registered are:
+//   - installed(name) — true if `name` is present on PATH (uses exec.LookPath)
+//   - installable(name) — true if a known package manager for `name` is on PATH
+//
+// Both functions operate without a packages.Registry; pass a registry via
+// RegisterPackageRegistry if package-level binary aliases are needed.
 func NewEvaluator(env map[string]string) *Evaluator {
+	funcs := NewFuncRegistry(Strict)
+	registerBuiltins(funcs, nil, nil)
 	return &Evaluator{
 		Env:   env,
-		Funcs: NewFuncRegistry(Strict),
+		Funcs: funcs,
 	}
 }
 

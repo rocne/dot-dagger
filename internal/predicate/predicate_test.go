@@ -259,6 +259,84 @@ func TestEvalCustomFunc(t *testing.T) {
 	})
 }
 
+// TestNewEvaluatorBuiltins verifies that NewEvaluator pre-registers installed()
+// and installable() so they resolve without "unknown function" errors.
+func TestNewEvaluatorBuiltins(t *testing.T) {
+	// A LookPath that finds "sh" but not "nonexistent-binary-xyz".
+	fakeLookPath := func(name string) (string, error) {
+		switch name {
+		case "sh":
+			return "/bin/sh", nil
+		default:
+			return "", errors.New("not found")
+		}
+	}
+
+	t.Run("installed(sh) returns true when binary on PATH", func(t *testing.T) {
+		expr, err := Parse("installed(sh)")
+		if err != nil {
+			t.Fatalf("Parse error: %v", err)
+		}
+		ev := NewEvaluator(map[string]string{})
+		ev.LookPath = fakeLookPath // reuse LookPath field for exists(); builtins use registry
+		// Override builtins with the controlled lookPath.
+		ev.RegisterPackageRegistry(nil, fakeLookPath)
+		got, err := ev.Eval(expr)
+		if err != nil {
+			t.Fatalf("Eval error: %v", err)
+		}
+		if !got {
+			t.Error("installed(sh): got false, want true")
+		}
+	})
+
+	t.Run("installed(nonexistent-binary-xyz) returns false when binary not on PATH", func(t *testing.T) {
+		expr, err := Parse("installed(nonexistent-binary-xyz)")
+		if err != nil {
+			t.Fatalf("Parse error: %v", err)
+		}
+		ev := NewEvaluator(map[string]string{})
+		ev.RegisterPackageRegistry(nil, fakeLookPath)
+		got, err := ev.Eval(expr)
+		if err != nil {
+			t.Fatalf("Eval error: %v", err)
+		}
+		if got {
+			t.Error("installed(nonexistent-binary-xyz): got true, want false")
+		}
+	})
+
+	t.Run("installed() no longer returns unknown function error", func(t *testing.T) {
+		expr, err := Parse("installed(sh)")
+		if err != nil {
+			t.Fatalf("Parse error: %v", err)
+		}
+		ev := NewEvaluator(map[string]string{})
+		ev.RegisterPackageRegistry(nil, fakeLookPath)
+		_, err = ev.Eval(expr)
+		if err != nil {
+			t.Errorf("NewEvaluator should not return unknown function error; got: %v", err)
+		}
+	})
+
+	t.Run("installable() is registered (no error)", func(t *testing.T) {
+		expr, err := Parse("installable(sh)")
+		if err != nil {
+			t.Fatalf("Parse error: %v", err)
+		}
+		ev := NewEvaluator(map[string]string{})
+		ev.RegisterPackageRegistry(nil, fakeLookPath)
+		// No entry in empty registry => installable returns false, no error.
+		got, err := ev.Eval(expr)
+		if err != nil {
+			t.Errorf("installable() should not error with empty registry; got: %v", err)
+		}
+		if got {
+			t.Error("installable(sh): got true, want false (no registry entry)")
+		}
+	})
+}
+
 // --- Helpers ---
 
 // exprEqual does a structural comparison of two Expr values.
