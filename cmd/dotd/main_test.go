@@ -1496,3 +1496,59 @@ func TestUnapply_YesFlagSkipsConfirmation(t *testing.T) {
 		t.Error("symlink should be removed when --yes is set")
 	}
 }
+
+// --- Real env.yaml expansion path (AUDIT-068) ---
+
+// TestEnvResolution_ShellExpandedValue verifies the full env.yaml → Expand →
+// Resolve → normalize chain for shell-expanded values. An env.yaml that
+// contains `os: $(echo linux)` must produce the same predicate result as
+// passing `--env os=linux` directly, i.e. a @when(os=linux) node appears
+// in dotd list output (AUDIT-068).
+func TestEnvResolution_ShellExpandedValue(t *testing.T) {
+	// env.yaml with a shell-expanded value: $(echo linux) must evaluate to "linux".
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(envFile, []byte("os: $(echo linux)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dotfiles with a node gated on @when(os=linux).
+	dotfiles := t.TempDir()
+	shellrcDir := filepath.Join(dotfiles, "shellrc")
+	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, ecosystem.ConfigFile),
+		[]byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// This node is active only when os=linux.
+	if err := os.WriteFile(filepath.Join(shellrcDir, "linux.sh"),
+		[]byte("# @when(os=linux)\nexport LINUX=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// This node is active only when os=macos — must NOT appear.
+	if err := os.WriteFile(filepath.Join(shellrcDir, "macos.sh"),
+		[]byte("# @when(os=macos)\nexport MACOS=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run dotd list — no --env flag; env resolution must come entirely from
+	// the shell-expanded env.yaml value.
+	out, err := run(t, "list",
+		"--env-file", envFile,
+		"--files", dotfiles,
+	)
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+
+	// linux.sh should be active (os expanded to "linux").
+	if !strings.Contains(out, "shellrc.linux") {
+		t.Errorf("expected shellrc.linux in list output (shell-expanded os=linux); got %q", out)
+	}
+	// macos.sh must be inactive.
+	if strings.Contains(out, "shellrc.macos") {
+		t.Errorf("shellrc.macos should be inactive when os=linux; got %q", out)
+	}
+}
