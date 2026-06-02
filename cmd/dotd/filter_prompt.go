@@ -86,7 +86,7 @@ func printPersistHint(w io.Writer, filled map[string]string) {
 		}
 		return
 	}
-	fmt.Fprintln(w, "\nHint: to persist, add to env.yaml:")
+	fmt.Fprintf(w, "\nHint: to persist, add to %s:\n", ecosystem.EnvFileName)
 	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
 		fmt.Fprintf(w, "  %s\n", line)
 	}
