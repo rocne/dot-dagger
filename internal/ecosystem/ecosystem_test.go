@@ -88,6 +88,19 @@ func TestDefaultEnvFileUsesXDGConfigHome(t *testing.T) {
 	}
 }
 
+func TestDefaultLinkRootUsesHOME(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	got, err := ecosystem.DefaultLinkRoot()
+	if err != nil {
+		t.Fatalf("DefaultLinkRoot error = %v", err)
+	}
+	if got != tmp {
+		t.Errorf("DefaultLinkRoot = %q, want %q", got, tmp)
+	}
+}
+
 func TestDefaultDotfilesFromEnvVar(t *testing.T) {
 	t.Setenv("DOTFILES", "/my/dotfiles")
 	got := ecosystem.DefaultDotfiles()

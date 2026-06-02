@@ -932,6 +932,9 @@ func TestUnapply_CancelExits0(t *testing.T) {
 func TestAdopt_DefaultLinkRoot(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	// Clear DOTD_LINK_ROOT so the test exercises the default-fn path (priority 4),
+	// not the env-var path (priority 2).
+	t.Setenv("DOTD_LINK_ROOT", "")
 
 	dotfiles := t.TempDir()
 	confDir := filepath.Join(dotfiles, "conf")
@@ -957,33 +960,86 @@ func TestAdopt_DefaultLinkRoot(t *testing.T) {
 	// is acceptable; what matters is that the HomeDir error does not appear.
 }
 
-// TestTeardown_UsesLinkRoot verifies that teardown resolves the RC file under
-// cfg.linkRoot (set via --link-root), not an unrelated directory.
+// TestTeardown_UsesLinkRoot verifies that teardown resolves the shell RC file
+// under cfg.linkRoot (set via --link-root), not under $HOME or cwd.
+//
+// Setup:
+//   - linkRoot is a separate temp dir from $HOME — any RC lookup under $HOME
+//     would find no file and leave the source line untouched.
+//   - env.yaml contains shell: bash so DetectShellConfig is invoked and the
+//     RC path is built as <linkRoot>/.bashrc.
+//   - <linkRoot>/.bashrc contains the dot-dagger source line so teardown has
+//     something to remove.
+//
+// Pass criterion: the source line is gone from <linkRoot>/.bashrc after teardown.
+// Fail criterion: if the bug returns (linkRoot ignored → $HOME used instead),
+// the RC under linkRoot would not be found, the source line would not be
+// removed, and the assertion below would fail.
 func TestTeardown_UsesLinkRoot(t *testing.T) {
+	// $HOME is intentionally different from linkRoot so a mix-up is detectable.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-	configDir := filepath.Join(xdg, "dot-dagger")
+	xdgData := t.TempDir()
+	xdgConfig := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
+	t.Setenv("XDG_CONFIG_HOME", xdgConfig)
+	t.Setenv("DOTD_LINK_ROOT", "") // ensure env var doesn't override --link-root
+
+	// linkRoot is the directory teardown must use when building the RC path.
+	linkRoot := t.TempDir()
+
+	// Compute the initFile path that resolvePaths will resolve:
+	// DOTD_INIT_FILE is unset, so it falls through to DefaultInitFile →
+	// $XDG_DATA_HOME/dot-dagger/init.sh.
+	t.Setenv("DOTD_INIT_FILE", "") // force default-fn resolution
+	initFile := filepath.Join(xdgData, "dot-dagger", "init.sh")
+
+	// Create the XDG config dir and env.yaml with shell: bash.
+	configDir := filepath.Join(xdgConfig, "dot-dagger")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	envPath := filepath.Join(configDir, "env.yaml")
-	if err := os.WriteFile(envPath, []byte("{}\n"), 0o644); err != nil {
+	if err := os.WriteFile(envPath, []byte("shell: bash\nos: linux\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
+	// Create <linkRoot>/.bashrc containing the dot-dagger source line.
+	// DetectShellConfig(bash, linux, linkRoot) → linkRoot/.bashrc.
+	// HasSourceLine and RemoveSourceLine both key on filepath.Base(initFile) = "init.sh".
+	bashrc := filepath.Join(linkRoot, ".bashrc")
+	sourceLine := `source "$HOME/.local/share/dot-dagger/init.sh"`
+	bashrcContents := "# existing rc\n\n# dotd \xe2\x80\x94 generated shell init\n" + sourceLine + "\n"
+	if err := os.WriteFile(bashrc, []byte(bashrcContents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Confirm $HOME/.bashrc does NOT exist — so if teardown wrongly uses $HOME
+	// it will silently skip removal rather than succeed.
+	homeBashrc := filepath.Join(home, ".bashrc")
+
 	_, err := run(t, "teardown", "--yes",
-		"--link-root", home,
+		"--link-root", linkRoot,
+		"--init-file", initFile,
 		"--files", emptyDotfiles(t),
 		"--env-file", envPath,
 	)
 	if err != nil {
 		t.Fatalf("teardown error = %v", err)
+	}
+
+	// The source line must be gone from <linkRoot>/.bashrc.
+	got, readErr := os.ReadFile(bashrc)
+	if readErr != nil {
+		t.Fatalf("read %s: %v", bashrc, readErr)
+	}
+	if strings.Contains(string(got), "init.sh") {
+		t.Errorf("source line still present in %s — teardown did not strip it:\n%s", bashrc, got)
+	}
+
+	// $HOME/.bashrc must not have been created — teardown must not have touched $HOME.
+	if _, statErr := os.Stat(homeBashrc); statErr == nil {
+		t.Errorf("teardown created %s — it looked up RC under $HOME instead of linkRoot", homeBashrc)
 	}
 }
