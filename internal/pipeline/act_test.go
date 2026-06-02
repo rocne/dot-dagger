@@ -3,6 +3,7 @@ package pipeline
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -421,6 +422,172 @@ func TestAct_DeriveLinkDest(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAct_CreateSymlink_ForceClobberGuard covers the three distinct behaviors
+// of createSymlink (exercised via Act) related to existing paths at dest:
+//
+//   (a) Existing symlink at dest — silently replaced; no Force needed.
+//   (b) Existing real file at dest with Force=true — file removed; symlink created.
+//   (c) Existing real file at dest with Force=false — Act errors; original file
+//       content is preserved on disk (safety-critical no-clobber guarantee).
+func TestAct_CreateSymlink_ForceClobberGuard(t *testing.T) {
+	// (a) Re-link over an existing symlink — Force not required.
+	t.Run("relink_over_existing_symlink", func(t *testing.T) {
+		srcDir := t.TempDir()
+		destDir := t.TempDir()
+
+		// The real dotfile that will be the link source.
+		srcPath := filepath.Join(srcDir, "dot-bashrc")
+		if err := os.WriteFile(srcPath, []byte("# bashrc\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		// A stale symlink already exists at dest (pointing somewhere else).
+		dest := filepath.Join(destDir, ".bashrc")
+		staleTarget := filepath.Join(srcDir, "stale")
+		if err := os.WriteFile(staleTarget, []byte("stale\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(staleTarget, dest); err != nil {
+			t.Fatal(err)
+		}
+
+		n := RawNode{
+			Path:        srcPath,
+			LogicalName: "dot-bashrc",
+			Actions:     []Action{{Type: ActionLink, Dest: dest}},
+			LinkRoot:    destDir,
+		}
+		// Force=false: existing symlinks should be replaced without Force.
+		res, err := Act([]RawNode{n}, ActOptions{HomeDir: destDir, Force: false})
+		if err != nil {
+			t.Fatalf("case (a): Act returned error: %v", err)
+		}
+		if len(res.Links) != 1 {
+			t.Fatalf("case (a): expected 1 link, got %d", len(res.Links))
+		}
+
+		// Symlink must now point to the new source, not the stale target.
+		got, err := os.Readlink(dest)
+		if err != nil {
+			t.Fatalf("case (a): symlink not present at dest: %v", err)
+		}
+		if got != srcPath {
+			t.Errorf("case (a): symlink target = %q, want %q", got, srcPath)
+		}
+	})
+
+	// (b) Real file at dest with Force=true — file removed, symlink created.
+	t.Run("force_overwrites_real_file", func(t *testing.T) {
+		srcDir := t.TempDir()
+		destDir := t.TempDir()
+
+		srcPath := filepath.Join(srcDir, "dot-vimrc")
+		if err := os.WriteFile(srcPath, []byte("# vimrc\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		// A real (non-symlink) file already exists at dest.
+		dest := filepath.Join(destDir, ".vimrc")
+		originalContent := "# existing vimrc\n"
+		if err := os.WriteFile(dest, []byte(originalContent), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		n := RawNode{
+			Path:        srcPath,
+			LogicalName: "dot-vimrc",
+			Actions:     []Action{{Type: ActionLink, Dest: dest}},
+			LinkRoot:    destDir,
+		}
+		res, err := Act([]RawNode{n}, ActOptions{HomeDir: destDir, Force: true})
+		if err != nil {
+			t.Fatalf("case (b): Act returned error: %v", err)
+		}
+		if len(res.Links) != 1 {
+			t.Fatalf("case (b): expected 1 link, got %d", len(res.Links))
+		}
+
+		// dest must now be a symlink pointing to srcPath, not a regular file.
+		fi, err := os.Lstat(dest)
+		if err != nil {
+			t.Fatalf("case (b): dest not found: %v", err)
+		}
+		if fi.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("case (b): dest is not a symlink after Force overwrite")
+		}
+		got, err := os.Readlink(dest)
+		if err != nil {
+			t.Fatalf("case (b): Readlink failed: %v", err)
+		}
+		if got != srcPath {
+			t.Errorf("case (b): symlink target = %q, want %q", got, srcPath)
+		}
+
+		// The original file content must be gone — dest is now a symlink, not a regular file.
+		data, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatalf("case (b): ReadFile via symlink failed: %v", err)
+		}
+		if string(data) == originalContent {
+			t.Error("case (b): original file content still present; Force overwrite did not replace it")
+		}
+	})
+
+	// (c) Real file at dest with Force=false — Act must error; file must be intact.
+	t.Run("no_force_does_not_clobber_real_file", func(t *testing.T) {
+		srcDir := t.TempDir()
+		destDir := t.TempDir()
+
+		srcPath := filepath.Join(srcDir, "dot-bashrc")
+		if err := os.WriteFile(srcPath, []byte("# new bashrc\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		// A real (non-symlink) file with user content already exists at dest.
+		dest := filepath.Join(destDir, ".bashrc")
+		originalContent := "# my precious bashrc\nexport PATH=$PATH:~/bin\n"
+		if err := os.WriteFile(dest, []byte(originalContent), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		n := RawNode{
+			Path:        srcPath,
+			LogicalName: "dot-bashrc",
+			Actions:     []Action{{Type: ActionLink, Dest: dest}},
+			LinkRoot:    destDir,
+		}
+		_, err := Act([]RawNode{n}, ActOptions{HomeDir: destDir, Force: false})
+
+		// (1) Act must return an error.
+		if err == nil {
+			t.Fatal("case (c): Act should have returned an error for real file without Force, got nil")
+		}
+
+		// (2) Error message must reference "not a symlink".
+		if !strings.Contains(err.Error(), "not a symlink") {
+			t.Errorf("case (c): error %q does not mention \"not a symlink\"", err.Error())
+		}
+
+		// (3) Original file must be intact — no partial mutation.
+		data, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatalf("case (c): original file missing after error: %v", err)
+		}
+		if string(data) != originalContent {
+			t.Errorf("case (c): original file content changed; got %q, want %q", string(data), originalContent)
+		}
+
+		// dest must still be a regular file, not a symlink.
+		fi, err := os.Lstat(dest)
+		if err != nil {
+			t.Fatalf("case (c): Lstat after error: %v", err)
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			t.Error("case (c): dest was converted to a symlink despite no Force — data loss occurred")
+		}
+	})
 }
 
 // TestComposeFileName_Variants covers the naming rules for ComposeFileName.
