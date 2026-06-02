@@ -54,11 +54,11 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 		// Walk all nodes (no predicate filter), get all link destinations.
 		nodes, _, err := pipeline.Walk(cfg.files)
 		if err != nil {
-			return fmt.Errorf("walk %s: %w", cfg.files, err)
+			return fmt.Errorf("unapply: walk %s: %w", cfg.files, err)
 		}
 		ordered, err := pipeline.Order(nodes)
 		if err != nil {
-			return fmt.Errorf("order: %w", err)
+			return fmt.Errorf("unapply: order: %w", err)
 		}
 		actOpts, err := buildActOptions(cfg, true)
 		if err != nil {
@@ -66,7 +66,7 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 		}
 		res, err := pipeline.Act(ordered, actOpts)
 		if err != nil {
-			return fmt.Errorf("act: %w", err)
+			return fmt.Errorf("unapply: %w", err)
 		}
 		for _, lnk := range res.Links {
 			planned = append(planned, linkPair{src: lnk.Src, dest: lnk.Dest})

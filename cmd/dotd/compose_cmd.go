@@ -60,7 +60,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 			}
 			res, err := pipeline.Act(ordered, actOpts)
 			if err != nil {
-				return fmt.Errorf("act: %w", err)
+				return fmt.Errorf("compose check: %w", err)
 			}
 
 			var hasStale bool
@@ -75,7 +75,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 					continue
 				}
 				if readErr != nil {
-					return fmt.Errorf("read %s: %w", gen.Path, readErr)
+					return fmt.Errorf("compose check: read %s: %w", gen.Path, readErr)
 				}
 				if !bytes.Equal(existing, gen.Content) {
 					ui.Wrongf(cmd.OutOrStdout(), "%s", filepath.Base(gen.Path))
