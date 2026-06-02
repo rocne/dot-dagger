@@ -218,6 +218,79 @@ func TestInstalledFalse(t *testing.T) {
 	}
 }
 
+func TestInstalledUsesCheckField(t *testing.T) {
+	// Package with a check: expression — checkRunner should be called, not lookPath.
+	reg, err := Load(strings.NewReader(`
+package_managers:
+  brew:
+    install: brew install {package}
+packages:
+  custom-tool:
+    check: command -v custom-tool >/dev/null 2>&1
+    brew: {}
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Override checkRunner to avoid running a real shell.
+	orig := checkRunner
+	defer func() { checkRunner = orig }()
+
+	var checkExpr string
+	checkRunner = func(expr string) (bool, error) {
+		checkExpr = expr
+		return true, nil
+	}
+
+	// lookPath must NOT be called when check: is set.
+	lookPathCalled := false
+	ok, err := Installed("custom-tool", reg, func(bin string) (string, error) {
+		lookPathCalled = true
+		return "/usr/bin/" + bin, nil
+	})
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if !ok {
+		t.Error("expected installed = true from checkRunner")
+	}
+	if lookPathCalled {
+		t.Error("lookPath should not be called when check: field is set")
+	}
+	if checkExpr != "command -v custom-tool >/dev/null 2>&1" {
+		t.Errorf("checkRunner called with %q, want the check expression", checkExpr)
+	}
+}
+
+func TestInstalledCheckFieldFalse(t *testing.T) {
+	// check: expr exits non-zero → installed = false.
+	reg, err := Load(strings.NewReader(`
+package_managers:
+  brew:
+    install: brew install {package}
+packages:
+  absent-tool:
+    check: false
+    brew: {}
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	orig := checkRunner
+	defer func() { checkRunner = orig }()
+	checkRunner = func(_ string) (bool, error) { return false, nil }
+
+	ok, err := Installed("absent-tool", reg, lookPathFound)
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if ok {
+		t.Error("expected installed = false when checkRunner returns false")
+	}
+}
+
 func TestInstalledUsesCustomBinary(t *testing.T) {
 	reg := loadSample(t)
 	// ripgrep binary is "rg" — lookPath should receive "rg".

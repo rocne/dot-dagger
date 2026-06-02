@@ -12,11 +12,19 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/fileutil"
 	"gopkg.in/yaml.v3"
 )
+
+// checkRunner executes a custom shell expression and reports whether the command
+// exits successfully. Overridable in tests via a package-level variable.
+var checkRunner = func(expr string) (bool, error) {
+	cmd := exec.Command("sh", "-c", expr)
+	return cmd.Run() == nil, nil
+}
 
 // PlaceholderToken is the substitution token replaced with the package name in
 // command templates. Every Install/Uninstall/Update template must contain this token.
@@ -192,16 +200,19 @@ func BinaryName(name string, reg *Registry) string {
 	return name
 }
 
-// Installed returns true if the package's binary is present on PATH.
+// Installed returns true if the package is present on the system.
+// If the package entry has a non-empty Check field, that shell expression is
+// run via checkRunner (defaults to exec "sh -c <expr>"); a zero exit means
+// installed. Otherwise falls back to lookPath on the binary name.
 // lookPath should be exec.LookPath for production; injected for testing.
 func Installed(pkg string, reg *Registry, lookPath func(string) (string, error)) (bool, error) {
+	if entry, ok := reg.Packages[pkg]; ok && entry.Check != "" {
+		return checkRunner(entry.Check)
+	}
 	bin := BinaryName(pkg, reg)
 	_, err := lookPath(bin)
-	if err == nil {
-		return true, nil
-	}
 	// Any error from LookPath means "not found" — not an error we propagate.
-	return false, nil
+	return err == nil, nil
 }
 
 // Installable returns true if the registry has an entry for pkg with at least

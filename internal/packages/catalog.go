@@ -1,7 +1,5 @@
 package packages
 
-import "os/exec"
-
 // KnownManager describes a well-known package manager with default command templates.
 type KnownManager struct {
 	Name        string
@@ -103,13 +101,3 @@ var Catalog = []KnownManager{
 	},
 }
 
-// DetectInstalled returns the names of catalog managers present on PATH.
-func DetectInstalled() []string {
-	var found []string
-	for _, m := range Catalog {
-		if _, err := exec.LookPath(m.Name); err == nil {
-			found = append(found, m.Name)
-		}
-	}
-	return found
-}
