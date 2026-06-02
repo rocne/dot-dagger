@@ -337,6 +337,91 @@ func TestNewEvaluatorBuiltins(t *testing.T) {
 	})
 }
 
+// --- Keys() tests (AUDIT-045) ---
+
+// TestKeys_NodeTypes verifies that every AST node type returns the expected set
+// of environment keys from its Keys() method.
+func TestKeys_NodeTypes(t *testing.T) {
+	t.Run("TrueExpr returns nil", func(t *testing.T) {
+		if k := (TrueExpr{}).Keys(); k != nil {
+			t.Errorf("TrueExpr.Keys() = %v, want nil", k)
+		}
+	})
+
+	t.Run("ConditionExpr returns its key", func(t *testing.T) {
+		got := ConditionExpr{Key: "os", Values: []string{"linux"}}.Keys()
+		if len(got) != 1 || got[0] != "os" {
+			t.Errorf("ConditionExpr.Keys() = %v, want [os]", got)
+		}
+	})
+
+	t.Run("CallExpr returns nil (no env key)", func(t *testing.T) {
+		got := CallExpr{Name: "exists", Arg: "nvim"}.Keys()
+		if got != nil {
+			t.Errorf("CallExpr.Keys() = %v, want nil", got)
+		}
+	})
+
+	t.Run("AndExpr deduplicates keys across operands", func(t *testing.T) {
+		e := AndExpr{Operands: []Expr{
+			ConditionExpr{Key: "os", Values: []string{"linux"}},
+			ConditionExpr{Key: "os", Values: []string{"macos"}}, // same key — dedup
+			ConditionExpr{Key: "context", Values: []string{"work"}},
+		}}
+		got := e.Keys()
+		if len(got) != 2 {
+			t.Errorf("AndExpr.Keys() = %v, want [os context]", got)
+		}
+		keyset := map[string]bool{}
+		for _, k := range got {
+			keyset[k] = true
+		}
+		if !keyset["os"] || !keyset["context"] {
+			t.Errorf("AndExpr.Keys() = %v missing expected keys", got)
+		}
+	})
+
+	t.Run("OrExpr deduplicates keys across operands", func(t *testing.T) {
+		e := OrExpr{Operands: []Expr{
+			ConditionExpr{Key: "os", Values: []string{"linux"}},
+			ConditionExpr{Key: "distro", Values: []string{"fedora"}},
+			ConditionExpr{Key: "os", Values: []string{"macos"}}, // duplicate key — dedup
+		}}
+		got := e.Keys()
+		if len(got) != 2 {
+			t.Errorf("OrExpr.Keys() = %v, want 2 unique keys", got)
+		}
+		keyset := map[string]bool{}
+		for _, k := range got {
+			keyset[k] = true
+		}
+		if !keyset["os"] || !keyset["distro"] {
+			t.Errorf("OrExpr.Keys() = %v missing expected keys", got)
+		}
+	})
+}
+
+// TestCollectKeys_Dedup verifies the unexported collectKeys dedup logic by
+// exercising it through OrExpr/AndExpr.Keys() with repeated keys.
+func TestCollectKeys_Dedup(t *testing.T) {
+	// Three operands sharing two keys — collectKeys must return each once.
+	e := AndExpr{Operands: []Expr{
+		ConditionExpr{Key: "os", Values: []string{"linux"}},
+		ConditionExpr{Key: "context", Values: []string{"work"}},
+		ConditionExpr{Key: "os", Values: []string{"macos"}},
+	}}
+	got := e.Keys()
+	seen := map[string]int{}
+	for _, k := range got {
+		seen[k]++
+	}
+	for key, count := range seen {
+		if count > 1 {
+			t.Errorf("key %q appears %d times in Keys() output — expected dedup", key, count)
+		}
+	}
+}
+
 // --- Helpers ---
 
 // exprEqual does a structural comparison of two Expr values.

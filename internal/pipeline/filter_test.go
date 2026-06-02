@@ -164,3 +164,44 @@ func TestCollectMissingKeys_PartiallySet(t *testing.T) {
 		t.Errorf("expected [machine], got %v", got)
 	}
 }
+
+// TestCollectMissingKeys_ORCaveat documents the OR-collection caveat (AUDIT-053):
+// keys from ALL OR branches are collected even when one branch is already
+// satisfied by env. This is AST-structural collection, not short-circuit
+// evaluation. The caller may prompt for "unnecessary" keys in rare OR-across-
+// different-keys configurations — this is the intentional documented trade-off.
+func TestCollectMissingKeys_ORCaveat(t *testing.T) {
+	// os=linux satisfies the OR predicate at eval time, yet distro must still
+	// appear in the missing-keys output because CollectMissingKeys uses the AST
+	// (Keys() on OrExpr collects from all branches).
+	nodes := []RawNode{makeNode("a", "os=linux OR distro=fedora")}
+	env := map[string]string{"os": "linux"}
+
+	got, err := CollectMissingKeys(nodes, env)
+	if err != nil {
+		t.Fatalf("CollectMissingKeys error: %v", err)
+	}
+	if len(got) != 1 || got[0] != "distro" {
+		t.Errorf("OR caveat: got %v, want [distro] (distro is absent even though OR is satisfied by os=linux)", got)
+	}
+}
+
+// TestCollectMissingKeys_ORAllBranchesMissing verifies all OR-branch keys are
+// reported when both are absent.
+func TestCollectMissingKeys_ORAllBranchesMissing(t *testing.T) {
+	nodes := []RawNode{makeNode("a", "os=linux OR distro=fedora")}
+	got, err := CollectMissingKeys(nodes, map[string]string{})
+	if err != nil {
+		t.Fatalf("CollectMissingKeys error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("OR all missing: got %v (len=%d), want 2 keys", got, len(got))
+	}
+	keyset := map[string]bool{}
+	for _, k := range got {
+		keyset[k] = true
+	}
+	if !keyset["os"] || !keyset["distro"] {
+		t.Errorf("OR all missing: got %v, expected both os and distro", got)
+	}
+}
