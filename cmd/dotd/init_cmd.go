@@ -10,6 +10,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/fileutil"
+	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -52,9 +53,59 @@ func runInit(cmd *cobra.Command, cfg *config) error {
 		ui.OKf(out, "  wrote %s", path)
 	}
 
+	if err := maybeAddSourceLine(out, reader, cfg); err != nil {
+		return err
+	}
+
 	ui.Headerf(out, "Next steps:")
 	fmt.Fprintln(out, "  1. Add dotfiles to your repo")
 	fmt.Fprintf(out, "  2. %s\n", ui.Key("dotd apply"))
+	return nil
+}
+
+// maybeAddSourceLine checks if the shell RC file already sources the dotd init
+// file and, if not, prompts the user to add it. Shell and OS are resolved from
+// the canonical env map (never queried directly from the OS here).
+func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config) error {
+	resolved, err := resolveEnv(cfg)
+	if err != nil {
+		// env.yaml not yet present (edge case); skip silently.
+		return nil
+	}
+	shell := resolved["shell"]
+	if shell == "" {
+		return nil
+	}
+	sc, ok, err := setup.DetectShellConfig(shell, resolved["os"], cfg.linkRoot)
+	if err != nil {
+		return fmt.Errorf("init: detect shell config: %w", err)
+	}
+	if !ok {
+		return nil // unrecognised shell — skip
+	}
+
+	has, err := setup.HasSourceLine(sc.RCFile, cfg.initFile)
+	if err != nil {
+		return fmt.Errorf("init: check RC file: %w", err)
+	}
+	if has {
+		ui.OKf(out, "  source line already present in %s", sc.RCFile)
+		return nil
+	}
+
+	yes, err := promptYN(out, reader, fmt.Sprintf("Add dotd source line to %s?", sc.RCFile))
+	if err != nil {
+		return err
+	}
+	if !yes {
+		ui.Skipf(out, "  skipping source line — add manually: source %q", cfg.initFile)
+		return nil
+	}
+
+	if err := setup.AppendSourceLine(sc.RCFile, cfg.initFile, cfg.linkRoot); err != nil {
+		return fmt.Errorf("init: append source line: %w", err)
+	}
+	ui.OKf(out, "  added source line to %s", sc.RCFile)
 	return nil
 }
 

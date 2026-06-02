@@ -1,3 +1,4 @@
+// Package setup manages shell RC file integration (source-line install/remove).
 package setup
 
 import (

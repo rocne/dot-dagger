@@ -79,3 +79,60 @@ func TestRemoveSourceLine_MultipleCallsIdempotent(t *testing.T) {
 		t.Errorf("second call: footer removed:\n%s", string(got))
 	}
 }
+
+func TestSourceLine_RoundTrip(t *testing.T) {
+	home := t.TempDir()
+	initFile := filepath.Join(home, ".local", "share", "dot-dagger", "init.sh")
+
+	// Start with a pre-existing RC file so we can verify surrounding content survives.
+	preContent := "# pre-existing content\nexport FOO=bar\n"
+	rc := writeTempRC(t, preContent)
+
+	// Precondition: source line not yet present.
+	has, err := setup.HasSourceLine(rc, initFile)
+	if err != nil {
+		t.Fatalf("HasSourceLine before append: %v", err)
+	}
+	if has {
+		t.Fatal("expected HasSourceLine=false before AppendSourceLine")
+	}
+
+	// Append the source line.
+	if err := setup.AppendSourceLine(rc, initFile, home); err != nil {
+		t.Fatalf("AppendSourceLine: %v", err)
+	}
+
+	// Source line should now be detected.
+	has, err = setup.HasSourceLine(rc, initFile)
+	if err != nil {
+		t.Fatalf("HasSourceLine after append: %v", err)
+	}
+	if !has {
+		got, _ := os.ReadFile(rc)
+		t.Fatalf("expected HasSourceLine=true after AppendSourceLine; RC content:\n%s", got)
+	}
+
+	// Remove the source line.
+	if err := setup.RemoveSourceLine(rc, initFile); err != nil {
+		t.Fatalf("RemoveSourceLine: %v", err)
+	}
+
+	// Source line should no longer be present.
+	has, err = setup.HasSourceLine(rc, initFile)
+	if err != nil {
+		t.Fatalf("HasSourceLine after remove: %v", err)
+	}
+	if has {
+		got, _ := os.ReadFile(rc)
+		t.Fatalf("expected HasSourceLine=false after RemoveSourceLine; RC content:\n%s", got)
+	}
+
+	// Pre-existing content must survive the full round trip.
+	got, _ := os.ReadFile(rc)
+	if !strings.Contains(string(got), "# pre-existing content") {
+		t.Errorf("pre-existing content lost after round trip; RC content:\n%s", got)
+	}
+	if !strings.Contains(string(got), "export FOO=bar") {
+		t.Errorf("pre-existing export lost after round trip; RC content:\n%s", got)
+	}
+}
