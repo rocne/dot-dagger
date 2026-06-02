@@ -17,6 +17,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// PlaceholderToken is the substitution token replaced with the package name in
+// command templates. Every Install/Uninstall/Update template must contain this token.
+const PlaceholderToken = "{package}"
+
 // PackageManagerDef defines the command templates for a package manager.
 // {package} is substituted with the package name at runtime.
 type PackageManagerDef struct {
@@ -236,7 +240,7 @@ func InstallCmd(pkg, manager string, reg *Registry) (string, error) {
 
 	// Substitute {package}.
 	pkgName := packageName(pkg, manager, reg)
-	cmd := strings.ReplaceAll(mgDef.Install, "{package}", pkgName)
+	cmd := strings.ReplaceAll(mgDef.Install, PlaceholderToken, pkgName)
 	return cmd, nil
 }
 

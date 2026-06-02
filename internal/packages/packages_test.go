@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-
 )
 
 const sampleYAML = `
@@ -437,5 +436,26 @@ func TestGenerateScriptSoftRequestSkipped(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "install") {
 		t.Errorf("expected no install cmd for uninstallable @request, got:\n%s", buf.String())
+	}
+}
+
+// TestCatalogEntriesContainPlaceholder guards that every Catalog entry's
+// Install/Uninstall/Update template contains PlaceholderToken.
+// A template without the token would silently install the wrong package.
+func TestCatalogEntriesContainPlaceholder(t *testing.T) {
+	for _, m := range Catalog {
+		for field, tmpl := range map[string]string{
+			"Install":   m.Def.Install,
+			"Uninstall": m.Def.Uninstall,
+			"Update":    m.Def.Update,
+		} {
+			if tmpl == "" {
+				continue
+			}
+			if !strings.Contains(tmpl, PlaceholderToken) {
+				t.Errorf("Catalog[%s].%s = %q — does not contain PlaceholderToken %q",
+					m.Name, field, tmpl, PlaceholderToken)
+			}
+		}
 	}
 }
