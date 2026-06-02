@@ -207,6 +207,193 @@ func hasActionWithDest(actions []Action, typ, dest string) bool {
 	return false
 }
 
+// filesDictRoot returns the absolute path to the files-dict fixture directory.
+func filesDictRoot(t *testing.T) string {
+	t.Helper()
+	abs, err := filepath.Abs("testdata/files-dict")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return abs
+}
+
+// nodeByPath returns the first RawNode whose Path base matches the given filename, or nil.
+func nodeByPath(nodes []RawNode, filename string) *RawNode {
+	for i := range nodes {
+		if filepath.Base(nodes[i].Path) == filename {
+			return &nodes[i]
+		}
+	}
+	return nil
+}
+
+// TestWalk_FilesDict_Disable checks that a file with disable: true in the files: dict
+// appears in the disabled slice and NOT in nodes.
+func TestWalk_FilesDict_Disable(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, disabled, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Must NOT appear in nodes.
+	if n := nodeByPath(nodes, "disabled-file.json"); n != nil {
+		t.Errorf("disabled-file.json should not appear in nodes, but got node: %+v", n)
+	}
+
+	// Must appear in disabled.
+	found := false
+	for _, p := range disabled {
+		if filepath.Base(p) == "disabled-file.json" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("disabled-file.json should appear in disabled slice, got: %v", disabled)
+	}
+}
+
+// TestWalk_FilesDict_NameOverride checks that name: in the files: dict overrides the
+// derived logical name.
+func TestWalk_FilesDict_NameOverride(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "named-file.json")
+	if n == nil {
+		names := make([]string, len(nodes))
+		for i, nd := range nodes {
+			names[i] = nd.LogicalName
+		}
+		t.Fatalf("named-file.json not found in nodes; got: %v", names)
+	}
+	if n.LogicalName != "my.custom.name" {
+		t.Errorf("LogicalName = %q, want %q", n.LogicalName, "my.custom.name")
+	}
+}
+
+// TestWalk_FilesDict_WhenCascade checks that per-file when: is combined with the
+// directory-level defaults.when via AND.
+func TestWalk_FilesDict_WhenCascade(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "when-file.json")
+	if n == nil {
+		t.Fatal("when-file.json not found in nodes")
+	}
+	// defaults.when = "os=linux" → state.when = "(os=linux)"
+	// file when = "shell=bash"  → fileWhen = "(shell=bash)"
+	// combined → "(os=linux) AND (shell=bash)"
+	want := "(os=linux) AND (shell=bash)"
+	if n.EffectiveWhen != want {
+		t.Errorf("EffectiveWhen = %q, want %q", n.EffectiveWhen, want)
+	}
+}
+
+// TestWalk_FilesDict_Actions checks that actions listed in the files: dict entry
+// are emitted as the node's actions.
+func TestWalk_FilesDict_Actions(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "actions-file.json")
+	if n == nil {
+		t.Fatal("actions-file.json not found in nodes")
+	}
+	if !hasAction(n.Actions, ActionSource) {
+		t.Errorf("actions-file.json should have source action, got %v", n.Actions)
+	}
+}
+
+// TestWalk_FilesDict_DedupByType checks that duplicate action types in the files: dict
+// entry are collapsed so only one action per type survives.
+func TestWalk_FilesDict_DedupByType(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "dedup-file.json")
+	if n == nil {
+		t.Fatal("dedup-file.json not found in nodes")
+	}
+	// actions: [source, source] → only one source action should survive.
+	count := 0
+	for _, a := range n.Actions {
+		if a.Type == ActionSource {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected exactly 1 source action after dedup, got %d: %v", count, n.Actions)
+	}
+}
+
+// TestWalk_FilesDict_After checks that after: in the files: dict entry is propagated
+// to the node's After slice.
+func TestWalk_FilesDict_After(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n := nodeByPath(nodes, "after-file.json")
+	if n == nil {
+		t.Fatal("after-file.json not found in nodes")
+	}
+	found := false
+	for _, dep := range n.After {
+		if dep == "some.other.file" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("after-file.json After should contain %q, got: %v", "some.other.file", n.After)
+	}
+}
+
+// TestWalk_FilesDict_MissingFileSkip checks that a file listed in the files: dict
+// but absent on disk is silently skipped — it appears neither in nodes nor in disabled.
+func TestWalk_FilesDict_MissingFileSkip(t *testing.T) {
+	root := filesDictRoot(t)
+	nodes, disabled, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Confirm the file genuinely does not exist on disk.
+	missingPath := filepath.Join(root, "missing-file.json")
+	if _, statErr := os.Stat(missingPath); statErr == nil {
+		t.Fatal("test setup error: missing-file.json exists on disk; it should be absent")
+	}
+
+	// Must NOT appear in nodes.
+	if n := nodeByPath(nodes, "missing-file.json"); n != nil {
+		t.Errorf("missing-file.json should not appear in nodes, but got: %+v", n)
+	}
+
+	// Must NOT appear in disabled.
+	for _, p := range disabled {
+		if filepath.Base(p) == "missing-file.json" {
+			t.Errorf("missing-file.json should not appear in disabled, but found: %s", p)
+		}
+	}
+}
+
 // TestParseDaggerActions exercises parseDaggerActions directly, covering the
 // zero-coverage path identified in AUDIT-037.
 func TestParseDaggerActions(t *testing.T) {
