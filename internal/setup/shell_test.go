@@ -9,6 +9,99 @@ import (
 	"github.com/rocne/dot-dagger/internal/setup"
 )
 
+// --- DetectShellConfig ---
+
+func TestDetectShellConfig_BashLinux(t *testing.T) {
+	home := t.TempDir()
+	sc, ok, err := setup.DetectShellConfig("bash", "linux", home)
+	if err != nil {
+		t.Fatalf("DetectShellConfig: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected ok=true for bash+linux")
+	}
+	if sc.Shell != "bash" {
+		t.Errorf("Shell = %q, want 'bash'", sc.Shell)
+	}
+	want := filepath.Join(home, ".bashrc")
+	if sc.RCFile != want {
+		t.Errorf("RCFile = %q, want %q", sc.RCFile, want)
+	}
+}
+
+func TestDetectShellConfig_BashMacOS(t *testing.T) {
+	home := t.TempDir()
+	sc, ok, err := setup.DetectShellConfig("bash", "macos", home)
+	if err != nil {
+		t.Fatalf("DetectShellConfig: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected ok=true for bash+macos")
+	}
+	want := filepath.Join(home, ".bash_profile")
+	if sc.RCFile != want {
+		t.Errorf("RCFile = %q, want %q (macos bash uses .bash_profile)", sc.RCFile, want)
+	}
+}
+
+func TestDetectShellConfig_ZshLinux(t *testing.T) {
+	home := t.TempDir()
+	sc, ok, err := setup.DetectShellConfig("zsh", "linux", home)
+	if err != nil {
+		t.Fatalf("DetectShellConfig: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected ok=true for zsh+linux")
+	}
+	want := filepath.Join(home, ".zshrc")
+	if sc.RCFile != want {
+		t.Errorf("RCFile = %q, want %q", sc.RCFile, want)
+	}
+}
+
+func TestDetectShellConfig_ZshMacOS(t *testing.T) {
+	home := t.TempDir()
+	sc, ok, err := setup.DetectShellConfig("zsh", "macos", home)
+	if err != nil {
+		t.Fatalf("DetectShellConfig: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected ok=true for zsh+macos")
+	}
+	want := filepath.Join(home, ".zshrc")
+	if sc.RCFile != want {
+		t.Errorf("RCFile = %q, want %q (zsh uses .zshrc on macos too)", sc.RCFile, want)
+	}
+}
+
+func TestDetectShellConfig_UnknownShell(t *testing.T) {
+	home := t.TempDir()
+	_, ok, err := setup.DetectShellConfig("tcsh", "linux", home)
+	if err != nil {
+		t.Fatalf("unexpected error for unknown shell: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false for unknown shell 'tcsh'")
+	}
+}
+
+// Verify that the RCFile path is rooted at the provided home (linkRoot convention).
+func TestDetectShellConfig_RCFileRootedAtHome(t *testing.T) {
+	home := t.TempDir()
+	for _, shell := range []string{"bash", "zsh"} {
+		sc, ok, err := setup.DetectShellConfig(shell, "linux", home)
+		if err != nil {
+			t.Fatalf("DetectShellConfig(%s): %v", shell, err)
+		}
+		if !ok {
+			t.Fatalf("DetectShellConfig(%s): expected ok=true", shell)
+		}
+		if !strings.HasPrefix(sc.RCFile, home) {
+			t.Errorf("DetectShellConfig(%s).RCFile = %q — not rooted at home %q", shell, sc.RCFile, home)
+		}
+	}
+}
+
 func writeTempRC(t *testing.T, content string) string {
 	t.Helper()
 	f, err := os.CreateTemp(t.TempDir(), "rc")
