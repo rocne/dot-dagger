@@ -9,6 +9,7 @@ import (
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -82,8 +83,8 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	}
 
 	// Stat each file to determine what exists.
-	configExists := fileExists(configPath)
-	envExists := fileExists(envPath)
+	configExists := fileutil.Exists(configPath)
+	envExists := fileutil.Exists(envPath)
 
 	// Preview.
 	ui.Headerf(out, "Will remove:")
@@ -143,11 +144,6 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	}
 
 	return nil
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 // hasDaggerFiles reports whether any .dagger file exists under root.

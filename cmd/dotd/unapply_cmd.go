@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -102,7 +103,7 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	}
 
 	// Check for init.sh.
-	initShExists := fileExists(cfg.initFile)
+	initShExists := fileutil.Exists(cfg.initFile)
 
 	if len(toRemove) == 0 && !initShExists {
 		ui.Skipf(out, "nothing to remove")

@@ -18,6 +18,13 @@ const ModeFile os.FileMode = 0o644
 // POSIXShebang is the standard POSIX shell shebang line.
 const POSIXShebang = "#!/bin/sh"
 
+// Exists reports whether path exists. Any stat error (including ENOENT and
+// permission denied) is treated as non-existence.
+func Exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 // SaveYAML encodes v as YAML and writes it to path atomically (temp file + rename).
 // Creates parent directories as needed.
 func SaveYAML(path string, v any) error {
