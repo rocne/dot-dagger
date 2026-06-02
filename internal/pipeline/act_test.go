@@ -348,6 +348,81 @@ func TestAct_Compose_NoSourceSuppressesSource(t *testing.T) {
 	}
 }
 
+// TestAct_DeriveLinkDest covers the empty-dest derivation path in Act
+// (AUDIT-038). When a link action has Dest == "", resolveLink falls through to
+// deriveLinkDest which must correctly apply dot-/nosync- rewrites to every
+// path component relative to LinkRootDir.
+func TestAct_DeriveLinkDest(t *testing.T) {
+	cases := []struct {
+		name        string // test name
+		relPath     string // path relative to linkRootDir that becomes the source file
+		wantRelDest string // expected path relative to linkRoot after rewriting
+	}{
+		{
+			name:        "dot-prefix becomes dot",
+			relPath:     "dot-foo",
+			wantRelDest: ".foo",
+		},
+		{
+			name:        "nosync-prefix is stripped",
+			relPath:     "nosync-bar",
+			wantRelDest: "bar",
+		},
+		{
+			name:        "multi-component with dot- and nosync-",
+			relPath:     "dot-config/dot-tmux/dot-tmux.conf",
+			wantRelDest: ".config/.tmux/.tmux.conf",
+		},
+		{
+			name:        "nosync-dot- stacks: nosync- stripped then dot- applied",
+			relPath:     "nosync-dot-foo",
+			wantRelDest: ".foo",
+		},
+		{
+			name:        "plain filename passes through unchanged",
+			relPath:     "notes.md",
+			wantRelDest: "notes.md",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			linkRootDir := t.TempDir()
+			linkRoot := t.TempDir()
+
+			// Create the source file at its nested location.
+			srcPath := filepath.Join(linkRootDir, c.relPath)
+			if err := os.MkdirAll(filepath.Dir(srcPath), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(srcPath, []byte("# test\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			n := RawNode{
+				Path:        srcPath,
+				LogicalName: filepath.Base(srcPath),
+				LinkRoot:    linkRoot,
+				LinkRootDir: linkRootDir,
+				Actions:     []Action{{Type: ActionLink, Dest: ""}},
+			}
+
+			res, err := Act([]RawNode{n}, ActOptions{HomeDir: linkRoot, DryRun: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Links) != 1 {
+				t.Fatalf("expected 1 link, got %d: %v", len(res.Links), res.Links)
+			}
+
+			wantDest := filepath.Join(linkRoot, c.wantRelDest)
+			if res.Links[0].Dest != wantDest {
+				t.Errorf("link.Dest = %q, want %q", res.Links[0].Dest, wantDest)
+			}
+		})
+	}
+}
+
 // TestComposeFileName_Variants covers the naming rules for ComposeFileName.
 func TestComposeFileName_Variants(t *testing.T) {
 	cases := []struct {
