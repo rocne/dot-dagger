@@ -21,15 +21,6 @@ const (
 	ActionLink     = "link"
 )
 
-// Annotation key constants used internally after normalizeActionAnnotations.
-const (
-	annAction  = "action"
-	annAfter   = "after"
-	annRequire = "require"
-	annRequest = "request"
-	annDisable = "disable"
-	annName    = "name"
-)
 
 // Action is a single action declared for a node.
 type Action struct {
@@ -185,7 +176,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 		anns = normalizeActionAnnotations(anns)
 
 		// @disable: skip this file entirely.
-		if _, ok := annotation.First(anns, annDisable); ok {
+		if _, ok := annotation.First(anns, annotation.KeyDisable); ok {
 			disabled = append(disabled, path)
 			return nil
 		}
@@ -199,7 +190,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Collect @after dependencies.
 		var after []string
-		for _, a := range annotation.Get(anns, annAfter) {
+		for _, a := range annotation.Get(anns, annotation.KeyAfter) {
 			if a.Args != "" {
 				after = append(after, a.Args)
 			}
@@ -207,12 +198,12 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Collect @require / @request package deps.
 		var require, request []string
-		for _, a := range annotation.Get(anns, annRequire) {
+		for _, a := range annotation.Get(anns, annotation.KeyRequire) {
 			if a.Args != "" {
 				require = append(require, a.Args)
 			}
 		}
-		for _, a := range annotation.Get(anns, annRequest) {
+		for _, a := range annotation.Get(anns, annotation.KeyRequest) {
 			if a.Args != "" {
 				request = append(request, a.Args)
 			}
@@ -220,7 +211,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 		// Apply @name override if present.
 		logicalName := node.DeriveName(rel)
-		if a, ok := annotation.First(anns, annName); ok && a.Args != "" {
+		if a, ok := annotation.First(anns, annotation.KeyName); ok && a.Args != "" {
 			logicalName = a.Args
 		}
 
@@ -425,7 +416,7 @@ func mergeActions(defaultActions []string, anns []annotation.Annotation) []Actio
 
 	// Apply normalized action annotations.
 	for _, a := range anns {
-		if a.Key != annAction {
+		if a.Key != annotation.KeyAction {
 			continue
 		}
 		act := parseActionString(a.Args)

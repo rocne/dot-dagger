@@ -14,14 +14,14 @@ func normalizeActionAnnotations(anns []annotation.Annotation) []annotation.Annot
 	result := make([]annotation.Annotation, 0, len(anns))
 	for _, a := range anns {
 		switch a.Key {
-		case annAction:
+		case annotation.KeyAction:
 			result = append(result, a)
 		case ActionSource:
-			result = append(result, annotation.Annotation{Key: annAction, Args: ActionSource, Line: a.Line})
+			result = append(result, annotation.Annotation{Key: annotation.KeyAction, Args: ActionSource, Line: a.Line})
 		case ActionNoSource:
-			result = append(result, annotation.Annotation{Key: annAction, Args: ActionNoSource, Line: a.Line})
+			result = append(result, annotation.Annotation{Key: annotation.KeyAction, Args: ActionNoSource, Line: a.Line})
 		case ActionLink, "symlink":
-			result = append(result, annotation.Annotation{Key: annAction, Args: ActionLink + "(" + a.Args + ")", Line: a.Line})
+			result = append(result, annotation.Annotation{Key: annotation.KeyAction, Args: ActionLink + "(" + a.Args + ")", Line: a.Line})
 		default:
 			result = append(result, a)
 		}

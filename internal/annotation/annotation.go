@@ -9,6 +9,20 @@ import (
 	"strings"
 )
 
+// Key constants for the supported .dagger annotation vocabulary.
+// These are the canonical names for annotation keys used in file headers and
+// .dagger YAML files. Code that matches or compares annotation keys must use
+// these constants; the yaml struct tags in internal/dagger must match them.
+const (
+	KeyAction  = "action"
+	KeyAfter   = "after"
+	KeyRequire = "require"
+	KeyRequest = "request"
+	KeyDisable = "disable"
+	KeyName    = "name"
+	KeyWhen    = "when"
+)
+
 // Annotation is a single @key or @key(args) found in a comment line.
 type Annotation struct {
 	Key  string
@@ -126,7 +140,7 @@ func First(anns []Annotation, key string) (Annotation, bool) {
 func CombineWhen(anns []Annotation) string {
 	var parts []string
 	for _, a := range anns {
-		if a.Key == "when" && a.Args != "" {
+		if a.Key == KeyWhen && a.Args != "" {
 			parts = append(parts, "("+a.Args+")")
 		}
 	}
