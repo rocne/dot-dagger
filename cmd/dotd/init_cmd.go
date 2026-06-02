@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -68,19 +69,19 @@ var conventionRoles = []conventionRole{
 	{
 		label:  "Shell scripts",
 		desc:   "Files here are auto-sourced by your shell on startup.",
-		defDir: "shellrc",
+		defDir: adopter.DirShellrc,
 		content: "defaults:\n  actions:\n    - source\n",
 	},
 	{
 		label:  "Config files",
 		desc:   "Files here are symlinked into ~/.config by default (e.g. config/nvim/init.lua → ~/.config/nvim/init.lua).",
-		defDir: "config",
+		defDir: adopter.DirConfig,
 		content: "link_root: \"~/.config\"\ndefaults:\n  actions:\n    - link\n",
 	},
 	{
 		label:  "Bin scripts",
 		desc:   "Executable scripts here are linked to your bin directory.",
-		defDir: "bin",
+		defDir: adopter.DirBin,
 		content: "link_root: \"~bin\"\ndefaults:\n  actions:\n    - link\n",
 	},
 }

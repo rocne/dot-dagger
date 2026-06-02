@@ -11,16 +11,25 @@ import (
 	"github.com/rocne/dot-dagger/internal/pipeline"
 )
 
+// DirShellrc is the canonical name for the shell-scripts convention directory.
+const DirShellrc = "shellrc"
+
+// DirBin is the canonical name for the bin-scripts convention directory.
+const DirBin = "bin"
+
+// DirConfig is the canonical name for the config-files convention directory.
+const DirConfig = "config"
+
 // ConventionNames holds the active names for the three convention directories.
 type ConventionNames struct {
 	Shellrc string
 	Bin     string
-	Config string
+	Config  string
 }
 
 // DefaultConventions returns the standard convention dir names.
 func DefaultConventions() ConventionNames {
-	return ConventionNames{Shellrc: "shellrc", Bin: "bin", Config: "config"}
+	return ConventionNames{Shellrc: DirShellrc, Bin: DirBin, Config: DirConfig}
 }
 
 // Inference is the result of inferring a dotfiles destination for a source file.

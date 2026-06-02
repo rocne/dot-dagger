@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/packages"
 )
@@ -60,7 +61,7 @@ func Scaffold(opts Options) (*Result, error) {
 	var res Result
 
 	// Repo directories owned by suite tools.
-	for _, sub := range []string{"shellrc", "config", "bin"} {
+	for _, sub := range []string{adopter.DirShellrc, adopter.DirConfig, adopter.DirBin} {
 		act, err := ensureDir(filepath.Join(opts.DotfilesDir, sub))
 		if err != nil {
 			return nil, err
