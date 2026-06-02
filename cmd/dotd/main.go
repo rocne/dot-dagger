@@ -25,6 +25,11 @@ var version = "dev"
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
+		if errors.Is(err, errUserAborted) {
+			fmt.Fprintln(os.Stderr, "cancelled")
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -52,9 +57,10 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:     ecosystem.ToolD,
-		Short:   "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
-		Version: version,
+		Use:          ecosystem.ToolD,
+		Short:        "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
+		Version:      version,
+		SilenceErrors: true,
 	}
 
 	pf := root.PersistentFlags()

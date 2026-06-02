@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/huh"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 )
 
@@ -56,5 +58,24 @@ func TestFilterWithPrompt_TTY_NoMissingKeys_DoesNotPrompt(t *testing.T) {
 	}
 	if len(active) != 1 {
 		t.Errorf("expected 1 active node, got %d", len(active))
+	}
+}
+
+func TestFilterWithPrompt_TTY_UserAbort_ReturnsErrUserAborted(t *testing.T) {
+	// Inject a stub prompter that simulates the user pressing Ctrl-C.
+	// Verifies filterWithPrompt returns errUserAborted (not os.Exit).
+	orig := prompter
+	defer func() { prompter = orig }()
+	prompter = func(keys []string) (map[string]string, error) {
+		return nil, huh.ErrUserAborted
+	}
+
+	// Node with a missing key so the TTY branch reaches the prompter.
+	nodes := []pipeline.RawNode{makeFilterNode("work", "context=work")}
+	resolved := map[string]string{} // context is missing
+
+	_, err := filterWithPrompt(nodes, resolved, true)
+	if !errors.Is(err, errUserAborted) {
+		t.Errorf("expected errUserAborted, got %v", err)
 	}
 }

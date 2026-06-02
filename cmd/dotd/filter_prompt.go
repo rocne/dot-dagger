@@ -15,6 +15,15 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
+// errUserAborted is returned when the user cancels an interactive prompt.
+// main() maps this sentinel to a clean exit-1 with "cancelled" on stderr,
+// avoiding the noisy "Error: user aborted" that Cobra would otherwise print.
+var errUserAborted = errors.New("user aborted")
+
+// prompter is the function used to prompt for missing keys.
+// It defaults to promptMissingKeys; tests may replace it with a stub.
+var prompter = promptMissingKeys
+
 // filterWithPrompt wraps pipeline.Filter with TTY-aware missing-key prompting.
 // Non-TTY: identical to Filter + annotateKeyError.
 // TTY with missing keys: prompts for all missing keys, then runs Filter with augmented env.
@@ -33,10 +42,10 @@ func filterWithPrompt(nodes []pipeline.RawNode, resolved map[string]string, isTT
 		return active, annotateKeyError(err)
 	}
 
-	filled, err := promptMissingKeys(missing)
+	filled, err := prompter(missing)
 	if err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
-			os.Exit(1)
+			return nil, errUserAborted
 		}
 		return nil, err
 	}
