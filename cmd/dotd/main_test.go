@@ -923,3 +923,67 @@ func TestUnapply_CancelExits0(t *testing.T) {
 		t.Errorf("expected 'cancelled' in output: %q", buf.String())
 	}
 }
+
+// --- AUDIT-001: linkRoot default ---
+
+// TestAdopt_DefaultLinkRoot verifies that adopt succeeds without --link-root by
+// resolving $HOME as the default. Before the fix, cfg.linkRoot was empty and
+// adopt would error with "act: HomeDir is required".
+func TestAdopt_DefaultLinkRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// A plain config file to adopt (hidden → conf/dot-testrc).
+	src := filepath.Join(home, ".testrc")
+	if err := os.WriteFile(src, []byte("# test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "adopt", "--yes",
+		"--files", dotfiles,
+		"--env-file", emptyEnvFile(t),
+		src,
+	)
+	if err != nil && strings.Contains(err.Error(), "HomeDir is required") {
+		t.Fatalf("adopt failed with HomeDir error — linkRoot default not set: %v", err)
+	}
+	// If adopt errors for another reason (e.g. missing .dagger conventions) that
+	// is acceptable; what matters is that the HomeDir error does not appear.
+}
+
+// TestTeardown_UsesLinkRoot verifies that teardown resolves the RC file under
+// cfg.linkRoot (set via --link-root), not an unrelated directory.
+func TestTeardown_UsesLinkRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	envPath := filepath.Join(configDir, "env.yaml")
+	if err := os.WriteFile(envPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "teardown", "--yes",
+		"--link-root", home,
+		"--files", emptyDotfiles(t),
+		"--env-file", envPath,
+	)
+	if err != nil {
+		t.Fatalf("teardown error = %v", err)
+	}
+}

@@ -219,7 +219,7 @@ func resolvePaths(cfg *config) error {
 		return err
 	}
 
-	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", toolCfg.LinkRoot, func() (string, error) { return "", nil })
+	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", toolCfg.LinkRoot, ecosystem.DefaultLinkRoot)
 	if err != nil {
 		return err
 	}
@@ -252,19 +252,10 @@ func configureLogger(cfg *config, cmd *cobra.Command) error {
 
 // buildActOptions constructs pipeline.ActOptions from cfg.
 // dryRun forces dry-run mode regardless of cfg.dryRun.
-// HomeDir is cfg.linkRoot when explicitly set (via --link-root or config.yaml),
-// otherwise os.UserHomeDir().
+// cfg.linkRoot is guaranteed non-empty after resolvePaths succeeds.
 func buildActOptions(cfg *config, dryRun bool) (pipeline.ActOptions, error) {
-	homeDir := cfg.linkRoot
-	if homeDir == "" {
-		var err error
-		homeDir, err = os.UserHomeDir()
-		if err != nil {
-			return pipeline.ActOptions{}, fmt.Errorf("resolve home dir: %w", err)
-		}
-	}
 	return pipeline.ActOptions{
-		HomeDir:      homeDir,
+		HomeDir:      cfg.linkRoot,
 		BinDir:       cfg.binDir,
 		GeneratedDir: cfg.generatedDir,
 		DryRun:       dryRun || cfg.dryRun,

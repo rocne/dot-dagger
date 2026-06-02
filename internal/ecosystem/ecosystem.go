@@ -76,6 +76,16 @@ func DefaultInitFile() (string, error) {
 	return filepath.Join(base, Name, "init.sh"), nil
 }
 
+// DefaultLinkRoot returns the default link root directory: $HOME.
+// This is the directory used to expand "~" in link destinations.
+func DefaultLinkRoot() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+	}
+	return home, nil
+}
+
 // DefaultBinDir returns the default path for user-managed binaries: ~/.local/bin/dot-dagger.
 // This follows the FHS convention for user-local executables (not an XDG path).
 func DefaultBinDir() (string, error) {
