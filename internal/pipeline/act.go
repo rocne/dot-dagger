@@ -79,13 +79,7 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 		}
 
 		// Check for compose action on compose-target directory nodes.
-		hasCompose := false
-		for _, a := range n.Actions {
-			if a.Type == ActionCompose {
-				hasCompose = true
-				break
-			}
-		}
+		hasCompose := n.HasCompose()
 
 		if hasCompose {
 			// Assemble fragments for this compose target.

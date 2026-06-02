@@ -43,7 +43,7 @@ func newComposeListCmd(cfg *config) *cobra.Command {
 				return err
 			}
 			for _, n := range active {
-				if !hasComposeAction(n) {
+				if !n.HasCompose() {
 					continue
 				}
 				genName := composeGenName(n)
@@ -112,15 +112,6 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 			return nil
 		},
 	}
-}
-
-func hasComposeAction(n pipeline.RawNode) bool {
-	for _, a := range n.Actions {
-		if a.Type == pipeline.ActionCompose {
-			return true
-		}
-	}
-	return false
 }
 
 func composeGenName(n pipeline.RawNode) string {

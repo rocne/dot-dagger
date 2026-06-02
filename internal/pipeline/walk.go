@@ -43,6 +43,16 @@ type RawNode struct {
 	ComposeTarget string   // abs path of compose target dir
 }
 
+// HasCompose reports whether n has the compose action.
+func (n RawNode) HasCompose() bool {
+	for _, a := range n.Actions {
+		if a.Type == ActionCompose {
+			return true
+		}
+	}
+	return false
+}
+
 // dirState is the accumulated defaults for a directory at walk time.
 type dirState struct {
 	when        string   // from defaults.when; ANDed with parent
