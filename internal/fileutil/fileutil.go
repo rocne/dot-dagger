@@ -15,6 +15,9 @@ const ModeDir os.FileMode = 0o755
 // ModeFile is the standard permission for written files (rw-r--r--).
 const ModeFile os.FileMode = 0o644
 
+// POSIXShebang is the standard POSIX shell shebang line.
+const POSIXShebang = "#!/bin/sh"
+
 // SaveYAML encodes v as YAML and writes it to path atomically (temp file + rename).
 // Creates parent directories as needed.
 func SaveYAML(path string, v any) error {

@@ -88,7 +88,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 	// Build output.
 	var sb strings.Builder
 
-	sb.WriteString("#!/bin/sh\n")
+	sb.WriteString(fileutil.POSIXShebang + "\n")
 	sb.WriteString("# Bundled by dotd — do not edit by hand.\n\n")
 
 	if includeEnv {
