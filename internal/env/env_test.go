@@ -121,6 +121,52 @@ func TestResolve_MergesAll(t *testing.T) {
 	}
 }
 
+// TestResolve_TripleOverride exercises all three layers overriding the same key
+// — cli wins per the precedence contract.
+func TestResolve_TripleOverride(t *testing.T) {
+	expanded := map[string]string{"os": "expanded"}
+	shellVars := map[string]string{"os": "shell"}
+	cliFlags := map[string]string{"os": "cli"}
+
+	got := Resolve(cliFlags, shellVars, expanded)
+	if got["os"] != "cli" {
+		t.Errorf("cli should win triple-override, got %q", got["os"])
+	}
+}
+
+// TestResolve_DoesNotMutateInputs verifies that Resolve treats its arguments
+// as read-only — callers can pass shared maps without fearing aliasing bugs.
+func TestResolve_DoesNotMutateInputs(t *testing.T) {
+	expanded := map[string]string{"a": "e"}
+	shellVars := map[string]string{"b": "s"}
+	cliFlags := map[string]string{"c": "c"}
+
+	expandedSnap := map[string]string{"a": "e"}
+	shellVarsSnap := map[string]string{"b": "s"}
+	cliFlagsSnap := map[string]string{"c": "c"}
+
+	_ = Resolve(cliFlags, shellVars, expanded)
+
+	for k, v := range expandedSnap {
+		if expanded[k] != v {
+			t.Errorf("expanded mutated: key %q now %q, was %q", k, expanded[k], v)
+		}
+	}
+	if len(expanded) != len(expandedSnap) {
+		t.Errorf("expanded grew/shrunk: %d entries, want %d", len(expanded), len(expandedSnap))
+	}
+	for k, v := range shellVarsSnap {
+		if shellVars[k] != v {
+			t.Errorf("shellVars mutated: key %q now %q, was %q", k, shellVars[k], v)
+		}
+	}
+	for k, v := range cliFlagsSnap {
+		if cliFlags[k] != v {
+			t.Errorf("cliFlags mutated: key %q now %q, was %q", k, cliFlags[k], v)
+		}
+	}
+}
+
 func TestParseFlags_Valid(t *testing.T) {
 	m, err := parseFlags("context=work,os=linux")
 	if err != nil {
