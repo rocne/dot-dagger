@@ -337,15 +337,16 @@ func TestSymlinkConflictWithForce(t *testing.T) {
 		t.Fatalf("setup conflict: %v", err)
 	}
 
-	// Without --force, apply should report conflict (non-zero exit or conflict in check).
+	// Without --force, apply MUST error AND leave the plain file intact.
 	_, err := e.runMayFail(t, "apply", "--env", "os=linux")
 	if err == nil {
-		// Some implementations warn rather than error; check the symlink is wrong.
-		got, readErr := os.Readlink(filepath.Join(e.home, ".zshrc"))
-		if readErr == nil && got == filepath.Join(e.dotfiles, "config/dot-zshrc") {
-			t.Log("apply without --force unexpectedly succeeded; skipping conflict test")
-			return
-		}
+		t.Fatal("apply without --force must error when a plain file blocks the symlink target")
+	}
+	// The plain file at ~/.zshrc must NOT have been replaced with a symlink.
+	if fi, statErr := os.Lstat(filepath.Join(e.home, ".zshrc")); statErr != nil {
+		t.Fatalf("zshrc disappeared after failed apply: %v", statErr)
+	} else if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("zshrc was replaced with a symlink despite --force absence")
 	}
 
 	// With --force it should succeed and the symlink should be correct.
