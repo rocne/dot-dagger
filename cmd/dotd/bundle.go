@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/spf13/cobra"
 )
@@ -118,7 +119,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 	out := sb.String()
 
 	if outputFile != "" {
-		if err := os.WriteFile(outputFile, []byte(out), 0o644); err != nil {
+		if err := os.WriteFile(outputFile, []byte(out), fileutil.ModeFile); err != nil {
 			return fmt.Errorf("bundle: write %s: %w", outputFile, err)
 		}
 		return nil

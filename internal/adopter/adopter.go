@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/node"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 )
@@ -175,7 +176,7 @@ func actionsFor(destRel, src string, opts AdoptOptions) []pipeline.Action {
 }
 
 func copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), fileutil.ModeDir); err != nil {
 		return fmt.Errorf("adopt: mkdir %s: %w", filepath.Dir(dst), err)
 	}
 

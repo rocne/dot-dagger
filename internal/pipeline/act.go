@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rocne/dot-dagger/internal/fileutil"
 )
 
 // ActOptions configures Act behaviour.
@@ -161,10 +163,10 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			if gen.Path == "" {
 				continue
 			}
-			if err := os.MkdirAll(filepath.Dir(gen.Path), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(gen.Path), fileutil.ModeDir); err != nil {
 				return nil, fmt.Errorf("act: mkdir for generated %s: %w", gen.Path, err)
 			}
-			if err := os.WriteFile(gen.Path, gen.Content, 0o644); err != nil {
+			if err := os.WriteFile(gen.Path, gen.Content, fileutil.ModeFile); err != nil {
 				return nil, fmt.Errorf("act: write generated %s: %w", gen.Path, err)
 			}
 		}
@@ -237,7 +239,7 @@ func expandDest(path, homeDir, binDir string) string {
 }
 
 func createSymlink(src, dest string, force bool) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), fileutil.ModeDir); err != nil {
 		return fmt.Errorf("act: mkdir for %s: %w", dest, err)
 	}
 	// Handle existing path at dest.

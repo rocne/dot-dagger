@@ -11,6 +11,7 @@ import (
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -138,11 +139,11 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	// Write env.yaml only if absent. cfg.envFile is already resolved by resolvePaths.
 	envPath := cfg.envFile
 	if _, err := os.Stat(envPath); errors.Is(err, fs.ErrNotExist) {
-		if err := os.MkdirAll(filepath.Dir(envPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(envPath), fileutil.ModeDir); err != nil {
 			return fmt.Errorf("setup: mkdir %s: %w", filepath.Dir(envPath), err)
 		}
 		envContent := fmt.Sprintf("os: $(dotd get-os)\nhostname: $(%s get-hostname)\n", ecosystem.ToolD)
-		if err := os.WriteFile(envPath, []byte(envContent), 0o644); err != nil {
+		if err := os.WriteFile(envPath, []byte(envContent), fileutil.ModeFile); err != nil {
 			return fmt.Errorf("setup: write %s: %w", ecosystem.EnvFileName, err)
 		}
 		ui.OKf(out, "  wrote %s", envPath)

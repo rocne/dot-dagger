@@ -10,6 +10,7 @@ import (
 
 	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/packages"
 )
 
@@ -93,7 +94,7 @@ func ensureDir(path string) (Action, error) {
 	if _, err := os.Stat(path); err == nil {
 		return Action{Kind: KindDir, Path: path, State: StateSkipped}, nil
 	}
-	if err := os.MkdirAll(path, 0o755); err != nil {
+	if err := os.MkdirAll(path, fileutil.ModeDir); err != nil {
 		return Action{}, fmt.Errorf("setup: create dir %s: %w", path, err)
 	}
 	return Action{Kind: KindDir, Path: path, State: StateCreated}, nil
@@ -103,10 +104,10 @@ func ensureFile(path, content string) (Action, error) {
 	if _, err := os.Stat(path); err == nil {
 		return Action{Kind: KindFile, Path: path, State: StateSkipped}, nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), fileutil.ModeDir); err != nil {
 		return Action{}, fmt.Errorf("setup: mkdir for %s: %w", path, err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), fileutil.ModeFile); err != nil {
 		return Action{}, fmt.Errorf("setup: write %s: %w", path, err)
 	}
 	return Action{Kind: KindFile, Path: path, State: StateCreated}, nil

@@ -10,6 +10,7 @@ import (
 
 	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -126,10 +127,10 @@ func scaffoldDagger(dir, content string) error {
 	if _, err := os.Stat(path); err == nil {
 		return nil // already exists — skip
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, fileutil.ModeDir); err != nil {
 		return fmt.Errorf("init: mkdir %s: %w", dir, err)
 	}
-	return os.WriteFile(path, []byte(content), 0o644)
+	return os.WriteFile(path, []byte(content), fileutil.ModeFile)
 }
 
 // promptDefault prints "msg [default]: " and reads input.

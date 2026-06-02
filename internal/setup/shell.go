@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 )
 
 // ShellConfig holds the shell name and its RC file path.
@@ -86,7 +87,7 @@ func AppendSourceLine(rcFile, initPath, home string) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, fileutil.ModeFile)
 	if err != nil {
 		return fmt.Errorf("setup: open %s: %w", rcFile, err)
 	}
@@ -126,5 +127,5 @@ func RemoveSourceLine(rcFile, initFile string) error {
 		i++
 	}
 
-	return os.WriteFile(rcFile, []byte(strings.Join(out, "\n")), 0o644)
+	return os.WriteFile(rcFile, []byte(strings.Join(out, "\n")), fileutil.ModeFile)
 }

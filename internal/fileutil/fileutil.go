@@ -9,10 +9,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ModeDir is the standard permission for created directories (rwxr-xr-x).
+const ModeDir os.FileMode = 0o755
+
+// ModeFile is the standard permission for written files (rw-r--r--).
+const ModeFile os.FileMode = 0o644
+
 // SaveYAML encodes v as YAML and writes it to path atomically (temp file + rename).
 // Creates parent directories as needed.
 func SaveYAML(path string, v any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), ModeDir); err != nil {
 		return fmt.Errorf("fileutil: mkdir: %w", err)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".*.yaml.tmp")
