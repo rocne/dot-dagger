@@ -1335,3 +1335,164 @@ func TestConfigPath_EnvVarOverride(t *testing.T) {
 		t.Errorf("cfg.configPath = %q, want %q", cfg.configPath, customConfig)
 	}
 }
+
+// --- dotd unapply --all (AUDIT-059) ---
+
+// buildLinkDotfiles creates a temp dotfiles repo with two link nodes:
+//   - "unconditional" (no @when predicate — always active)
+//   - "conditional"   (guarded by @when(os=special) — inactive under normal env)
+//
+// Returns (dotfilesDir, homeDir, initFile, envFile).
+func buildLinkDotfiles(t *testing.T) (dotfiles, home, initFile, envFile string) {
+	t.Helper()
+	dotfiles = t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Unconditional link node.
+	if err := os.WriteFile(filepath.Join(confDir, "dot-bashrc"),
+		[]byte("# @link(~/.bashrc)\n# bashrc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Predicate-gated link node — inactive unless os=special.
+	if err := os.WriteFile(filepath.Join(confDir, "dot-specialrc"),
+		[]byte("# @link(~/.specialrc)\n# @when(os=special)\n# specialrc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home = t.TempDir()
+	initFile = filepath.Join(t.TempDir(), "init.sh")
+	envFile = emptyEnvFile(t)
+	return
+}
+
+// TestUnapply_All_RemovesAllDotfilesSymlinks verifies that unapply --all removes
+// every symlink pointing into the dotfiles repo regardless of @when predicates,
+// even when the current env would not activate all nodes (AUDIT-059).
+//
+// Strategy:
+//  1. Apply with os=special so BOTH nodes are active → two symlinks created.
+//  2. Unapply --all with os=linux (so the predicate-gated node is INACTIVE under
+//     normal pipeline) → both symlinks must be removed anyway.
+func TestUnapply_All_RemovesAllDotfilesSymlinks(t *testing.T) {
+	dotfiles, home, initFile, envFile := buildLinkDotfiles(t)
+
+	// Apply with os=special so both nodes are created.
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+		"--env", "os=special",
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// Confirm both symlinks exist before unapply.
+	bashrc := filepath.Join(home, ".bashrc")
+	specialrc := filepath.Join(home, ".specialrc")
+	for _, p := range []string{bashrc, specialrc} {
+		if _, err := os.Lstat(p); err != nil {
+			t.Fatalf("symlink not created by apply: %s: %v", p, err)
+		}
+	}
+
+	// Unapply --all with a DIFFERENT env (os=linux, so predicate-gated node is inactive).
+	if _, err := run(t, "unapply", "--all", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+		"--env", "os=linux",
+	); err != nil {
+		t.Fatalf("unapply --all error = %v", err)
+	}
+
+	// Both symlinks must be gone: --all ignores predicate gating.
+	for _, p := range []string{bashrc, specialrc} {
+		if _, err := os.Lstat(p); !os.IsNotExist(err) {
+			t.Errorf("symlink should be removed by unapply --all: %s", p)
+		}
+	}
+}
+
+// TestUnapply_All_OnlyRemovesDotfilesSymlinks verifies that --all does not
+// remove symlinks that do NOT point into the dotfiles repo (AUDIT-059).
+func TestUnapply_All_OnlyRemovesDotfilesSymlinks(t *testing.T) {
+	dotfiles, home, initFile, envFile := buildLinkDotfiles(t)
+
+	// Apply with os=special so both nodes are created.
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+		"--env", "os=special",
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// Place a non-dotfiles symlink in home.
+	outsideTarget := filepath.Join(t.TempDir(), "other.txt")
+	if err := os.WriteFile(outsideTarget, []byte("other\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outsideLink := filepath.Join(home, ".otherrc")
+	if err := os.Symlink(outsideTarget, outsideLink); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := run(t, "unapply", "--all", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("unapply --all error = %v", err)
+	}
+
+	// Non-dotfiles symlink must be untouched.
+	if _, err := os.Lstat(outsideLink); err != nil {
+		t.Errorf("non-dotfiles symlink removed by unapply --all: %v", err)
+	}
+}
+
+// TestUnapply_YesFlagSkipsConfirmation verifies that the local --yes flag on
+// unapply skips the confirmation prompt (flag binding test — AUDIT-059).
+func TestUnapply_YesFlagSkipsConfirmation(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-vimrc"),
+		[]byte("# @link(~/.vimrc)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	// --yes bypasses the prompt; no stdin input needed.
+	_, err := run(t, "unapply", "--yes",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err != nil {
+		t.Fatalf("unapply --yes error = %v (prompt may not have been bypassed)", err)
+	}
+
+	// Symlink must be removed — confirming --yes actually executed the removal.
+	if _, err := os.Lstat(filepath.Join(home, ".vimrc")); !os.IsNotExist(err) {
+		t.Error("symlink should be removed when --yes is set")
+	}
+}
