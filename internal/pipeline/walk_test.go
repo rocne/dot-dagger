@@ -254,6 +254,35 @@ func TestWalk_FilesDict_Disable(t *testing.T) {
 	}
 }
 
+// TestWalk_AtDisable_AnnotationPath checks that a file carrying a # @disable annotation
+// (walk.go:188-191) is absent from nodes AND present in the disabled return slice.
+// This exercises the inline annotation code path, distinct from the files-dict
+// disable: true path tested by TestWalk_FilesDict_Disable.
+func TestWalk_AtDisable_AnnotationPath(t *testing.T) {
+	root := fixtureRoot(t)
+	nodes, disabled, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// shellrc/disabled.sh carries # @disable — must NOT appear in nodes.
+	if n := nodeByPath(nodes, "disabled.sh"); n != nil {
+		t.Errorf("disabled.sh should not appear in nodes (has @disable annotation), got node: %+v", n)
+	}
+
+	// Must appear in the disabled return slice.
+	found := false
+	for _, p := range disabled {
+		if filepath.Base(p) == "disabled.sh" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("disabled.sh should appear in disabled slice (has @disable annotation), got: %v", disabled)
+	}
+}
+
 // TestWalk_FilesDict_NameOverride checks that name: in the files: dict overrides the
 // derived logical name.
 func TestWalk_FilesDict_NameOverride(t *testing.T) {
