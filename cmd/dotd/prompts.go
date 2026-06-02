@@ -1,5 +1,11 @@
 package main
 
+// Prompt conventions:
+//   - All prompts default to a SAFE choice when stdin is EOF (no, cancel, skip).
+//   - When the user is interactive, [Y/n] vs [y/N] indicates the Enter-default.
+//   - [Y/n]: Enter → yes.  [y/N]: Enter → no.
+//   - Never auto-accept a destructive or filesystem-mutating action on EOF.
+
 import (
 	"bufio"
 	"fmt"
@@ -11,8 +17,8 @@ import (
 )
 
 // promptConfirm prints "Proceed? [y/N]: ", reads a line, and returns true only
-// on "y" or "yes". Any other input (including empty / Enter) prints "cancelled"
-// and returns false — callers should return nil when false.
+// on "y" or "yes". Any other input (including empty / Enter or EOF) prints
+// "cancelled" and returns false — callers should return nil when false.
 func promptConfirm(out io.Writer, r io.Reader) bool {
 	fmt.Fprint(out, "\nProceed? [y/N]: ")
 	ans, _ := bufio.NewReader(r).ReadString('\n')
@@ -47,12 +53,13 @@ func promptDefault(w io.Writer, reader *bufio.Reader, msg, defaultVal string, no
 }
 
 // promptYN prints "msg [Y/n]: " and returns true unless user types n/no.
-// Empty input and EOF both default to yes.
+// Interactive: empty input (Enter) defaults to yes.
+// Non-interactive: EOF returns false (safe default — never auto-accept on closed stdin).
 func promptYN(w io.Writer, reader *bufio.Reader, msg string) (bool, error) {
 	fmt.Fprintf(w, "  %s [Y/n]: ", msg)
 	line, err := reader.ReadString('\n')
 	if err != nil {
-		return true, nil // EOF → default yes
+		return false, nil // EOF → safe default: no
 	}
 	line = strings.ToLower(strings.TrimSpace(line))
 	return line == "" || line == "y" || line == "yes", nil
