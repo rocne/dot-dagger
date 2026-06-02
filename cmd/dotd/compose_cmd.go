@@ -30,19 +30,11 @@ func newComposeListCmd(cfg *config) *cobra.Command {
 		Use:   "list",
 		Short: "List active compose targets",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolved, err := resolveEnv(cfg)
-			if err != nil {
-				return annotateKeyError(err)
-			}
-			nodes, _, err := pipeline.Walk(cfg.files)
-			if err != nil {
-				return fmt.Errorf("walk: %w", err)
-			}
-			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+			ordered, err := cfg.walkOrdered()
 			if err != nil {
 				return err
 			}
-			for _, n := range active {
+			for _, n := range ordered {
 				if !n.HasCompose() {
 					continue
 				}
@@ -59,21 +51,9 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 		Use:   "check",
 		Short: "Check compose targets for staleness",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolved, err := resolveEnv(cfg)
-			if err != nil {
-				return annotateKeyError(err)
-			}
-			nodes, _, err := pipeline.Walk(cfg.files)
-			if err != nil {
-				return fmt.Errorf("walk: %w", err)
-			}
-			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+			ordered, err := cfg.walkOrdered()
 			if err != nil {
 				return err
-			}
-			ordered, err := pipeline.Order(active)
-			if err != nil {
-				return fmt.Errorf("order: %w", err)
 			}
 			actOpts, err := buildActOptions(cfg, true)
 			if err != nil {

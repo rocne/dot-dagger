@@ -323,6 +323,35 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 	}, nil
 }
 
+// walkOrdered runs the read-path pipeline preamble:
+//
+//	resolveEnv → Walk → filterWithPrompt → Order
+//
+// Returns the ordered active node slice ready for read-only commands.
+// Write-path commands use runPipeline instead, which additionally performs
+// ValidateNodes and Act after Order.
+//
+// TODO(Task 6.4): add pipeline.ValidateNodes call here once that task runs.
+func (cfg *appConfig) walkOrdered() ([]pipeline.RawNode, error) {
+	resolved, err := resolveEnv(cfg)
+	if err != nil {
+		return nil, annotateKeyError(err)
+	}
+	nodes, _, err := pipeline.Walk(cfg.files)
+	if err != nil {
+		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
+	}
+	active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+	if err != nil {
+		return nil, err
+	}
+	ordered, err := pipeline.Order(active)
+	if err != nil {
+		return nil, fmt.Errorf("order: %w", err)
+	}
+	return ordered, nil
+}
+
 func annotateKeyError(err error) error {
 	var mke *predicate.MissingKeyError
 	if errors.As(err, &mke) {

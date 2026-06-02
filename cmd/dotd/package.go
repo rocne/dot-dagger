@@ -29,15 +29,7 @@ func newPackageCheckCmd(cfg *config) *cobra.Command {
 		Use:   "check",
 		Short: "Report install status for all referenced packages",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolved, err := resolveEnv(cfg)
-			if err != nil {
-				return annotateKeyError(err)
-			}
-			nodes, _, err := pipeline.Walk(cfg.files)
-			if err != nil {
-				return fmt.Errorf("walk: %w", err)
-			}
-			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+			ordered, err := cfg.walkOrdered()
 			if err != nil {
 				return err
 			}
@@ -47,7 +39,7 @@ func newPackageCheckCmd(cfg *config) *cobra.Command {
 				return regErr
 			}
 
-			reqs := collectPackageRequests(active)
+			reqs := collectPackageRequests(ordered)
 			seen := map[string]bool{}
 			for _, r := range reqs {
 				if seen[r.Package] {
@@ -71,15 +63,7 @@ func newPackageGenerateCmd(cfg *config) *cobra.Command {
 		Use:   "generate",
 		Short: "Generate install script for required packages",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolved, err := resolveEnv(cfg)
-			if err != nil {
-				return annotateKeyError(err)
-			}
-			nodes, _, err := pipeline.Walk(cfg.files)
-			if err != nil {
-				return fmt.Errorf("walk: %w", err)
-			}
-			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+			ordered, err := cfg.walkOrdered()
 			if err != nil {
 				return err
 			}
@@ -89,7 +73,7 @@ func newPackageGenerateCmd(cfg *config) *cobra.Command {
 				return regErr
 			}
 
-			reqs := collectPackageRequests(active)
+			reqs := collectPackageRequests(ordered)
 			return packages.GenerateScript(cmd.OutOrStdout(), reqs, reg, exec.LookPath)
 		},
 	}
@@ -100,20 +84,12 @@ func newPackageListCmd(cfg *config) *cobra.Command {
 		Use:   "list",
 		Short: "List all packages referenced in active nodes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolved, err := resolveEnv(cfg)
-			if err != nil {
-				return annotateKeyError(err)
-			}
-			nodes, _, err := pipeline.Walk(cfg.files)
-			if err != nil {
-				return fmt.Errorf("walk: %w", err)
-			}
-			active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+			ordered, err := cfg.walkOrdered()
 			if err != nil {
 				return err
 			}
 
-			reqs := collectPackageRequests(active)
+			reqs := collectPackageRequests(ordered)
 			seen := map[string]bool{}
 			for _, r := range reqs {
 				if seen[r.Package] {
