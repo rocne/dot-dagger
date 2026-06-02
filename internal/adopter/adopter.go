@@ -116,11 +116,7 @@ func Adopt(src, destRel string, opts AdoptOptions) (*pipeline.ActResult, error) 
 	}
 
 	actions := actionsFor(destRel, src, opts)
-	n := pipeline.RawNode{
-		Path:        destAbs,
-		LogicalName: node.DeriveName(rel),
-		Actions:     actions,
-	}
+	n := pipeline.NewFileNode(destAbs, node.DeriveName(rel), actions)
 	actOpts := pipeline.ActOptions{
 		HomeDir: opts.LinkRoot,
 		BinDir:  opts.BinDir,

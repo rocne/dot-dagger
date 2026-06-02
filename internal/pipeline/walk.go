@@ -43,6 +43,18 @@ type RawNode struct {
 	ComposeTarget string   // abs path of compose target dir
 }
 
+// NewFileNode constructs a RawNode suitable for single-file processing by Act
+// (e.g., the adopt command, where Walk is not used). Sets the minimum fields
+// Act requires: Path, LogicalName, Actions. EffectiveWhen is empty so the node
+// is always active; LinkRoot/IsCompose are zero-valued.
+func NewFileNode(path, logicalName string, actions []Action) RawNode {
+	return RawNode{
+		Path:        path,
+		LogicalName: logicalName,
+		Actions:     actions,
+	}
+}
+
 // HasCompose reports whether n has the compose action.
 func (n RawNode) HasCompose() bool {
 	for _, a := range n.Actions {
