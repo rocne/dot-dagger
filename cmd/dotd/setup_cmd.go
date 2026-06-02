@@ -67,7 +67,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	dotfilesPath = expandTildeStr(dotfilesPath, home)
+	dotfilesPath = fileutil.ExpandHome(dotfilesPath, home)
 	dotfilesPath, err = filepath.Abs(dotfilesPath)
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	binDir = expandTildeStr(binDir, home)
+	binDir = fileutil.ExpandHome(binDir, home)
 	binDir, err = filepath.Abs(binDir)
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	generatedDir = expandTildeStr(generatedDir, home)
+	generatedDir = fileutil.ExpandHome(generatedDir, home)
 	generatedDir, err = filepath.Abs(generatedDir)
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	if err != nil {
 		return err
 	}
-	linkRoot = expandTildeStr(linkRoot, home)
+	linkRoot = fileutil.ExpandHome(linkRoot, home)
 	linkRoot, err = filepath.Abs(linkRoot)
 	if err != nil {
 		return err

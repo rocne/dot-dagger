@@ -25,6 +25,21 @@ func Exists(path string) bool {
 	return err == nil
 }
 
+// ExpandHome expands "~" → home and "~/x" → home/x. Any other input is
+// returned unchanged. Pass "" for home to short-circuit expansion.
+func ExpandHome(path, home string) string {
+	if home == "" {
+		return path
+	}
+	if path == "~" {
+		return home
+	}
+	if len(path) >= 2 && path[0] == '~' && path[1] == '/' {
+		return filepath.Join(home, path[2:])
+	}
+	return path
+}
+
 // SaveYAML encodes v as YAML and writes it to path atomically (temp file + rename).
 // Creates parent directories as needed.
 func SaveYAML(path string, v any) error {

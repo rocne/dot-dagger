@@ -210,12 +210,11 @@ func deriveLinkDest(n RawNode) string {
 }
 
 // expandDest expands "~/" and "~bin/" prefixes in a link destination.
+// "~" / "~/x" go through fileutil.ExpandHome (shared with cmd-level prompts);
+// "~bin" / "~bin/x" are act-specific and stay here.
 func expandDest(path, homeDir, binDir string) string {
-	if path == "~" {
-		return homeDir
-	}
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(homeDir, path[2:])
+	if path == "~" || (len(path) >= 2 && path[0] == '~' && path[1] == '/') {
+		return fileutil.ExpandHome(path, homeDir)
 	}
 	if binDir != "" {
 		if path == "~bin" {

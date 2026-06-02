@@ -10,7 +10,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -63,16 +62,6 @@ func promptYN(w io.Writer, reader *bufio.Reader, msg string) (bool, error) {
 	}
 	line = strings.ToLower(strings.TrimSpace(line))
 	return line == "" || line == "y" || line == "yes", nil
-}
-
-func expandTildeStr(path, home string) string {
-	if path == "~" {
-		return home
-	}
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(home, path[2:])
-	}
-	return path
 }
 
 // printField prints a bold field label and a faint description, then a blank line.

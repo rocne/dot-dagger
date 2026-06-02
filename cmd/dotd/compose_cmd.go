@@ -38,8 +38,7 @@ func newComposeListCmd(cfg *config) *cobra.Command {
 				if !n.HasCompose() {
 					continue
 				}
-				genName := composeGenName(n)
-				fmt.Fprintln(cmd.OutOrStdout(), genName)
+				fmt.Fprintln(cmd.OutOrStdout(), pipeline.ComposeFileName(n.Path))
 			}
 			return nil
 		},
@@ -94,6 +93,3 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 	}
 }
 
-func composeGenName(n pipeline.RawNode) string {
-	return pipeline.ComposeFileName(n.Path)
-}

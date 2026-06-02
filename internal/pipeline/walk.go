@@ -415,8 +415,11 @@ func parseActionString(s string) Action {
 }
 
 // mergeActions produces the final Action list for a node.
-// anns must be pre-normalized by normalizeActionAnnotations — only Key=="action" entries
-// are processed; all other annotation keys are ignored.
+//
+// Precondition: anns must be pre-normalized by normalizeActionAnnotations
+// (only Key=="action" entries are processed; all other annotation keys are
+// ignored). All known callers within Walk run that normalization first; if
+// a future caller is added outside Walk, it must normalize before calling.
 func mergeActions(defaultActions []string, anns []annotation.Annotation) []Action {
 	var actions []Action
 	seen := map[string]bool{}
