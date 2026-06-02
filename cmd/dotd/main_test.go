@@ -224,6 +224,116 @@ func TestCheckAfterApply_Unit(t *testing.T) {
 	}
 }
 
+// TestCheck_DetectsMissingSymlink verifies that check exits non-zero AND emits
+// a "missing" report when an expected symlink is absent on disk (AUDIT-061).
+func TestCheck_DetectsMissingSymlink(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n[core]\n  autocrlf = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	// init.sh must exist so the missing-symlink case is the only failure.
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	// Now sabotage: delete the symlink apply just created.
+	if err := os.Remove(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "check",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err == nil {
+		t.Fatalf("check should fail when symlink is missing; out=%q", out)
+	}
+	if !strings.Contains(out, "missing") {
+		t.Errorf("check output should mention 'missing'; got %q", out)
+	}
+}
+
+// TestCheck_DetectsWrongTarget verifies that check exits non-zero when the
+// symlink exists but points at a different file (AUDIT-061).
+func TestCheck_DetectsWrongTarget(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	envFile := emptyEnvFile(t)
+
+	if _, err := run(t, "apply",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	// Replace the symlink with one pointing elsewhere.
+	link := filepath.Join(home, ".gitconfig")
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/tmp/elsewhere", link); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "check",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err == nil {
+		t.Fatalf("check should fail on wrong-target symlink; out=%q", out)
+	}
+	if !strings.Contains(out, "wrong") {
+		t.Errorf("check output should mention 'wrong'; got %q", out)
+	}
+}
+
+// TestCheck_DetectsMissingInitSh verifies that check exits non-zero when
+// init.sh is absent (AUDIT-061).
+func TestCheck_DetectsMissingInitSh(t *testing.T) {
+	dotfiles := t.TempDir()
+	home := t.TempDir()
+	initFile := filepath.Join(t.TempDir(), "init.sh") // intentionally not created
+	envFile := emptyEnvFile(t)
+
+	_, err := run(t, "check",
+		"--files", dotfiles, "--env-file", envFile,
+		"--link-root", home, "--init-file", initFile,
+	)
+	if err == nil {
+		t.Fatal("check should fail when init.sh is absent")
+	}
+}
+
 // --- dotd apply --dry-run ---
 
 func TestApplyDryRunEmptyRepo(t *testing.T) {
