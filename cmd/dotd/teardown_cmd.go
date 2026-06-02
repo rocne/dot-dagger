@@ -41,18 +41,19 @@ Shows a preview and prompts for confirmation before making any changes.`, ecosys
 
 func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	out := cmd.OutOrStdout()
+	errOut := cmd.ErrOrStderr()
 
 	// Pre-action check: warn if active symlinks detected.
 	// Non-fatal if walk fails (env.yaml or dotfiles repo may be absent).
 	if prun, err := runPipeline(cfg, true); err == nil {
 		if len(prun.result.Links) > 0 {
-			ui.Warnf(out, "%d symlink(s) still active — consider running 'dotd unapply' first", len(prun.result.Links))
+			ui.Warnf(errOut, "%d symlink(s) still active — consider running 'dotd unapply' first", len(prun.result.Links))
 		}
 	}
 
 	// Pre-action check: warn if .dagger files still present.
 	if cfg.files != "" && hasDaggerFiles(cfg.files) {
-		ui.Warnf(out, ".dagger files present in dotfiles repo — these will not be removed")
+		ui.Warnf(errOut, ".dagger files present in dotfiles repo — these will not be removed")
 	}
 
 	// Determine paths. Both call DefaultPath() directly — teardown removes the
