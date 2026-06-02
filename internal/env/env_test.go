@@ -134,6 +134,35 @@ func TestResolve_TripleOverride(t *testing.T) {
 	}
 }
 
+// TestSave_UnwritableDirErrors verifies that Save wraps the underlying
+// filesystem error so callers can detect "couldn't write env file".
+func TestSave_UnwritableDirErrors(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	path := filepath.Join(dir, "subdir", "env.yaml")
+	err := Save(path, map[string]string{"k": "v"})
+	if err == nil {
+		t.Fatal("expected Save to fail on unwritable dir")
+	}
+}
+
+// TestLoad_MalformedYAMLErrors verifies that load returns a wrapped error
+// when the input isn't valid YAML.
+func TestLoad_MalformedYAMLErrors(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(path, []byte("not valid: :yaml:\n  - bad"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected malformed YAML to error")
+	}
+}
+
 // TestResolve_DoesNotMutateInputs verifies that Resolve treats its arguments
 // as read-only — callers can pass shared maps without fearing aliasing bugs.
 func TestResolve_DoesNotMutateInputs(t *testing.T) {
