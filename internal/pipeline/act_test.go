@@ -112,16 +112,26 @@ func TestAct_DryRun_NoWrite(t *testing.T) {
 	}
 }
 
+// fragment pairs a filename with its content for use in composeDir.
+// Using a slice (not a map) makes iteration order explicit and self-documenting.
+type fragment struct {
+	name    string
+	content string
+}
+
 // composeDir creates a compose-target directory with .dagger fragments and
 // returns the dir path and a compose-target RawNode for use in Act tests.
-func composeDir(t *testing.T, root, dirName string, frags map[string]string, actions []Action) (string, RawNode) {
+// Fragments are written to disk in the order they appear in frags; that same
+// order must be reflected in the composeFragNode calls so Act receives them in
+// the expected sequence.
+func composeDir(t *testing.T, root, dirName string, frags []fragment, actions []Action) (string, RawNode) {
 	t.Helper()
 	compDir := filepath.Join(root, dirName)
 	if err := os.MkdirAll(compDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for name, content := range frags {
-		if err := os.WriteFile(filepath.Join(compDir, name), []byte(content), 0o644); err != nil {
+	for _, f := range frags {
+		if err := os.WriteFile(filepath.Join(compDir, f.name), []byte(f.content), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -148,14 +158,16 @@ func composeFragNode(t *testing.T, fragDir, name string) RawNode {
 
 // TestAct_Compose_Assembled verifies that Act assembles compose fragments into
 // a Generated result with the correct content, filename, and no symlink action.
+// Fragment ordering follows the nodes slice passed to Act; composeDir writes
+// files in declaration order so it is self-evidently controlled here.
 func TestAct_Compose_Assembled(t *testing.T) {
 	root := t.TempDir()
 	genDir := t.TempDir()
 	home := t.TempDir()
 
-	frags := map[string]string{
-		"base.conf":        "line1\n",
-		"nosync-work.conf": "line2\n",
+	frags := []fragment{
+		{"base.conf", "line1\n"},
+		{"nosync-work.conf", "line2\n"},
 	}
 	compDir, targetNode := composeDir(t, root, "dot-tmux.conf.d", frags, nil)
 
@@ -202,8 +214,8 @@ func TestAct_Compose_Link(t *testing.T) {
 	genDir := t.TempDir()
 	home := t.TempDir()
 
-	frags := map[string]string{
-		"base.conf": "config-line\n",
+	frags := []fragment{
+		{"base.conf", "config-line\n"},
 	}
 	dest := filepath.Join(home, ".tmux.conf")
 	compDir, targetNode := composeDir(t, root, "dot-tmux.conf.d", frags, []Action{{Type: ActionLink, Dest: dest}})
@@ -246,8 +258,8 @@ func TestAct_Compose_Source(t *testing.T) {
 	genDir := t.TempDir()
 	home := t.TempDir()
 
-	frags := map[string]string{
-		"base.sh": "export FOO=1\n",
+	frags := []fragment{
+		{"base.sh", "export FOO=1\n"},
 	}
 	compDir, targetNode := composeDir(t, root, "dot-shellrc-extras.sh.d", frags, []Action{{Type: ActionSource}})
 
@@ -281,8 +293,8 @@ func TestAct_Compose_DryRun(t *testing.T) {
 	home := t.TempDir()
 
 	// In DryRun mode, os.ReadFile is skipped so fragment content will be nil/empty.
-	frags := map[string]string{
-		"base.conf": "irrelevant\n",
+	frags := []fragment{
+		{"base.conf", "irrelevant\n"},
 	}
 	compDir, targetNode := composeDir(t, root, "dot-tmux.conf.d", frags, nil)
 	frag := composeFragNode(t, compDir, "base.conf")
@@ -298,6 +310,41 @@ func TestAct_Compose_DryRun(t *testing.T) {
 	genPath := filepath.Join(genDir, "tmux.conf")
 	if _, err := os.Lstat(genPath); !os.IsNotExist(err) {
 		t.Error("dry run should not write the generated file")
+	}
+	// Content must be empty — dry-run skips ReadFile entirely.
+	if len(res.Generated[0].Content) != 0 {
+		t.Error("dry run should not populate Content")
+	}
+}
+
+// TestAct_Compose_NoSourceSuppressesSource verifies that ActionNoSource on a
+// compose target prevents the generated file from being added to res.Sourced,
+// even when ActionSource is also present. This covers the compose-path noSource
+// branch in Act (lines 108-113 of act.go).
+func TestAct_Compose_NoSourceSuppressesSource(t *testing.T) {
+	root := t.TempDir()
+	genDir := t.TempDir()
+	home := t.TempDir()
+
+	frags := []fragment{
+		{"base.sh", "export BAR=1\n"},
+	}
+	compDir, targetNode := composeDir(t, root, "dot-shellrc-extras.sh.d", frags,
+		[]Action{{Type: ActionSource}, {Type: ActionNoSource}},
+	)
+	frag := composeFragNode(t, compDir, "base.sh")
+
+	res, err := Act([]RawNode{targetNode, frag}, ActOptions{HomeDir: home, GeneratedDir: genDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The file is still generated …
+	if len(res.Generated) != 1 {
+		t.Fatalf("expected 1 Generated, got %d", len(res.Generated))
+	}
+	// … but no-source must suppress the source entry.
+	if len(res.Sourced) != 0 {
+		t.Errorf("no-source should suppress source on compose target, got Sourced=%v", res.Sourced)
 	}
 }
 

@@ -346,8 +346,9 @@ func TestWalk_ComposeTarget_EmitsDirectoryNode(t *testing.T) {
 		t.Errorf("compose-target node should have link(~/.tmux.conf), got %v", targetNode.Actions)
 	}
 
-	if len(fragNodes) == 0 {
-		t.Error("expected at least one compose fragment node for dot-tmux.conf.d")
+	// dot-tmux.conf.d contains exactly 2 fragment files: base.conf and nosync-work.conf.
+	if len(fragNodes) != 2 {
+		t.Errorf("expected 2 fragment nodes for dot-tmux.conf.d, got %d", len(fragNodes))
 	}
 	for _, f := range fragNodes {
 		if f.ComposeTarget == "" {
