@@ -19,13 +19,13 @@ func newSetupCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "setup",
 		Short: "Interactive wizard: configure dot-dagger at the system level",
-		Long: `Configure dot-dagger for this machine.
+		Long: fmt.Sprintf(`Configure dot-dagger for this machine.
 
-Writes config.yaml and (if absent) env.yaml to the platform config dir.
+Writes config.yaml and (if absent) %s to the platform config dir.
 If config.yaml already exists, current values are shown as defaults.
 
 Does not create symlinks or scaffold .dagger files.
-Run 'dotd init' next to scaffold your dotfiles repo.`,
+Run 'dotd init' next to scaffold your dotfiles repo.`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSetup(cmd, cfg)
 		},
@@ -143,7 +143,7 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 		}
 		envContent := fmt.Sprintf("os: $(dotd get-os)\nhostname: $(%s get-hostname)\n", ecosystem.ToolD)
 		if err := os.WriteFile(envPath, []byte(envContent), 0o644); err != nil {
-			return fmt.Errorf("setup: write env.yaml: %w", err)
+			return fmt.Errorf("setup: write %s: %w", ecosystem.EnvFileName, err)
 		}
 		ui.OKf(out, "  wrote %s", envPath)
 	} else {

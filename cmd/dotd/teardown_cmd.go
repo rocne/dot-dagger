@@ -18,18 +18,18 @@ func newTeardownCmd(cfg *config) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "teardown",
-		Short: "Remove dot-dagger system config (config.yaml, env.yaml, RC source line)",
-		Long: `Remove dot-dagger system-level configuration from this machine.
+		Short: fmt.Sprintf("Remove dot-dagger system config (config.yaml, %s, RC source line)", ecosystem.EnvFileName),
+		Long: fmt.Sprintf(`Remove dot-dagger system-level configuration from this machine.
 
 Removes:
   - config.yaml from the platform config dir
-  - env.yaml from the platform config dir
+  - %s from the platform config dir
   - The dotd source line from the shell RC file (if detected)
 
 Does NOT remove symlinks or .dagger files.
 Run 'dotd unapply' first to remove symlinks, then 'dotd teardown'.
 
-Shows a preview and prompts for confirmation before making any changes.`,
+Shows a preview and prompts for confirmation before making any changes.`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTeardown(cmd, cfg, yes)
 		},

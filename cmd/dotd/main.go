@@ -60,7 +60,7 @@ func newRootCmd() *cobra.Command {
 	pf := root.PersistentFlags()
 	pf.StringVarP(&cfg.files, "files", "f", "", "path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → config.yaml dotfiles → cwd)")
 	pf.StringVar(&cfg.configPath, "config", "", "path to config.yaml (default: $DOTD_CONFIG_FILE → ~/.config/dot-dagger/config.yaml)")
-	pf.StringVar(&cfg.envFile, "env-file", "", "path to env.yaml (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/env.yaml)")
+	pf.StringVar(&cfg.envFile, "env-file", "", fmt.Sprintf("path to %s (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/%s)", ecosystem.EnvFileName, ecosystem.EnvFileName))
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
 	pf.StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → ~/.local/share/dot-dagger/init.sh)")
 	pf.StringVar(&cfg.linkRoot, "link-root", "", "home dir for ~/expansion in link destinations (default: config.yaml link_root → $HOME)")
@@ -320,7 +320,7 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 func annotateKeyError(err error) error {
 	var mke *predicate.MissingKeyError
 	if errors.As(err, &mke) {
-		return fmt.Errorf("%w\n\nHint: set it with --env %s=<value> or add it to env.yaml", err, mke.Key)
+		return fmt.Errorf("%w\n\nHint: set it with --env %s=<value> or add it to %s", err, mke.Key, ecosystem.EnvFileName)
 	}
 	return err
 }
@@ -329,10 +329,10 @@ func newApplyCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "apply",
 		Short: "Reconcile dotfiles: walk → filter → order → act → init.sh",
-		Long: `Reconcile the dotfiles repo against the current machine.
+		Long: fmt.Sprintf(`Reconcile the dotfiles repo against the current machine.
 
 Stages run in order:
-  1. env    — load env.yaml, merge DOTD_* shell vars and --env overrides
+  1. env    — load %s, merge DOTD_* shell vars and --env overrides
   2. walk   — traverse dotfiles repo, load .dagger configs, produce raw nodes
   3. filter — evaluate @when predicates against resolved env
   4. order  — topological sort via @after annotations (alphabetical tie-break)
@@ -342,7 +342,7 @@ Stages run in order:
 Examples:
   dotd apply
   dotd apply --dry-run            # preview without making changes
-  dotd apply --env context=work   # override a single env key`,
+  dotd apply --env context=work   # override a single env key`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runApply(cmd, cfg)
 		},

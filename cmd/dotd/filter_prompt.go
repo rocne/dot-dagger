@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/x/term"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -79,7 +80,7 @@ func printPersistHint(w io.Writer, filled map[string]string) {
 	out, err := yaml.Marshal(filled)
 	if err != nil {
 		// Fallback to raw output if marshaling fails (shouldn't happen for string maps).
-		fmt.Fprintln(w, "\nHint: to persist, add to env.yaml:")
+		fmt.Fprintf(w, "\nHint: to persist, add to %s:\n", ecosystem.EnvFileName)
 		for k, v := range filled {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)
 		}

@@ -20,6 +20,9 @@ const LegacyConfigFile = ".dotd.yaml"
 // PackagesFileName is the canonical filename for the packages registry inside a dotfiles repo.
 const PackagesFileName = "packages.yaml"
 
+// EnvFileName is the canonical filename for the per-machine env configuration.
+const EnvFileName = "env.yaml"
+
 // ToolD is the CLI binary name.
 const ToolD = "dotd"
 
