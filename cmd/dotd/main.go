@@ -292,7 +292,7 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 		cfg.log.Debugf("disabled: %s", p)
 	}
 
-	if err := pipeline.ValidateNodes(nodes); err != nil {
+	if err := pipeline.ValidateNodes(nodes, pipeline.ActOptions{HomeDir: cfg.linkRoot, BinDir: cfg.binDir}); err != nil {
 		return nil, err
 	}
 
@@ -349,7 +349,7 @@ func (cfg *appConfig) walkOrdered() ([]pipeline.RawNode, error) {
 	if err != nil {
 		return nil, fmt.Errorf("order: %w", err)
 	}
-	if err := pipeline.ValidateNodes(ordered); err != nil {
+	if err := pipeline.ValidateNodes(ordered, pipeline.ActOptions{HomeDir: cfg.linkRoot, BinDir: cfg.binDir}); err != nil {
 		return nil, err
 	}
 	return ordered, nil

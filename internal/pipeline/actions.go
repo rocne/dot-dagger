@@ -29,17 +29,53 @@ func normalizeActionAnnotations(anns []annotation.Annotation) []annotation.Annot
 	return result
 }
 
-// ValidateNodes checks every node for action sequencing errors. All errors are
-// collected and returned together. Returns nil if all nodes are valid.
-func ValidateNodes(nodes []RawNode) error {
+// ValidateNodes checks every node for action sequencing errors and cross-node
+// link conflicts. All per-node errors are collected and returned together.
+// If opts.HomeDir is non-empty, link destinations are resolved (~ expanded)
+// before conflict comparison — matching Act's behaviour. Returns nil if all
+// nodes are valid.
+func ValidateNodes(nodes []RawNode, opts ActOptions) error {
 	var errs []string
 	for _, n := range nodes {
 		if err := validateNode(n); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}
+	if err := CheckLinkConflicts(nodes, opts); err != nil {
+		errs = append(errs, err.Error())
+	}
 	if len(errs) > 0 {
 		return fmt.Errorf("action validation:\n  %s", strings.Join(errs, "\n  "))
+	}
+	return nil
+}
+
+// CheckLinkConflicts walks nodes, resolves their link destinations, and returns
+// the first cross-node conflict found, or nil. If opts.HomeDir is empty, ~
+// expansion is skipped and raw dest strings are compared.
+// Compose fragments are skipped; their destinations belong to the parent node.
+func CheckLinkConflicts(nodes []RawNode, opts ActOptions) error {
+	destSeen := map[string]string{} // resolved dest → logical name
+	for _, n := range nodes {
+		if n.IsCompose {
+			continue
+		}
+		for _, a := range n.Actions {
+			if a.Type != ActionLink {
+				continue
+			}
+			dest := a.Dest
+			if opts.HomeDir != "" {
+				dest = resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir)
+			} else if dest == "" {
+				// Can't resolve without HomeDir; skip empty dests.
+				continue
+			}
+			if prev, ok := destSeen[dest]; ok {
+				return fmt.Errorf("link conflict: %s and %s both link to %s", prev, n.LogicalName, dest)
+			}
+			destSeen[dest] = n.LogicalName
+		}
 	}
 	return nil
 }

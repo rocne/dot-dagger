@@ -46,6 +46,11 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 		return nil, fmt.Errorf("act: HomeDir is required — set it via cfg.linkRoot")
 	}
 
+	// Check for cross-node link conflicts up front (same normalization as Act).
+	if err := CheckLinkConflicts(nodes, opts); err != nil {
+		return nil, fmt.Errorf("act: %w", err)
+	}
+
 	res := &ActResult{}
 
 	// Group compose fragments by their ComposeTarget path.
@@ -72,8 +77,6 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 	}
 
 	// Main pass: process non-fragment nodes in order.
-	destSeen := map[string]string{} // dest → logical name that claimed it
-
 	for _, n := range nodes {
 		// Skip compose fragments — already collected above.
 		if n.IsCompose {
@@ -101,60 +104,12 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			res.Generated = append(res.Generated, gen)
 
 			// Apply remaining actions on the generated result (link, source).
-			noSource := false
-			for _, a := range n.Actions {
-				if a.Type == ActionNoSource {
-					noSource = true
-				}
-			}
-			for _, a := range n.Actions {
-				switch a.Type {
-				case ActionCompose:
-					// handled above
-				case ActionSource:
-					if !noSource && genPath != "" {
-						// Create a synthetic node for init.sh with the generated file path.
-						synth := n
-						synth.Path = genPath
-						res.Sourced = append(res.Sourced, synth)
-					}
-				case ActionLink:
-					dest := resolveLink(a.Dest, n, home, opts.BinDir)
-					if prev, ok := destSeen[dest]; ok {
-						return nil, fmt.Errorf("act: link conflict: %s and %s both link to %s", prev, n.LogicalName, dest)
-					}
-					destSeen[dest] = n.LogicalName
-					if genPath != "" {
-						res.Links = append(res.Links, Link{Src: genPath, Dest: dest})
-					}
-				}
-			}
+			emitNodeActions(n, genPath, opts, res)
 			continue
 		}
 
 		// Regular file node: apply actions.
-		noSource := false
-		for _, a := range n.Actions {
-			if a.Type == ActionNoSource {
-				noSource = true
-			}
-		}
-
-		for _, a := range n.Actions {
-			switch a.Type {
-			case ActionSource:
-				if !noSource {
-					res.Sourced = append(res.Sourced, n)
-				}
-			case ActionLink:
-				dest := resolveLink(a.Dest, n, home, opts.BinDir)
-				if prev, ok := destSeen[dest]; ok {
-					return nil, fmt.Errorf("act: link conflict: %s and %s both link to %s", prev, n.LogicalName, dest)
-				}
-				destSeen[dest] = n.LogicalName
-				res.Links = append(res.Links, Link{Src: n.Path, Dest: dest})
-			}
-		}
+		emitNodeActions(n, n.Path, opts, res)
 	}
 
 	// Second pass: write generated files and links (skipped in dry run).
@@ -178,6 +133,41 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 	}
 
 	return res, nil
+}
+
+// emitNodeActions applies source and link actions for a node to res.
+// srcPath is the effective source file path: the generated file for compose
+// nodes, or n.Path for regular nodes. Conflict detection has already been run
+// by CheckLinkConflicts; this function only emits.
+func emitNodeActions(n RawNode, srcPath string, opts ActOptions, res *ActResult) {
+	noSource := false
+	for _, a := range n.Actions {
+		if a.Type == ActionNoSource {
+			noSource = true
+		}
+	}
+	for _, a := range n.Actions {
+		switch a.Type {
+		case ActionCompose:
+			// handled by the caller
+		case ActionSource:
+			if !noSource && srcPath != "" {
+				if srcPath == n.Path {
+					res.Sourced = append(res.Sourced, n)
+				} else {
+					// Compose node: synthetic node pointing to the generated file.
+					synth := n
+					synth.Path = srcPath
+					res.Sourced = append(res.Sourced, synth)
+				}
+			}
+		case ActionLink:
+			dest := resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir)
+			if srcPath != "" {
+				res.Links = append(res.Links, Link{Src: srcPath, Dest: dest})
+			}
+		}
+	}
 }
 
 // resolveLink computes the final link destination for a node.
