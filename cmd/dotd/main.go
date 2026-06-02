@@ -325,13 +325,13 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 
 // walkOrdered runs the read-path pipeline preamble:
 //
-//	resolveEnv → Walk → filterWithPrompt → Order
+//	resolveEnv → Walk → filterWithPrompt → Order → ValidateNodes
 //
 // Returns the ordered active node slice ready for read-only commands.
-// Write-path commands use runPipeline instead, which additionally performs
-// ValidateNodes and Act after Order.
+// Write-path commands use runPipeline instead, which additionally performs Act.
 //
-// TODO(Task 6.4): add pipeline.ValidateNodes call here once that task runs.
+// Validation is shared with the write path so a config that apply/check
+// rejects also fails under list/dag/bundle/compose/package.
 func (cfg *appConfig) walkOrdered() ([]pipeline.RawNode, error) {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
@@ -348,6 +348,9 @@ func (cfg *appConfig) walkOrdered() ([]pipeline.RawNode, error) {
 	ordered, err := pipeline.Order(active)
 	if err != nil {
 		return nil, fmt.Errorf("order: %w", err)
+	}
+	if err := pipeline.ValidateNodes(ordered); err != nil {
+		return nil, err
 	}
 	return ordered, nil
 }
