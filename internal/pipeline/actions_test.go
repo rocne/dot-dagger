@@ -148,6 +148,29 @@ func TestMergeActions_CanonicalAnnotations(t *testing.T) {
 			},
 			want: []Action{{Type: ActionSource}, {Type: ActionLink, Dest: "~/.gitconfig"}},
 		},
+		// AUDIT-055: two-explicit-link merge handoff
+		{
+			name:     "two explicit link annotations with different dests — both kept for validateNode",
+			defaults: nil,
+			anns: []annotation.Annotation{
+				{Key: "action", Args: "link(~/foo)"},
+				{Key: "action", Args: "link(~/bar)"},
+			},
+			// Both must be retained so validateNode can flag the conflict.
+			want: []Action{
+				{Type: ActionLink, Dest: "~/foo"},
+				{Type: ActionLink, Dest: "~/bar"},
+			},
+		},
+		{
+			name:     "two explicit link annotations with same dest — deduped to one",
+			defaults: nil,
+			anns: []annotation.Annotation{
+				{Key: "action", Args: "link(~/foo)"},
+				{Key: "action", Args: "link(~/foo)"},
+			},
+			want: []Action{{Type: ActionLink, Dest: "~/foo"}},
+		},
 	}
 
 	for _, tc := range tests {
