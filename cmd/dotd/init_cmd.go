@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -133,46 +132,3 @@ func scaffoldDagger(dir, content string) error {
 	return os.WriteFile(path, []byte(content), fileutil.ModeFile)
 }
 
-// promptDefault prints "msg [default]: " and reads input.
-// Returns defaultVal if input is empty.
-func promptDefault(w io.Writer, reader *bufio.Reader, msg, defaultVal string, nonInteractive bool) (string, error) {
-	if nonInteractive {
-		return defaultVal, nil
-	}
-	if defaultVal != "" {
-		fmt.Fprintf(w, "%s [%s]: ", msg, ui.Skip(defaultVal))
-	} else {
-		fmt.Fprintf(w, "%s: ", msg)
-	}
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return defaultVal, nil // EOF — use default
-	}
-	line = strings.TrimSpace(line)
-	if line == "" {
-		return defaultVal, nil
-	}
-	return line, nil
-}
-
-// promptYN prints "msg [Y/n]: " and returns true unless user types n/no.
-// Empty input and EOF both default to yes.
-func promptYN(w io.Writer, reader *bufio.Reader, msg string) (bool, error) {
-	fmt.Fprintf(w, "  %s [Y/n]: ", msg)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return true, nil // EOF → default yes
-	}
-	line = strings.ToLower(strings.TrimSpace(line))
-	return line == "" || line == "y" || line == "yes", nil
-}
-
-func expandTildeStr(path, home string) string {
-	if path == "~" {
-		return home
-	}
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(home, path[2:])
-	}
-	return path
-}

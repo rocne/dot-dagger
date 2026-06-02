@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -158,13 +157,3 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	return nil
 }
 
-// printField prints a bold field label and a faint description, then a blank line.
-func printField(w io.Writer, label, desc string) {
-	fmt.Fprintf(w, "\n  %s\n", ui.Key(label))
-	fmt.Fprintf(w, "  %s\n", ui.Skip(desc))
-}
-
-// fieldPrompt returns the prompt text used after a printField call.
-func fieldPrompt() string {
-	return "  " + ui.Arrow("›")
-}
