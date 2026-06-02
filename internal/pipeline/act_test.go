@@ -590,6 +590,77 @@ func TestAct_CreateSymlink_ForceClobberGuard(t *testing.T) {
 	})
 }
 
+// TestAct_BinDirExpansion covers "~bin" and "~bin/x" link destination expansion
+// against ActOptions.BinDir (AUDIT-047). All sub-cases use DryRun so no
+// filesystem writes occur; only the resolved Dest value is asserted.
+func TestAct_BinDirExpansion(t *testing.T) {
+	cases := []struct {
+		name     string
+		dest     string
+		binDir   string
+		wantDest string // exact expected Dest after expansion
+	}{
+		{
+			name:     "~bin expands to BinDir",
+			dest:     "~bin",
+			binDir:   "/path/to/bin",
+			wantDest: "/path/to/bin",
+		},
+		{
+			name:     "~bin/myscript expands under BinDir",
+			dest:     "~bin/myscript",
+			binDir:   "/path/to/bin",
+			wantDest: "/path/to/bin/myscript",
+		},
+		{
+			name:     "~bin with empty BinDir is not expanded",
+			dest:     "~bin",
+			binDir:   "",
+			wantDest: "~bin",
+		},
+		{
+			name:     "~bin-other is not treated as ~bin prefix",
+			dest:     "~bin-other",
+			binDir:   "/path/to/bin",
+			wantDest: "~bin-other",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srcDir := t.TempDir()
+
+			// Build a real source file so Act doesn't error on a missing path.
+			srcPath := filepath.Join(srcDir, "myscript")
+			if err := os.WriteFile(srcPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			n := RawNode{
+				Path:        srcPath,
+				LogicalName: "myscript",
+				Actions:     []Action{{Type: ActionLink, Dest: c.dest}},
+			}
+
+			home := t.TempDir()
+			res, err := Act([]RawNode{n}, ActOptions{
+				HomeDir: home,
+				BinDir:  c.binDir,
+				DryRun:  true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Links) != 1 {
+				t.Fatalf("expected 1 link, got %d: %v", len(res.Links), res.Links)
+			}
+			if res.Links[0].Dest != c.wantDest {
+				t.Errorf("link.Dest = %q, want %q", res.Links[0].Dest, c.wantDest)
+			}
+		})
+	}
+}
+
 // TestComposeFileName_Variants covers the naming rules for ComposeFileName.
 func TestComposeFileName_Variants(t *testing.T) {
 	cases := []struct {
