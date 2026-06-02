@@ -337,6 +337,107 @@ func TestNewEvaluatorBuiltins(t *testing.T) {
 	})
 }
 
+// --- NewEvaluator + nil-registry tests (AUDIT-052) ---
+
+// TestNewEvaluator_ConstructorSetsEnv verifies that NewEvaluator (the
+// constructor, not a struct literal) populates the Env field correctly.
+func TestNewEvaluator_ConstructorSetsEnv(t *testing.T) {
+	env := map[string]string{"os": "linux", "context": "work"}
+	ev := NewEvaluator(env)
+	if ev.Env == nil {
+		t.Fatal("NewEvaluator: Env is nil, want populated map")
+	}
+	if ev.Env["os"] != "linux" {
+		t.Errorf("NewEvaluator: Env[os] = %q, want linux", ev.Env["os"])
+	}
+}
+
+// TestNewEvaluator_HasFuncRegistry verifies that NewEvaluator initialises a
+// non-nil Funcs registry so callers don't have to guard against nil Funcs.
+func TestNewEvaluator_HasFuncRegistry(t *testing.T) {
+	ev := NewEvaluator(map[string]string{})
+	if ev.Funcs == nil {
+		t.Fatal("NewEvaluator: Funcs is nil, want non-nil registry")
+	}
+}
+
+// TestNewEvaluator_BuiltinsRegistered verifies that installed() and
+// installable() are pre-registered by NewEvaluator so that calling them does
+// not return an "unknown function" error (AUDIT-052, cross-ref AUDIT-026).
+func TestNewEvaluator_BuiltinsRegistered(t *testing.T) {
+	fakeLookPath := func(name string) (string, error) {
+		if name == "sh" {
+			return "/bin/sh", nil
+		}
+		return "", errors.New("not found")
+	}
+
+	t.Run("installed() is registered", func(t *testing.T) {
+		expr, _ := Parse("installed(sh)")
+		ev := NewEvaluator(map[string]string{})
+		ev.RegisterPackageRegistry(nil, fakeLookPath)
+		_, err := ev.Eval(expr)
+		if err != nil {
+			t.Errorf("installed() call via NewEvaluator returned error: %v", err)
+		}
+	})
+
+	t.Run("installable() is registered", func(t *testing.T) {
+		expr, _ := Parse("installable(sh)")
+		ev := NewEvaluator(map[string]string{})
+		ev.RegisterPackageRegistry(nil, fakeLookPath)
+		_, err := ev.Eval(expr)
+		if err != nil {
+			t.Errorf("installable() call via NewEvaluator returned error: %v", err)
+		}
+	})
+}
+
+// TestEvalCall_NilRegistry verifies that when Evaluator.Funcs is nil, calling
+// any non-builtin function (i.e. not "exists") returns a graceful error rather
+// than panicking. The "exists" built-in is handled before the registry check,
+// so it is unaffected.
+func TestEvalCall_NilRegistry(t *testing.T) {
+	// Funcs deliberately left nil — struct literal, not NewEvaluator.
+	ev := &Evaluator{
+		Env:  map[string]string{},
+		// Funcs: nil  (zero value)
+	}
+
+	t.Run("unknown function with nil Funcs returns error, no panic", func(t *testing.T) {
+		expr, err := Parse("installable(nvim)")
+		if err != nil {
+			t.Fatalf("Parse error: %v", err)
+		}
+		_, err = ev.Eval(expr)
+		if err == nil {
+			t.Error("expected error for unknown function with nil registry, got nil")
+		}
+		if !strings.Contains(err.Error(), "unknown function") {
+			t.Errorf("error message %q does not mention 'unknown function'", err.Error())
+		}
+	})
+
+	t.Run("exists() still works with nil Funcs (built-in path)", func(t *testing.T) {
+		expr, err := Parse("exists(sh)")
+		if err != nil {
+			t.Fatalf("Parse error: %v", err)
+		}
+		ev2 := &Evaluator{
+			Env:      map[string]string{},
+			LookPath: func(name string) (string, error) { return "/bin/" + name, nil },
+			// Funcs: nil
+		}
+		got, err := ev2.Eval(expr)
+		if err != nil {
+			t.Fatalf("exists() with nil Funcs returned error: %v", err)
+		}
+		if !got {
+			t.Error("exists() with nil Funcs and found tool: got false, want true")
+		}
+	})
+}
+
 // --- Keys() tests (AUDIT-045) ---
 
 // TestKeys_NodeTypes verifies that every AST node type returns the expected set
