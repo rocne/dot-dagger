@@ -302,6 +302,8 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 }
 
 // parseDaggerActions converts .dagger action strings (e.g. "link(~/.tmux.conf)") to Action structs.
+// It delegates to parseActionString so dir-level actions: accepts the same arbitrary type(dest)
+// syntax as file-level annotations, including unknown types that pass through harmlessly.
 func parseDaggerActions(strs []string) []Action {
 	var actions []Action
 	for _, s := range strs {
@@ -309,16 +311,7 @@ func parseDaggerActions(strs []string) []Action {
 		if s == "" {
 			continue
 		}
-		if s == ActionCompose {
-			actions = append(actions, Action{Type: ActionCompose})
-		} else if s == ActionSource {
-			actions = append(actions, Action{Type: ActionSource})
-		} else if s == ActionNoSource {
-			actions = append(actions, Action{Type: ActionNoSource})
-		} else if strings.HasPrefix(s, "link(") && strings.HasSuffix(s, ")") {
-			dest := s[5 : len(s)-1]
-			actions = append(actions, Action{Type: ActionLink, Dest: dest})
-		}
+		actions = append(actions, parseActionString(s))
 	}
 	return actions
 }

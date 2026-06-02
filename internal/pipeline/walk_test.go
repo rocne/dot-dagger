@@ -477,11 +477,25 @@ func TestParseDaggerActions(t *testing.T) {
 			},
 		},
 		{
-			name:  "unknown action is ignored",
+			// After unification with parseActionString, bare unknown types pass through
+			// rather than being silently dropped. Downstream (mergeActions/Act) ignores
+			// types it doesn't recognise, so this is harmless.
+			name:  "unknown bare action passes through as Action{Type}",
 			input: []string{"bogus"},
 			checks: func(t *testing.T, actions []Action) {
-				if len(actions) != 0 {
-					t.Errorf("expected unknown action to be ignored, got %v", actions)
+				if len(actions) != 1 || actions[0].Type != "bogus" {
+					t.Errorf("expected Action{Type:\"bogus\"}, got %v", actions)
+				}
+			},
+		},
+		{
+			// Arbitrary type(dest) syntax previously silently dropped at dir level;
+			// after unification it is parsed and emitted (AUDIT-013).
+			name:  "arbitrary type(dest) is parsed and emitted",
+			input: []string{"custom(arg)"},
+			checks: func(t *testing.T, actions []Action) {
+				if len(actions) != 1 || actions[0].Type != "custom" || actions[0].Dest != "arg" {
+					t.Errorf("expected Action{Type:\"custom\", Dest:\"arg\"}, got %v", actions)
 				}
 			},
 		},
