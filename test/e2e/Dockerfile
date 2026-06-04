@@ -14,4 +14,6 @@ COPY symlinks-nested.sh /tests/symlinks-nested.sh
 COPY disable.sh /tests/disable.sh
 COPY packages.sh /tests/packages.sh
 COPY conflict.sh /tests/conflict.sh
+COPY unapply.sh /tests/unapply.sh
+COPY unapply-cancel.sh /tests/unapply-cancel.sh
 COPY procure/ /procure/

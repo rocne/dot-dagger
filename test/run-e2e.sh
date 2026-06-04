@@ -40,5 +40,7 @@ run_test symlinks-nested.sh
 run_test disable.sh
 run_test packages.sh
 run_test conflict.sh
+run_test unapply.sh
+run_test unapply-cancel.sh
 
 printf '\nAll e2e tests passed.\n'
