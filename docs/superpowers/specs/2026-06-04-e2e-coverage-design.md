@@ -170,8 +170,9 @@ run_test macos-apply.sh
 
 `test/e2e/setup.sh`
 - `export XDG_CONFIG_HOME=/tmp/xdg`
+- `export DOTFILES=/fixture` — pins the default dotfiles path so `resolvePaths` resolves cleanly and the assertion is deterministic
 - `printf '\n\n\n\n' | dotd setup` — 4 newlines accept all 4 prompts (dotfiles, bin dir, generated dir, link root) with defaults
-- assert: `/tmp/xdg/dot-dagger/config.yaml` exists and contains `dotfiles:`
+- assert: `/tmp/xdg/dot-dagger/config.yaml` exists and contains `dotfiles: /fixture`
 
 `test/e2e/teardown-confirm.sh`
 - `export XDG_CONFIG_HOME=/tmp/xdg; mkdir -p /tmp/xdg/dot-dagger`
@@ -201,7 +202,7 @@ run_test macos-apply.sh
 
 `TestInitAfterSetup`
 - same XDG preamble; run setup (accept defaults)
-- run `init` with stdin `strings.Repeat("\n", 10)` via `newRootCmd()`
+- run `init` with stdin `"y\n\ny\n\ny\n\nn\n"` via `newRootCmd()` — 3 × (yes + accept default name) then explicit "n" to the source-line prompt; avoids `strings.Repeat("\n", 10)` which would answer yes to the source-line prompt and attempt to modify a shell RC file
 - assert: `.dagger` scaffolded in each of `shellrc/`, `config/`, `bin/` under dotfiles dir
 
 **Dockerfiles:** add `COPY setup.sh`, `COPY teardown-confirm.sh`, `COPY teardown-cancel.sh`, `COPY init.sh`.
