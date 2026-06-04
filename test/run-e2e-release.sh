@@ -50,5 +50,7 @@ run_test packages.sh
 run_test conflict.sh
 run_test unapply.sh
 run_test unapply-cancel.sh
+run_test compose.sh
+run_test macos-apply.sh
 
 printf '\nAll e2e-release tests passed.\n'
