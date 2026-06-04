@@ -18,4 +18,8 @@ COPY unapply.sh /tests/unapply.sh
 COPY unapply-cancel.sh /tests/unapply-cancel.sh
 COPY compose.sh /tests/compose.sh
 COPY macos-apply.sh /tests/macos-apply.sh
+COPY setup.sh /tests/setup.sh
+COPY teardown-confirm.sh /tests/teardown-confirm.sh
+COPY teardown-cancel.sh /tests/teardown-cancel.sh
+COPY init.sh /tests/init.sh
 COPY procure/ /procure/
