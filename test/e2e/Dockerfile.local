@@ -22,5 +22,7 @@ COPY setup.sh /tests/setup.sh
 COPY teardown-confirm.sh /tests/teardown-confirm.sh
 COPY teardown-cancel.sh /tests/teardown-cancel.sh
 COPY init.sh /tests/init.sh
+COPY config-cmds.sh /tests/config-cmds.sh
+COPY env-cmds.sh /tests/env-cmds.sh
 COPY procure/ /procure/
 COPY dotd /staged/dotd

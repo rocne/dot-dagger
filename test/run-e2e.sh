@@ -48,5 +48,7 @@ run_test setup.sh
 run_test teardown-confirm.sh
 run_test teardown-cancel.sh
 run_test init.sh
+run_test config-cmds.sh
+run_test env-cmds.sh
 
 printf '\nAll e2e tests passed.\n'
