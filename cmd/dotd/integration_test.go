@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -80,6 +81,26 @@ func (e *ienv) runMayFail(t *testing.T, args ...string) (string, error) {
 	}
 	var buf bytes.Buffer
 	cmd := newRootCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs(append(base, args...))
+	err := cmd.Execute()
+	return buf.String(), err
+}
+
+func (e *ienv) runWithStdin(t *testing.T, stdin io.Reader, args ...string) (string, error) {
+	t.Helper()
+	base := []string{
+		"--files", e.dotfiles,
+		"--env-file", filepath.Join(e.dotfiles, "env.yaml"),
+		"--link-root", e.home,
+		"--bin-dir", e.binDir,
+		"--init-file", e.initFile,
+		"--generated-dir", e.generatedDir,
+	}
+	var buf bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetIn(stdin)
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 	cmd.SetArgs(append(base, args...))
@@ -521,5 +542,44 @@ func TestComposeCheck_Stale(t *testing.T) {
 	out := e.run(t, "compose", "check", "--env", "os=linux", "--env", "context=personal")
 	if !strings.Contains(out, "stale") {
 		t.Errorf("compose check: expected stale report\noutput: %s", out)
+	}
+}
+
+func TestUnapplyAfterApply(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+
+	assertSymlink(t,
+		filepath.Join(e.home, ".zshrc"),
+		filepath.Join(e.dotfiles, "config/dot-zshrc"),
+	)
+	if _, err := os.Stat(e.initFile); err != nil {
+		t.Fatalf("init.sh not created by apply: %v", err)
+	}
+
+	e.run(t, "unapply", "--yes", "--env", "os=linux", "--env", "context=personal")
+
+	assertNoPath(t, filepath.Join(e.home, ".zshrc"))
+	assertNoPath(t, filepath.Join(e.home, ".gitconfig"))
+	assertNoPath(t, filepath.Join(e.binDir, "hello"))
+	assertNoPath(t, e.initFile)
+}
+
+func TestUnapplyCancel(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+
+	zshrc := filepath.Join(e.home, ".zshrc")
+	assertSymlink(t, zshrc, filepath.Join(e.dotfiles, "config/dot-zshrc"))
+
+	out, err := e.runWithStdin(t, strings.NewReader("n\n"),
+		"unapply", "--env", "os=linux", "--env", "context=personal")
+	if err != nil {
+		t.Fatalf("unapply cancel: %v\noutput: %s", err, out)
+	}
+
+	assertSymlink(t, zshrc, filepath.Join(e.dotfiles, "config/dot-zshrc"))
+	if !strings.Contains(out, "cancelled") {
+		t.Errorf("expected 'cancelled' in output: %q", out)
 	}
 }
