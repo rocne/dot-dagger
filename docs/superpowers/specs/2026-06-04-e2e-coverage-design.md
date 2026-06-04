@@ -22,48 +22,49 @@ Out of scope: `config edit` and `env edit` (both launch `$EDITOR`, untestable in
 
 Each gap gets coverage at **both** layers:
 
-- **Shell e2e** — real binary in Docker, assertions in sh or expect
+- **Shell e2e** — real binary in Docker, all `.sh`
 - **Go integration tests** — in-process via `//go:build integration`, in `integration_test.go`
 
 Exception: where existing integration tests already give thorough coverage (compose, dag check, package generate), shell e2e is added but no new Go integration tests are written.
+
+## Interactive Commands — No Expect Needed
+
+`promptConfirm`, `promptYN`, and `promptDefault` (used by unapply, setup, init, teardown) have no TTY check — they read from `cmd.InOrStdin()` directly. Piped stdin works in all shell scripts:
+
+```sh
+printf 'n\n' | dotd unapply ...   # cancel path
+printf 'y\n' | dotd teardown ...  # confirm path
+```
+
+`adopt` is the only command that calls `isTTYStdin()`. When stdin is not a TTY (Docker), it auto-skips the huh confirmation prompt and runs non-interactively. No expect required there either.
+
+**Expect is not needed for any command in this plan.** All interactive shell e2e tests use piped stdin.
 
 ## Infrastructure Changes
 
 ### Docker (`Dockerfile` and `Dockerfile.local`)
 
-Add `expect`:
-
-```dockerfile
-RUN apt-get install -y --no-install-recommends expect
-```
-
-Add explicit `COPY` lines for each new `.exp` file alongside existing `.sh` copies. Both Dockerfiles use per-file COPY lines (no glob support in this image), so each new script — `.sh` or `.exp` — needs its own line.
+No new packages required. Add explicit `COPY` lines for each new `.sh` file alongside existing ones. Both Dockerfiles use per-file COPY lines, so each new script needs its own line.
 
 ### `test/run-e2e.sh`
 
-Add a second runner function alongside `run_test`:
-
-```sh
-run_expect_test() {
-  EXERCISER="$1"
-  printf '\n=== %s ===\n' "${EXERCISER}"
-  docker run --rm \
-    -v "${SCRIPT_DIR}/e2e/fixture:/fixture:ro" \
-    dotd-e2e \
-    sh -c ". /procure/local.sh && expect /tests/${EXERCISER}"
-}
-```
-
-Expect scripts live in `test/e2e/` with `.exp` extension. Each is self-contained: interactive expect scripts run any required setup steps (e.g., apply) inline via `exec` before spawning the command under test.
+No new runner function needed — all new scripts use the existing `run_test`.
 
 ### `integration_test.go` — harness extension
 
-Add `runWithStdin` to `ienv` to support piped stdin for interactive integration tests:
+Add `runWithStdin` to `ienv` to support piped stdin for `TestUnapplyCancel`:
 
 ```go
 func (e *ienv) runWithStdin(t *testing.T, stdin io.Reader, args ...string) (string, error) {
     t.Helper()
-    base := []string{ /* same flags as runMayFail */ }
+    base := []string{
+        "--files", e.dotfiles,
+        "--env-file", filepath.Join(e.dotfiles, "env.yaml"),
+        "--link-root", e.home,
+        "--bin-dir", e.binDir,
+        "--init-file", e.initFile,
+        "--generated-dir", e.generatedDir,
+    }
     var buf bytes.Buffer
     cmd := newRootCmd()
     cmd.SetIn(stdin)
@@ -74,7 +75,7 @@ func (e *ienv) runWithStdin(t *testing.T, stdin io.Reader, args ...string) (stri
 }
 ```
 
-Used for `TestUnapplyCancel`. Setup/teardown integration tests call `newRootCmd()` directly (same pattern as existing unit tests) since they manage their own XDG paths, not `ienv` paths.
+Setup/teardown integration tests call `newRootCmd()` directly (same pattern as unit tests) since they manage their own `XDG_CONFIG_HOME`, not `ienv` paths.
 
 ### E2E Fixture (`test/e2e/fixture/`)
 
@@ -107,10 +108,9 @@ Prerequisite: implement `ienv.runWithStdin` in `integration_test.go` (described 
 - `unapply --yes`
 - assert: `.zshrc` symlink absent, `init.sh` absent, `bin/hello` symlink absent
 
-`test/e2e/unapply-cancel.exp`
-- `exec sh -c "dotd apply ..."` to set up state
-- spawn `dotd unapply ...` (no `--yes`)
-- expect confirm prompt, send `"n\r"`
+`test/e2e/unapply-cancel.sh`
+- apply (linux/personal)
+- `printf 'n\n' | dotd unapply ...` (no `--yes`)
 - assert: exit 0, `.zshrc` symlink still present
 
 **Integration tests** (new in `integration_test.go`):
@@ -124,12 +124,12 @@ Prerequisite: implement `ienv.runWithStdin` in `integration_test.go` (described 
 - call `runWithStdin(t, strings.NewReader("n\n"), "unapply")`
 - assert: exit 0, symlinks preserved
 
-**Dockerfiles:** add `COPY unapply.sh /tests/unapply.sh` and `COPY unapply-cancel.exp /tests/unapply-cancel.exp`.
+**Dockerfiles:** add `COPY unapply.sh /tests/unapply.sh` and `COPY unapply-cancel.sh /tests/unapply-cancel.sh`.
 
 **Runner additions:**
 ```sh
 run_test unapply.sh
-run_expect_test unapply-cancel.exp
+run_test unapply-cancel.sh
 ```
 
 ---
@@ -142,15 +142,15 @@ run_expect_test unapply-cancel.exp
 
 `test/e2e/compose.sh`
 - apply (linux/personal)
-- assert: `$GENERATED_DIR/extras.sh` exists and is sourced in `init.sh`
+- assert: `/tmp/generated/extras.sh` exists and is sourced in `/tmp/init.sh`
 - `compose list` — assert `extras.sh` appears in output
 - `compose check` — assert exit 0 (clean state)
-- overwrite `$GENERATED_DIR/extras.sh` with stale content
+- overwrite `/tmp/generated/extras.sh` with stale content
 - `compose check` — assert output contains "stale"
 
 `test/e2e/macos-apply.sh`
 - apply `--env os=macos --env context=personal` (Linux binary, macOS predicate via flag)
-- assert: `macos.sh` in `init.sh`, `linux.sh` absent
+- assert: `macos.sh` in `/tmp/init.sh`, `linux.sh` absent
 
 **Integration tests:** compose already complete; macOS already covered by `TestApplyMacOSPersonal`. None added.
 
@@ -168,47 +168,49 @@ run_test macos-apply.sh
 
 **Shell e2e:**
 
-`test/e2e/setup.exp`
-- spawn `dotd setup --config /tmp/dotd.yaml`
-- for each prompt: send the fixture path or accept default with `"\r"`
-- assert: `/tmp/dotd.yaml` exists and contains `dotfiles:` key
+`test/e2e/setup.sh`
+- `export XDG_CONFIG_HOME=/tmp/xdg`
+- `printf '\n\n\n\n' | dotd setup` — 4 newlines accept all 4 prompts (dotfiles, bin dir, generated dir, link root) with defaults
+- assert: `/tmp/xdg/dot-dagger/config.yaml` exists and contains `dotfiles:`
 
-`test/e2e/teardown-confirm.exp`
-- write `/tmp/dotd.yaml` with `dotfiles: /fixture\n`
-- spawn `dotd teardown --config /tmp/dotd.yaml --files /fixture --env-file /fixture/env.yaml`
-- expect confirm prompt, send `"y\r"`
-- assert: `/tmp/dotd.yaml` absent after exit
+`test/e2e/teardown-confirm.sh`
+- `export XDG_CONFIG_HOME=/tmp/xdg; mkdir -p /tmp/xdg/dot-dagger`
+- write `/tmp/xdg/dot-dagger/config.yaml` with `dotfiles: /fixture\n`
+- `printf 'y\n' | dotd teardown --files /fixture --env-file /fixture/env.yaml`
+- assert: `/tmp/xdg/dot-dagger/config.yaml` absent after exit
+- Note: `teardown` always removes `dotcfg.DefaultPath()` (which respects `XDG_CONFIG_HOME`), not the `--config` flag path. `--files` / `--env-file` are still required for the internal pipeline check.
 
-`test/e2e/teardown-cancel.exp`
-- same setup, spawn teardown, send `"n\r"`
-- assert: exit 0, `/tmp/dotd.yaml` still present
+`test/e2e/teardown-cancel.sh`
+- same setup as teardown-confirm
+- `printf 'n\n' | dotd teardown --files /fixture --env-file /fixture/env.yaml`
+- assert: exit 0, `/tmp/xdg/dot-dagger/config.yaml` still present
 
 `test/e2e/init.sh`
-- write `/tmp/dotd.yaml` with `dotfiles: /tmp/testdotfiles\n`; `mkdir /tmp/testdotfiles`
-- `dotd init --config /tmp/dotd.yaml`
-- assert: `.dagger` file exists under `/tmp/testdotfiles/shellrc/` (or whichever dirs init scaffolds)
+- `export XDG_CONFIG_HOME=/tmp/xdg`; write `/tmp/xdg/dot-dagger/config.yaml` with `dotfiles: /tmp/testdotfiles\n`; `mkdir /tmp/testdotfiles`
+- `printf 'y\n\ny\n\ny\n\n' | dotd init --config /tmp/xdg/dot-dagger/config.yaml`
+  - 3 × (`y\n` = create this dir + `\n` = accept default name): shellrc, config, bin
+  - trailing EOF safely defaults the optional source-line prompt to "no"
+- assert: `.dagger` exists under `/tmp/testdotfiles/shellrc/`, `/tmp/testdotfiles/config/`, `/tmp/testdotfiles/bin/`
 
 **Integration tests** (new in `integration_test.go`):
 
 `TestSetupThenTeardown`
-- set `XDG_CONFIG_HOME` to `t.TempDir()`; set `DOTFILES` to a temp dir so default dotfiles path exists
-- create `newRootCmd()`, set stdin to `strings.Repeat("\n", 10)` (accept all defaults), run `setup`
-- assert: config.yaml written at expected XDG path
-- create `newRootCmd()`, set stdin to `"y\n"`, run `teardown`
-- assert: config.yaml absent
+- `t.Setenv("XDG_CONFIG_HOME", t.TempDir())` and `t.Setenv("DOTFILES", t.TempDir())`
+- `newRootCmd()`, stdin `strings.Repeat("\n", 10)`, run `setup` — assert config.yaml written
+- `newRootCmd()`, stdin `"y\n"`, run `teardown --files <emptyDotfiles> --env-file <emptyEnvFile>` — assert config.yaml absent
 
 `TestInitAfterSetup`
-- same setup preamble as above to write config.yaml
-- run `init` (non-interactive) via `newRootCmd()`
-- assert: `.dagger` scaffolded in dotfiles dir
+- same XDG preamble; run setup (accept defaults)
+- run `init` with stdin `strings.Repeat("\n", 10)` via `newRootCmd()`
+- assert: `.dagger` scaffolded in each of `shellrc/`, `config/`, `bin/` under dotfiles dir
 
-**Dockerfiles:** add `COPY setup.exp`, `COPY teardown-confirm.exp`, `COPY teardown-cancel.exp`, `COPY init.sh`.
+**Dockerfiles:** add `COPY setup.sh`, `COPY teardown-confirm.sh`, `COPY teardown-cancel.sh`, `COPY init.sh`.
 
 **Runner additions:**
 ```sh
-run_expect_test setup.exp
-run_expect_test teardown-confirm.exp
-run_expect_test teardown-cancel.exp
+run_test setup.sh
+run_test teardown-confirm.sh
+run_test teardown-cancel.sh
 run_test init.sh
 ```
 
@@ -226,7 +228,7 @@ run_test init.sh
 - `config get --config /tmp/dotd.yaml dotfiles` — assert output is `/fixture2`
 
 `test/e2e/env-cmds.sh`
-- copy `/fixture/env.yaml` to `/tmp/env.yaml` (fixture is read-only; `env set` must write)
+- `cp /fixture/env.yaml /tmp/env.yaml` (fixture is read-only; `env set` must write)
 - `env show --env-file /tmp/env.yaml` — assert known keys from fixture appear
 - `env get --env-file /tmp/env.yaml os` — assert value matches fixture
 - `env set --env-file /tmp/env.yaml context staging`
@@ -236,7 +238,7 @@ run_test init.sh
 **Integration tests** (new in `integration_test.go`):
 
 `TestConfigCmdsLifecycle`
-- config show on missing config → exit 0, no error
+- config show on missing config file → exit 0, no error
 - config set `dotfiles /tmp/x` → config get `dotfiles` returns `/tmp/x`
 
 `TestEnvCmdsLifecycle`
@@ -259,38 +261,45 @@ run_test env-cmds.sh
 **Shell e2e:**
 
 `test/e2e/adopt.sh`
-- copy fixture to writable temp dir (`cp -r /fixture /tmp/dotfiles`)
-- create `/tmp/dotfiles/shellrc/newscript.sh` with a shebang and body
-- `adopt /tmp/dotfiles/shellrc/newscript.sh --files /tmp/dotfiles --to shellrc`
-- assert: `newscript.sh` present in `shellrc/`, `.dagger` present in `shellrc/`
+- copy fixture to writable temp dir: `cp -r /fixture /tmp/dotfiles`
+- create source file **outside** dotfiles dir: `printf '#!/bin/sh\necho hi\n' > /tmp/newscript.sh`
+- `adopt /tmp/newscript.sh --files /tmp/dotfiles --to shellrc/`
+  - `--to shellrc/` (trailing slash) appends filename → destination `shellrc/newscript.sh`
+  - no TTY in Docker → `isTTYStdin()` false → huh prompt auto-skipped
+- assert: `/tmp/dotfiles/shellrc/newscript.sh` exists
+- assert: `/tmp/newscript.sh` absent (moved, not copied)
 
 `test/e2e/bundle.sh`
-- `bundle aliases.sh --files /fixture --env-file /fixture/env.yaml --env os=linux --env context=personal`
-- `aliases.sh` depends on `base.sh` in the fixture; assert output contains content from `base.sh` (a known string from that file)
+- `bundle shellrc/aliases.sh --files /fixture --env-file /fixture/env.yaml --env os=linux --env context=personal`
+  - `aliases.sh` has a transitive dep on `base.sh`; bundle inlines all deps' contents
+- assert: output contains a known string from `base.sh` content (a string unique to that file)
 
 `test/e2e/dag-check.sh`
 - `dotd dag check --files /fixture --env-file /fixture/env.yaml --env os=linux --env context=personal`
-- assert exit 0
-- assert output contains `base.sh`, `path.sh`, `aliases.sh` (numbered lines)
-- assert `base.sh` line number is lower than `path.sh` line number (ordering)
+- assert: exit 0
+- capture output; assert lines contain `base.sh`, `path.sh`, `aliases.sh`
+- assert: line number for `base.sh` is lower than line number for `path.sh` (verify ordering)
 
 `test/e2e/package-check.sh`
 - `package check --files /fixture --env-file /fixture/env.yaml --env os=linux --env context=personal`
-- assert output contains `fake-installed` and `installed`
+- assert: output contains `fake-installed` and `installed`
 - copy fixture to writable temp dir; write a script with `# @require(not-installable)` into shellrc
-- `package generate` against writable copy — assert exit non-zero
+- `package generate --files /tmp/dotfiles --env-file /tmp/dotfiles/env.yaml --env os=linux` — assert exit non-zero
 
 **Integration tests** (new in `integration_test.go`):
 
 `TestAdoptShellScript_Integration`
-- in a fresh `ienv`, create a new `.sh` file outside the fixture; adopt it `--to shellrc`
-- assert file exists at `shellrc/<name>.sh`; assert `.dagger` present in `shellrc/`
+- using a fresh `ienv`
+- create a new `.sh` file in a **separate** `t.TempDir()` (outside `e.dotfiles`): `srcPath := filepath.Join(t.TempDir(), "newscript.sh")`
+- `e.run(t, "adopt", srcPath, "--to", "shellrc/")` (no TTY in tests → prompt auto-skipped)
+- assert: `filepath.Join(e.dotfiles, "shellrc", "newscript.sh")` exists
+- assert: `srcPath` absent (moved)
 
 `TestBundleOutput_Integration`
 - `bundle shellrc/aliases.sh` against the testdata fixture (linux/personal)
-- `aliases.sh` depends on `base.sh`; assert output contains a known string from `base.sh`
+- assert: output contains a known string from `base.sh` content in the testdata fixture
 
-Skip `package generate` hard-fail (already in `TestPackageRequireHardFail`) and `dag check` ordering (already in `TestDAGVerboseOrder`).
+Skip `package generate` hard-fail (already `TestPackageRequireHardFail`) and `dag check` ordering (already `TestDAGVerboseOrder`).
 
 **Dockerfiles:** add `COPY adopt.sh`, `COPY bundle.sh`, `COPY dag-check.sh`, `COPY package-check.sh`.
 
@@ -308,10 +317,10 @@ run_test package-check.sh
 
 | Batch | New shell e2e | New integration tests | Notes |
 |-------|---------------|-----------------------|-------|
-| 1 | `unapply.sh`, `unapply-cancel.exp` | `TestUnapplyAfterApply`, `TestUnapplyCancel` | Requires `runWithStdin` harness addition |
+| 1 | `unapply.sh`, `unapply-cancel.sh` | `TestUnapplyAfterApply`, `TestUnapplyCancel` | Requires `runWithStdin` harness addition |
 | 2 | `compose.sh`, `macos-apply.sh` + fixture extension | none | |
-| 3 | `setup.exp`, `teardown-confirm.exp`, `teardown-cancel.exp`, `init.sh` | `TestSetupThenTeardown`, `TestInitAfterSetup` | |
+| 3 | `setup.sh`, `teardown-confirm.sh`, `teardown-cancel.sh`, `init.sh` | `TestSetupThenTeardown`, `TestInitAfterSetup` | Teardown targets `DefaultPath()`, not `--config` |
 | 4 | `config-cmds.sh`, `env-cmds.sh` | `TestConfigCmdsLifecycle`, `TestEnvCmdsLifecycle` | |
-| 5 | `adopt.sh`, `bundle.sh`, `dag-check.sh`, `package-check.sh` | `TestAdoptShellScript_Integration`, `TestBundleOutput_Integration` | |
+| 5 | `adopt.sh`, `bundle.sh`, `dag-check.sh`, `package-check.sh` | `TestAdoptShellScript_Integration`, `TestBundleOutput_Integration` | Adopt auto-skips prompt in non-TTY |
 
-Each batch is independently mergeable. Batch 1 is highest priority (largest coverage gap, most-used recovery workflow).
+Each batch is independently mergeable. Batch 1 is highest priority.
