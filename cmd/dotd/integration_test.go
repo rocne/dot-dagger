@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -80,6 +81,26 @@ func (e *ienv) runMayFail(t *testing.T, args ...string) (string, error) {
 	}
 	var buf bytes.Buffer
 	cmd := newRootCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs(append(base, args...))
+	err := cmd.Execute()
+	return buf.String(), err
+}
+
+func (e *ienv) runWithStdin(t *testing.T, stdin io.Reader, args ...string) (string, error) {
+	t.Helper()
+	base := []string{
+		"--files", e.dotfiles,
+		"--env-file", filepath.Join(e.dotfiles, "env.yaml"),
+		"--link-root", e.home,
+		"--bin-dir", e.binDir,
+		"--init-file", e.initFile,
+		"--generated-dir", e.generatedDir,
+	}
+	var buf bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetIn(stdin)
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 	cmd.SetArgs(append(base, args...))
@@ -521,5 +542,223 @@ func TestComposeCheck_Stale(t *testing.T) {
 	out := e.run(t, "compose", "check", "--env", "os=linux", "--env", "context=personal")
 	if !strings.Contains(out, "stale") {
 		t.Errorf("compose check: expected stale report\noutput: %s", out)
+	}
+}
+
+func TestUnapplyAfterApply(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+
+	assertSymlink(t,
+		filepath.Join(e.home, ".zshrc"),
+		filepath.Join(e.dotfiles, "config/dot-zshrc"),
+	)
+	if _, err := os.Stat(e.initFile); err != nil {
+		t.Fatalf("init.sh not created by apply: %v", err)
+	}
+
+	e.run(t, "unapply", "--yes", "--env", "os=linux", "--env", "context=personal")
+
+	assertNoPath(t, filepath.Join(e.home, ".zshrc"))
+	assertNoPath(t, filepath.Join(e.home, ".gitconfig"))
+	assertNoPath(t, filepath.Join(e.binDir, "hello"))
+	assertNoPath(t, e.initFile)
+}
+
+func TestUnapplyCancel(t *testing.T) {
+	e := newIenv(t)
+	e.run(t, "apply", "--env", "os=linux", "--env", "context=personal")
+
+	zshrc := filepath.Join(e.home, ".zshrc")
+	assertSymlink(t, zshrc, filepath.Join(e.dotfiles, "config/dot-zshrc"))
+
+	out, err := e.runWithStdin(t, strings.NewReader("n\n"),
+		"unapply", "--env", "os=linux", "--env", "context=personal")
+	if err != nil {
+		t.Fatalf("unapply cancel: %v\noutput: %s", err, out)
+	}
+
+	assertSymlink(t, zshrc, filepath.Join(e.dotfiles, "config/dot-zshrc"))
+	if !strings.Contains(out, "cancelled") {
+		t.Errorf("expected 'cancelled' in output: %q", out)
+	}
+}
+
+func TestSetupThenTeardown(t *testing.T) {
+	xdg := t.TempDir()
+	dotfilesDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", dotfilesDir)
+
+	setupCmd := newRootCmd()
+	setupCmd.SetIn(strings.NewReader(strings.Repeat("\n", 10)))
+	var setupBuf bytes.Buffer
+	setupCmd.SetOut(&setupBuf)
+	setupCmd.SetErr(&setupBuf)
+	setupCmd.SetArgs([]string{"setup"})
+	if err := setupCmd.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, setupBuf.String())
+	}
+
+	configPath := filepath.Join(xdg, "dot-dagger", "config.yaml")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("config.yaml not written by setup: %v", err)
+	}
+
+	teardownCmd := newRootCmd()
+	teardownCmd.SetIn(strings.NewReader("y\n"))
+	var teardownBuf bytes.Buffer
+	teardownCmd.SetOut(&teardownBuf)
+	teardownCmd.SetErr(&teardownBuf)
+	teardownCmd.SetArgs([]string{"teardown",
+		"--files", dotfilesDir,
+		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
+	})
+	if err := teardownCmd.Execute(); err != nil {
+		t.Fatalf("teardown error = %v\noutput:\n%s", err, teardownBuf.String())
+	}
+
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Error("config.yaml should be removed by teardown")
+	}
+}
+
+func TestInitAfterSetup(t *testing.T) {
+	xdg := t.TempDir()
+	dotfilesDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", dotfilesDir)
+
+	setupCmd := newRootCmd()
+	setupCmd.SetIn(strings.NewReader(strings.Repeat("\n", 10)))
+	var setupBuf bytes.Buffer
+	setupCmd.SetOut(&setupBuf)
+	setupCmd.SetErr(&setupBuf)
+	setupCmd.SetArgs([]string{"setup"})
+	if err := setupCmd.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, setupBuf.String())
+	}
+
+	// y\n = create dir, \n = accept default name; 3 dirs; then n\n = skip source-line prompt
+	initCmd := newRootCmd()
+	initCmd.SetIn(strings.NewReader("y\n\ny\n\ny\n\nn\n"))
+	var initBuf bytes.Buffer
+	initCmd.SetOut(&initBuf)
+	initCmd.SetErr(&initBuf)
+	initCmd.SetArgs([]string{"init",
+		"--files", dotfilesDir,
+		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
+	})
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("init error = %v\noutput:\n%s", err, initBuf.String())
+	}
+
+	for _, dir := range []string{"shellrc", "config", "bin"} {
+		daggerPath := filepath.Join(dotfilesDir, dir, ".dagger")
+		if _, err := os.Stat(daggerPath); err != nil {
+			t.Errorf(".dagger not scaffolded in %s/: %v", dir, err)
+		}
+	}
+}
+
+// TestConfigCmdsLifecycle exercises config show / set / get as a lifecycle.
+func TestConfigCmdsLifecycle(t *testing.T) {
+	// config show on missing file exits 0 with dotfiles= in output
+	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
+	out, err := run(t, "config", "show",
+		"--config", missingConfig,
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("config show on missing file: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "dotfiles=") {
+		t.Errorf("config show: expected dotfiles= in output: %q", out)
+	}
+
+	// config set dotfiles /tmp/x → config get dotfiles returns /tmp/x
+	configPath := writeConfigYAML(t, "{}\n")
+	if _, err = run(t, "config", "set", "dotfiles", "/tmp/x",
+		"--config", configPath,
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	); err != nil {
+		t.Fatalf("config set error = %v", err)
+	}
+
+	out, err = run(t, "config", "get", "dotfiles",
+		"--config", configPath,
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("config get error = %v", err)
+	}
+	if strings.TrimSpace(out) != "/tmp/x" {
+		t.Errorf("config get dotfiles = %q, want /tmp/x", strings.TrimSpace(out))
+	}
+}
+
+// TestAdoptShellScript_Integration verifies that adopt moves a file into the
+// dotfiles repo and removes the original source.
+func TestAdoptShellScript_Integration(t *testing.T) {
+	e := newIenv(t)
+
+	srcDir := t.TempDir()
+	srcPath := filepath.Join(srcDir, "newscript.sh")
+	if err := os.WriteFile(srcPath, []byte("#!/bin/sh\necho hi\n"), 0o644); err != nil {
+		t.Fatalf("write srcPath: %v", err)
+	}
+
+	e.run(t, "adopt", srcPath, "--to", "shellrc/")
+
+	assertNoPath(t, srcPath)
+
+	dest := filepath.Join(e.dotfiles, "shellrc", "newscript.sh")
+	if _, err := os.Stat(dest); err != nil {
+		t.Errorf("adopted file not found at %s: %v", dest, err)
+	}
+}
+
+// TestBundleOutput_Integration verifies that bundling aliases.sh includes its
+// transitive dependencies (path.sh and base.sh), producing DOT_BASE_LOADED in output.
+func TestBundleOutput_Integration(t *testing.T) {
+	e := newIenv(t)
+
+	out := e.run(t, "bundle", "shellrc/aliases.sh",
+		"--env", "os=linux", "--env", "context=personal")
+
+	if !strings.Contains(out, "DOT_BASE_LOADED") {
+		t.Errorf("bundle: expected DOT_BASE_LOADED (from base.sh) in output: %q", out)
+	}
+}
+
+// TestEnvCmdsLifecycle exercises env show / set / get / diff as a lifecycle.
+func TestEnvCmdsLifecycle(t *testing.T) {
+	e := newIenv(t)
+
+	// env show: testdata env.yaml has context=personal
+	out := e.run(t, "env", "show")
+	if !strings.Contains(out, "context=personal") {
+		t.Errorf("env show: expected context=personal: %q", out)
+	}
+
+	// env set context staging
+	e.run(t, "env", "set", "context", "staging")
+
+	// env get context → staging
+	out = e.run(t, "env", "get", "context")
+	if strings.TrimSpace(out) != "staging" {
+		t.Errorf("env get context = %q, want staging", strings.TrimSpace(out))
+	}
+
+	// env diff: file has context=staging; DOTD_CONTEXT is not set in test env
+	// so diff reports context as an override (unset in shell → "staging" in file).
+	// --env os=macos is a CLI override, not a file value — env diff ignores it.
+	t.Setenv("DOTD_CONTEXT", "") // ensure shell var is absent for determinism
+	out = e.run(t, "env", "diff", "--env", "os=macos")
+	if !strings.Contains(out, "context") {
+		t.Errorf("env diff: expected 'context' in output: %q", out)
 	}
 }

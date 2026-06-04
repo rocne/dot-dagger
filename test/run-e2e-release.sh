@@ -48,5 +48,19 @@ run_test symlinks-nested.sh
 run_test disable.sh
 run_test packages.sh
 run_test conflict.sh
+run_test unapply.sh
+run_test unapply-cancel.sh
+run_test compose.sh
+run_test macos-apply.sh
+run_test setup.sh
+run_test teardown-confirm.sh
+run_test teardown-cancel.sh
+run_test init.sh
+run_test config-cmds.sh
+run_test env-cmds.sh
+run_test adopt.sh
+run_test bundle.sh
+run_test dag-check.sh
+run_test package-check.sh
 
 printf '\nAll e2e-release tests passed.\n'
