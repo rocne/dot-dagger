@@ -700,6 +700,40 @@ func TestConfigCmdsLifecycle(t *testing.T) {
 	}
 }
 
+// TestAdoptShellScript_Integration verifies that adopt moves a file into the
+// dotfiles repo and removes the original source.
+func TestAdoptShellScript_Integration(t *testing.T) {
+	e := newIenv(t)
+
+	srcDir := t.TempDir()
+	srcPath := filepath.Join(srcDir, "newscript.sh")
+	if err := os.WriteFile(srcPath, []byte("#!/bin/sh\necho hi\n"), 0o644); err != nil {
+		t.Fatalf("write srcPath: %v", err)
+	}
+
+	e.run(t, "adopt", srcPath, "--to", "shellrc/")
+
+	assertNoPath(t, srcPath)
+
+	dest := filepath.Join(e.dotfiles, "shellrc", "newscript.sh")
+	if _, err := os.Stat(dest); err != nil {
+		t.Errorf("adopted file not found at %s: %v", dest, err)
+	}
+}
+
+// TestBundleOutput_Integration verifies that bundling aliases.sh includes its
+// transitive dependencies (path.sh and base.sh), producing DOT_BASE_LOADED in output.
+func TestBundleOutput_Integration(t *testing.T) {
+	e := newIenv(t)
+
+	out := e.run(t, "bundle", "shellrc/aliases.sh",
+		"--env", "os=linux", "--env", "context=personal")
+
+	if !strings.Contains(out, "DOT_BASE_LOADED") {
+		t.Errorf("bundle: expected DOT_BASE_LOADED (from base.sh) in output: %q", out)
+	}
+}
+
 // TestEnvCmdsLifecycle exercises env show / set / get / diff as a lifecycle.
 func TestEnvCmdsLifecycle(t *testing.T) {
 	e := newIenv(t)
