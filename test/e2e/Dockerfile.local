@@ -24,5 +24,9 @@ COPY teardown-cancel.sh /tests/teardown-cancel.sh
 COPY init.sh /tests/init.sh
 COPY config-cmds.sh /tests/config-cmds.sh
 COPY env-cmds.sh /tests/env-cmds.sh
+COPY adopt.sh /tests/adopt.sh
+COPY bundle.sh /tests/bundle.sh
+COPY dag-check.sh /tests/dag-check.sh
+COPY package-check.sh /tests/package-check.sh
 COPY procure/ /procure/
 COPY dotd /staged/dotd

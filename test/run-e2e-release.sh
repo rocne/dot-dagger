@@ -58,5 +58,9 @@ run_test teardown-cancel.sh
 run_test init.sh
 run_test config-cmds.sh
 run_test env-cmds.sh
+run_test adopt.sh
+run_test bundle.sh
+run_test dag-check.sh
+run_test package-check.sh
 
 printf '\nAll e2e-release tests passed.\n'
