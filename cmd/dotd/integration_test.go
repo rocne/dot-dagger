@@ -660,3 +660,71 @@ func TestInitAfterSetup(t *testing.T) {
 		}
 	}
 }
+
+// TestConfigCmdsLifecycle exercises config show / set / get as a lifecycle.
+func TestConfigCmdsLifecycle(t *testing.T) {
+	// config show on missing file exits 0 with dotfiles= in output
+	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
+	out, err := run(t, "config", "show",
+		"--config", missingConfig,
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("config show on missing file: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "dotfiles=") {
+		t.Errorf("config show: expected dotfiles= in output: %q", out)
+	}
+
+	// config set dotfiles /tmp/x → config get dotfiles returns /tmp/x
+	configPath := writeConfigYAML(t, "{}\n")
+	if _, err = run(t, "config", "set", "dotfiles", "/tmp/x",
+		"--config", configPath,
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	); err != nil {
+		t.Fatalf("config set error = %v", err)
+	}
+
+	out, err = run(t, "config", "get", "dotfiles",
+		"--config", configPath,
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	if err != nil {
+		t.Fatalf("config get error = %v", err)
+	}
+	if strings.TrimSpace(out) != "/tmp/x" {
+		t.Errorf("config get dotfiles = %q, want /tmp/x", strings.TrimSpace(out))
+	}
+}
+
+// TestEnvCmdsLifecycle exercises env show / set / get / diff as a lifecycle.
+func TestEnvCmdsLifecycle(t *testing.T) {
+	e := newIenv(t)
+
+	// env show: testdata env.yaml has context=personal
+	out := e.run(t, "env", "show")
+	if !strings.Contains(out, "context=personal") {
+		t.Errorf("env show: expected context=personal: %q", out)
+	}
+
+	// env set context staging
+	e.run(t, "env", "set", "context", "staging")
+
+	// env get context → staging
+	out = e.run(t, "env", "get", "context")
+	if strings.TrimSpace(out) != "staging" {
+		t.Errorf("env get context = %q, want staging", strings.TrimSpace(out))
+	}
+
+	// env diff: file has context=staging; DOTD_CONTEXT is not set in test env
+	// so diff reports context as an override (unset in shell → "staging" in file).
+	// --env os=macos is a CLI override, not a file value — env diff ignores it.
+	t.Setenv("DOTD_CONTEXT", "") // ensure shell var is absent for determinism
+	out = e.run(t, "env", "diff", "--env", "os=macos")
+	if !strings.Contains(out, "context") {
+		t.Errorf("env diff: expected 'context' in output: %q", out)
+	}
+}
