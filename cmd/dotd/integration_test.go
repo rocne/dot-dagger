@@ -583,3 +583,80 @@ func TestUnapplyCancel(t *testing.T) {
 		t.Errorf("expected 'cancelled' in output: %q", out)
 	}
 }
+
+func TestSetupThenTeardown(t *testing.T) {
+	xdg := t.TempDir()
+	dotfilesDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", dotfilesDir)
+
+	setupCmd := newRootCmd()
+	setupCmd.SetIn(strings.NewReader(strings.Repeat("\n", 10)))
+	var setupBuf bytes.Buffer
+	setupCmd.SetOut(&setupBuf)
+	setupCmd.SetErr(&setupBuf)
+	setupCmd.SetArgs([]string{"setup"})
+	if err := setupCmd.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, setupBuf.String())
+	}
+
+	configPath := filepath.Join(xdg, "dot-dagger", "config.yaml")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("config.yaml not written by setup: %v", err)
+	}
+
+	teardownCmd := newRootCmd()
+	teardownCmd.SetIn(strings.NewReader("y\n"))
+	var teardownBuf bytes.Buffer
+	teardownCmd.SetOut(&teardownBuf)
+	teardownCmd.SetErr(&teardownBuf)
+	teardownCmd.SetArgs([]string{"teardown",
+		"--files", dotfilesDir,
+		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
+	})
+	if err := teardownCmd.Execute(); err != nil {
+		t.Fatalf("teardown error = %v\noutput:\n%s", err, teardownBuf.String())
+	}
+
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Error("config.yaml should be removed by teardown")
+	}
+}
+
+func TestInitAfterSetup(t *testing.T) {
+	xdg := t.TempDir()
+	dotfilesDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", dotfilesDir)
+
+	setupCmd := newRootCmd()
+	setupCmd.SetIn(strings.NewReader(strings.Repeat("\n", 10)))
+	var setupBuf bytes.Buffer
+	setupCmd.SetOut(&setupBuf)
+	setupCmd.SetErr(&setupBuf)
+	setupCmd.SetArgs([]string{"setup"})
+	if err := setupCmd.Execute(); err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, setupBuf.String())
+	}
+
+	// y\n = create dir, \n = accept default name; 3 dirs; then n\n = skip source-line prompt
+	initCmd := newRootCmd()
+	initCmd.SetIn(strings.NewReader("y\n\ny\n\ny\n\nn\n"))
+	var initBuf bytes.Buffer
+	initCmd.SetOut(&initBuf)
+	initCmd.SetErr(&initBuf)
+	initCmd.SetArgs([]string{"init",
+		"--files", dotfilesDir,
+		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
+	})
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("init error = %v\noutput:\n%s", err, initBuf.String())
+	}
+
+	for _, dir := range []string{"shellrc", "config", "bin"} {
+		daggerPath := filepath.Join(dotfilesDir, dir, ".dagger")
+		if _, err := os.Stat(daggerPath); err != nil {
+			t.Errorf(".dagger not scaffolded in %s/: %v", dir, err)
+		}
+	}
+}
