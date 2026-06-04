@@ -1,0 +1,4 @@
+composition:
+  enabled: true
+actions:
+  - source
