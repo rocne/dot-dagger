@@ -12,6 +12,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/rocne/dot-dagger/internal/ui"
 )
 
@@ -73,4 +74,24 @@ func printField(w io.Writer, label, desc string) {
 // fieldPrompt returns the prompt text used after a printField call.
 func fieldPrompt() string {
 	return "  " + ui.Arrow("›")
+}
+
+// promptMenu presents a huh.Select menu and returns the index of the chosen option.
+// options must be non-empty. The last option is treated as "Done" by callers.
+// Uses huh.Select — renders directly to terminal (accepted exception to cobra I/O routing).
+func promptMenu(options []string) (int, error) {
+	var chosen string
+	if err := huh.NewSelect[string]().
+		Title("Select annotation").
+		Options(huh.NewOptions(options...)...).
+		Value(&chosen).
+		Run(); err != nil {
+		return 0, err
+	}
+	for i, o := range options {
+		if o == chosen {
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("promptMenu: unknown selection %q", chosen)
 }
