@@ -20,6 +20,19 @@ These flags apply to all `dotd` subcommands:
 
 ---
 
+## dotd unapply
+
+Remove symlinks created by `dotd apply`. Re-runs the pipeline to determine the expected link plan, then removes each symlink whose destination points to the expected source file. Also removes init.sh if present.
+
+```sh
+dotd unapply                   # preview, then prompt for confirmation
+dotd unapply --dry-run         # preview only, no changes
+dotd unapply --yes             # skip confirmation prompt
+dotd unapply --all             # remove all dotfiles symlinks regardless of @when predicates
+```
+
+---
+
 ## dotd apply
 
 Full reconciliation: resolves environment, installs packages, applies symlinks, writes init.sh.
@@ -54,7 +67,52 @@ dotd setup --yes              # non-interactive, accept all defaults
 dotd setup -f ~/my-dotfiles   # custom dotfiles directory
 ```
 
-Steps through: dotfiles directory, env.yaml path, init.sh output path, and package managers to pre-populate in packages.yaml. After scaffolding, detects your shell config file and offers to append the source line.
+Steps through: dotfiles path, bin directory, generated files directory, and link root. Writes config.yaml and (if absent) env.yaml. Run `dotd init` next to scaffold convention directories in your dotfiles repo.
+
+---
+
+## dotd teardown
+
+Remove dot-dagger system-level configuration from this machine. Removes config.yaml, env.yaml, and the dotd source line from your shell RC file. Does not remove symlinks — run `dotd unapply` first.
+
+```sh
+dotd teardown                  # preview, then prompt for confirmation
+dotd teardown --yes            # skip confirmation prompt
+```
+
+---
+
+## dotd init
+
+Scaffold `.dagger` convention directories in your dotfiles repo. Prompts for shell scripts, config files, and bin scripts directories. Creates each directory if absent and writes a `.dagger` file (idempotent). Also offers to wire up the shell source line.
+
+Requires config.yaml — run `dotd setup` first.
+
+```sh
+dotd init
+```
+
+---
+
+## dotd config
+
+Inspect and modify tool configuration (config.yaml).
+
+```sh
+dotd config show               # display all config key=value pairs
+dotd config get dotfiles       # get a single config value
+dotd config set dotfiles ~/dotfiles  # set a config value
+dotd config edit               # open config.yaml in $EDITOR
+```
+
+**Config keys:**
+
+| Key | Description |
+|---|---|
+| `dotfiles` | Path to your dotfiles repo |
+| `bin_dir` | Where executable scripts from the dotfiles repo are linked |
+| `generated_dir` | Where compose-assembled shell fragments are written |
+| `link_root` | Home directory used for `~` expansion in link destinations |
 
 ---
 
@@ -98,8 +156,9 @@ Environment inspection and modification.
 ```sh
 dotd env show                  # print all resolved key=value pairs
 dotd env get os                # print a single key's value
-dotd env set context=work      # write a key to env.yaml
-dotd env set context=work --dry-run
+dotd env set context work      # write a key to env.yaml
+dotd env set context work --dry-run
+dotd env diff                  # show keys where env.yaml differs from shell env
 ```
 
 `dotd env show` is the first thing to reach for when a `@when` condition isn't behaving as expected.
@@ -127,6 +186,25 @@ dotd dag check --verbose               # show numbered load order
 ```
 
 The generated `init.sh` sources all active scripts in dependency order. It contains only `source` calls — no conditions, no loops. All condition evaluation happened at `apply` time.
+
+---
+
+## dotd bundle
+
+Bundle a node and its transitive `@after` dependencies into a single portable shell script. Concatenates dependencies (in DAG order) followed by the target file itself.
+
+```sh
+dotd bundle shellrc/my-script.sh                     # print bundle to stdout
+dotd bundle shellrc/my-script.sh -o /tmp/bundle.sh   # write to file
+dotd bundle shellrc/my-script.sh --include-env       # prepend resolved env as export lines
+```
+
+**Flags:**
+
+| Flag | Description |
+|---|---|
+| `-o, --output <file>` | Write output to file instead of stdout |
+| `--include-env` | Prepend resolved env as `export` lines |
 
 ---
 
