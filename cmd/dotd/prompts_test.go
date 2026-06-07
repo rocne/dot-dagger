@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -89,5 +90,22 @@ func TestPromptConfirm_Interactive(t *testing.T) {
 				t.Errorf("input=%q: got %v, want %v", tc.input, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestIsTTY_StringsReader_ReturnsFalse(t *testing.T) {
+	if isTTY(strings.NewReader("")) {
+		t.Error("strings.Reader is not a TTY; isTTY should return false")
+	}
+}
+
+func TestIsTTY_DevNull_ReturnsFalse(t *testing.T) {
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if isTTY(f) {
+		t.Error("/dev/null is not a TTY; isTTY should return false")
 	}
 }

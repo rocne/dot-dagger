@@ -15,11 +15,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-// errUserAborted is returned when the user cancels an interactive prompt.
-// main() maps this sentinel to a clean exit-1 with "cancelled" on stderr,
-// avoiding the noisy "Error: user aborted" that Cobra would otherwise print.
-var errUserAborted = errors.New("user aborted")
-
 // prompter is the function used to prompt for missing keys.
 // It defaults to promptMissingKeys; tests may replace it with a stub.
 var prompter = promptMissingKeys

@@ -111,7 +111,7 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 		}
 		options[len(annotation.Registry)] = "Done"
 
-		idx, err := promptMenu(options)
+		idx, err := promptMenu(cmd, "Select annotation", options)
 		if err != nil {
 			if errors.Is(err, huh.ErrUserAborted) {
 				return errUserAborted
