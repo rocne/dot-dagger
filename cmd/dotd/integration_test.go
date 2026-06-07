@@ -762,3 +762,19 @@ func TestEnvCmdsLifecycle(t *testing.T) {
 		t.Errorf("env diff: expected 'context' in output: %q", out)
 	}
 }
+
+func TestAnnotate_NonTTY(t *testing.T) {
+	e := newIenv(t)
+	// shellrc/aliases.sh exists in the testdata fixture.
+	target := filepath.Join(e.dotfiles, "shellrc", "aliases.sh")
+	// Root sets SilenceErrors: true, so the message is on the returned error,
+	// not in the captured output buffer. Assert on err — mirrors the existing
+	// runMayFail tests (e.g. the apply-without-force case).
+	_, err := e.runMayFail(t, "annotate", target)
+	if err == nil {
+		t.Fatal("expected error for non-TTY, got nil")
+	}
+	if !strings.Contains(err.Error(), "requires an interactive terminal") {
+		t.Errorf("want 'requires an interactive terminal' in error, got: %v", err)
+	}
+}
