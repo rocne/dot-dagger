@@ -65,7 +65,7 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 		return fmt.Errorf("annotate: open: %w", err)
 	}
 	scanned, err := annotation.Scan(f)
-	f.Close()
+	_ = f.Close()
 	if err != nil {
 		return fmt.Errorf("annotate: scan: %w", err)
 	}
