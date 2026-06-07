@@ -6,19 +6,9 @@ cp -r /fixture /tmp/dotfiles
 
 TARGET=/tmp/dotfiles/shellrc/aliases.sh
 
-# Input is fed with brief sleeps between lines so that huh's bufio.Scanner
-# does not over-read across form boundaries. Each sleep gives the running
-# form time to consume its current line before the next arrives.
-send() {
-  for line in "$@"; do
-    printf '%s\n' "$line"
-    sleep 0.1
-  done
-}
-
 # ── Test 1: add @when(os=linux) ─────────────────────────────────────────────
 # Accessible-mode: select When (1), enter value, Done (8), confirm Yes (y).
-send 1 'os=linux' 8 y | dotd annotate \
+printf '1\nos=linux\n8\ny\n' | dotd annotate \
   --files /tmp/dotfiles \
   --env-file /tmp/dotfiles/env.yaml \
   "$TARGET"
@@ -33,7 +23,7 @@ printf 'PASS: annotate add @when\n'
 
 # ── Test 2: set @action(source) ─────────────────────────────────────────────
 # Select Action (5), select source (1), Done (8), Yes (y).
-send 5 1 8 y | dotd annotate \
+printf '5\n1\n8\ny\n' | dotd annotate \
   --files /tmp/dotfiles \
   --env-file /tmp/dotfiles/env.yaml \
   "$TARGET"
@@ -47,7 +37,7 @@ printf 'PASS: annotate set @action\n'
 cp "$TARGET" /tmp/aliases_before.sh
 
 # Done immediately (8), No at confirm (n).
-send 8 n | dotd annotate \
+printf '8\nn\n' | dotd annotate \
   --files /tmp/dotfiles \
   --env-file /tmp/dotfiles/env.yaml \
   "$TARGET"

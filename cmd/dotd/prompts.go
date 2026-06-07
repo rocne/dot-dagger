@@ -40,14 +40,33 @@ func isTTY(r io.Reader) bool {
 	return false
 }
 
+// byteReader limits reads to one byte at a time to prevent bufio.Scanner
+// from over-reading across sequential huh form boundaries in accessible mode.
+// huh creates a new bufio.Scanner per field; in non-TTY contexts all pipe
+// bytes are available at once, so without this the first scanner consumes
+// all subsequent fields' input.
+type byteReader struct{ r io.Reader }
+
+func (b *byteReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	return b.r.Read(p[:1])
+}
+
 // newHuhForm returns a huh.Form wired to cmd's stdin and stdout.
 // When stdin is not a terminal (tests, CI, piped input) it automatically
 // enables accessible mode: plain numbered menus and line-buffered text input.
 func newHuhForm(cmd *cobra.Command, fields ...huh.Field) *huh.Form {
 	r := cmd.InOrStdin()
+	tty := isTTY(r)
+	var input io.Reader = r
+	if !tty {
+		input = &byteReader{r}
+	}
 	return huh.NewForm(huh.NewGroup(fields...)).
-		WithAccessible(!isTTY(r)).
-		WithInput(r).
+		WithAccessible(!tty).
+		WithInput(input).
 		WithOutput(cmd.OutOrStdout())
 }
 

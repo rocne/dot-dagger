@@ -771,7 +771,7 @@ func TestAnnotate_AddWhen(t *testing.T) {
 
 	// aliases.sh already has @after(shellrc.path). We're adding @when on top.
 	// Menu: 8 options (7 types + Done). Select 1=When, input value, 8=Done, y=Yes.
-	stdin := &byteReader{strings.NewReader("1\nos=macos\n8\ny\n")}
+	stdin := strings.NewReader("1\nos=macos\n8\ny\n")
 	out, err := e.runWithStdin(t, stdin, "annotate", target)
 	if err != nil {
 		t.Fatalf("annotate wizard failed: %v\noutput:\n%s", err, out)
@@ -796,7 +796,7 @@ func TestAnnotate_SetAction(t *testing.T) {
 	e := newIenv(t)
 	target := filepath.Join(e.dotfiles, "shellrc", "aliases.sh")
 
-	stdin := &byteReader{strings.NewReader("5\n1\n8\ny\n")}
+	stdin := strings.NewReader("5\n1\n8\ny\n")
 	out, err := e.runWithStdin(t, stdin, "annotate", target)
 	if err != nil {
 		t.Fatalf("annotate wizard failed: %v\noutput:\n%s", err, out)
@@ -817,7 +817,7 @@ func TestAnnotate_SetDisable(t *testing.T) {
 	e := newIenv(t)
 	target := filepath.Join(e.dotfiles, "shellrc", "aliases.sh")
 
-	stdin := &byteReader{strings.NewReader("7\ny\n8\ny\n")}
+	stdin := strings.NewReader("7\ny\n8\ny\n")
 	out, err := e.runWithStdin(t, stdin, "annotate", target)
 	if err != nil {
 		t.Fatalf("annotate wizard failed: %v\noutput:\n%s", err, out)
@@ -844,7 +844,7 @@ func TestAnnotate_CancelAtConfirm(t *testing.T) {
 	}
 
 	// Done immediately (8), then No at confirm (n).
-	stdin := &byteReader{strings.NewReader("8\nn\n")}
+	stdin := strings.NewReader("8\nn\n")
 	out, runErr := e.runWithStdin(t, stdin, "annotate", target)
 	if runErr != nil {
 		t.Fatalf("annotate wizard failed: %v\noutput:\n%s", runErr, out)

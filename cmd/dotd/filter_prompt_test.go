@@ -18,26 +18,11 @@ func makeFilterNode(name, when string) pipeline.RawNode {
 	}
 }
 
-// byteReader wraps an io.Reader to return one byte at a time.
-// huh's accessible-mode PromptString creates a bufio.Scanner per field, which
-// would otherwise over-read and starve subsequent fields. Reading one byte at a
-// time forces each scanner to see only the bytes that belong to it.
-type byteReader struct{ r io.Reader }
-
-func (b *byteReader) Read(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-	return b.r.Read(p[:1])
-}
-
 // testCmd returns a cobra.Command wired to the given stdin.
 // stdout and stderr are discarded so test output stays clean.
-// stdin is wrapped in byteReader so multi-field huh accessible-mode forms
-// can be driven by a strings.NewReader without scanner over-read.
 func testCmd(stdin io.Reader) *cobra.Command {
 	cmd := &cobra.Command{}
-	cmd.SetIn(&byteReader{stdin})
+	cmd.SetIn(stdin)
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 	return cmd
