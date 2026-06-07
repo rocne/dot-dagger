@@ -7,10 +7,10 @@ package main
 //   - Never auto-accept a destructive or filesystem-mutating action on EOF.
 //
 // huh helpers (promptMenu, promptSelect, promptInput, promptBool, promptInputs):
-//   - All route through cmd.InOrStdin() / cmd.OutOrStdout().
+//   - All route through cmd.InOrStdin() / cmd.ErrOrStderr().
 //   - Non-TTY contexts (tests, CI) automatically use huh accessible mode:
 //     numbered menus, line-buffered text. Driveable by cmd.SetIn(strings.NewReader(...)).
-//   - This file is the only file that imports charmbracelet/huh (after Tasks 2–4 complete).
+//   - This file is the only file that imports charmbracelet/huh.
 
 import (
 	"bufio"
@@ -67,7 +67,7 @@ func newHuhForm(cmd *cobra.Command, fields ...huh.Field) *huh.Form {
 	return huh.NewForm(huh.NewGroup(fields...)).
 		WithAccessible(!tty).
 		WithInput(input).
-		WithOutput(cmd.OutOrStdout())
+		WithOutput(cmd.ErrOrStderr())
 }
 
 // promptMenu presents a numbered selection menu and returns the zero-based index
@@ -107,7 +107,7 @@ func promptSelect(cmd *cobra.Command, title, desc string, options []string) (str
 	if errors.Is(err, huh.ErrUserAborted) {
 		return "", errUserAborted
 	}
-	return chosen, err
+	return strings.TrimSpace(chosen), err
 }
 
 // promptInput shows a text field pre-filled with prefill and returns the trimmed value.

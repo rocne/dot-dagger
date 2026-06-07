@@ -87,6 +87,8 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 	}
 
 	// Confirmation prompt (skip if --yes or not a TTY).
+	// Note: isTTY returns false for strings.Reader, so this branch is not
+	// exercisable via cmd.SetIn in tests — it requires a real or pseudo-TTY.
 	nonInteractive := yes || !isTTY(cmd.InOrStdin())
 	if !nonInteractive {
 		confirmed, err := promptBool(cmd,

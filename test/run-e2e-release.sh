@@ -62,5 +62,6 @@ run_test adopt.sh
 run_test bundle.sh
 run_test dag-check.sh
 run_test package-check.sh
+run_test annotate.sh
 
 printf '\nAll e2e-release tests passed.\n'
