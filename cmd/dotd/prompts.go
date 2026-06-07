@@ -60,7 +60,7 @@ func (b *byteReader) Read(p []byte) (int, error) {
 func newHuhForm(cmd *cobra.Command, fields ...huh.Field) *huh.Form {
 	r := cmd.InOrStdin()
 	tty := isTTY(r)
-	var input io.Reader = r
+	input := io.Reader(r)
 	if !tty {
 		input = &byteReader{r}
 	}
