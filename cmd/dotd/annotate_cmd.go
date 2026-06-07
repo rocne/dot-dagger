@@ -1,13 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/rocne/dot-dagger/internal/annotation"
 	"github.com/spf13/cobra"
 )
@@ -21,8 +19,8 @@ func newAnnotateCmd(rootCfg *config) *cobra.Command {
 Opens a menu to select annotation types. Existing annotations are pre-loaded.
 Writes the updated annotation block atomically when confirmed.
 
-Only works in an interactive terminal. The file must be inside the dotfiles
-directory (--files).`,
+Works in both interactive terminals and non-interactive contexts (accessible mode).
+The file must be inside the dotfiles directory (--files).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAnnotate(cmd, rootCfg, args[0])
@@ -37,10 +35,6 @@ type stagedEntry struct {
 }
 
 func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
-	if !isTTYStdin() {
-		return fmt.Errorf("dotd annotate requires an interactive terminal")
-	}
-
 	absFile, err := filepath.Abs(fileArg)
 	if err != nil {
 		return fmt.Errorf("annotate: resolve path: %w", err)
@@ -113,9 +107,6 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 
 		idx, err := promptMenu(cmd, "Select annotation", options)
 		if err != nil {
-			if errors.Is(err, huh.ErrUserAborted) {
-				return errUserAborted
-			}
 			return fmt.Errorf("annotate: menu: %w", err)
 		}
 		if idx == len(annotation.Registry) {
@@ -127,17 +118,8 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 
 		switch t.Kind() {
 		case annotation.KindBool:
-			set := len(entries) > 0 // pre-populate with current state
-			if err := huh.NewConfirm().
-				Title(t.Label() + "?").
-				Description(t.Description()).
-				Affirmative("Set").
-				Negative("Remove").
-				Value(&set).
-				Run(); err != nil {
-				if errors.Is(err, huh.ErrUserAborted) {
-					return errUserAborted
-				}
+			set, err := promptBool(cmd, t.Label()+"?", t.Description(), "Set", "Remove", len(entries) > 0)
+			if err != nil {
 				return fmt.Errorf("annotate: confirm: %w", err)
 			}
 			staged = removeStagedKey(staged, t.Key())
@@ -150,16 +132,8 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 
 		case annotation.KindChoice:
 			opts := append(append([]string{}, t.Options()...), "none")
-			var chosen string
-			if err := huh.NewSelect[string]().
-				Title(t.Label()).
-				Description(t.Description()).
-				Options(huh.NewOptions(opts...)...).
-				Value(&chosen).
-				Run(); err != nil {
-				if errors.Is(err, huh.ErrUserAborted) {
-					return errUserAborted
-				}
+			chosen, err := promptSelect(cmd, t.Label(), t.Description(), opts)
+			if err != nil {
 				return fmt.Errorf("annotate: select: %w", err)
 			}
 			if chosen == "none" {
@@ -175,33 +149,14 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 			}
 
 		case annotation.KindText:
-			// Pre-fill with the existing single value so the user can edit it.
-			// Clearing the field (empty result) removes the annotation — this is
-			// the only removal path for a text annotation, so it must be reachable.
-			// huh.NewInput's Value reaches "" when the user deletes the text;
-			// the old bufio promptDefault returned the default on empty input,
-			// making removal of an existing value impossible.
-			val := ""
+			prefill := ""
 			if len(entries) == 1 {
-				val = entries[0].Value
+				prefill = entries[0].Value
 			}
-			if err := huh.NewInput().
-				Title(t.Label()).
-				Description(t.Description() + "  (clear the field to remove)").
-				Value(&val).
-				Validate(func(s string) error {
-					if strings.TrimSpace(s) == "" {
-						return nil // empty = remove; always allowed
-					}
-					return t.Validate(s)
-				}).
-				Run(); err != nil {
-				if errors.Is(err, huh.ErrUserAborted) {
-					return errUserAborted
-				}
+			val, err := promptInput(cmd, t.Label(), t.Description()+"  (clear the field to remove)", prefill, t.Validate)
+			if err != nil {
 				return fmt.Errorf("annotate: input: %w", err)
 			}
-			val = strings.TrimSpace(val)
 			switch {
 			case val == "":
 				staged = removeStagedKey(staged, t.Key())
@@ -225,16 +180,10 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 		fmt.Fprintf(out, "  %s\n", e.Type.Format(e.Value))
 	}
 
-	var confirmed bool
-	if err := huh.NewConfirm().
-		Title(fmt.Sprintf("Write these annotations to %s?", filepath.Base(absFile))).
-		Affirmative("Yes").
-		Negative("No, cancel").
-		Value(&confirmed).
-		Run(); err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return errUserAborted
-		}
+	confirmed, err := promptBool(cmd,
+		fmt.Sprintf("Write these annotations to %s?", filepath.Base(absFile)),
+		"", "Yes", "No, cancel", false)
+	if err != nil {
 		return fmt.Errorf("annotate: confirm: %w", err)
 	}
 	if !confirmed {

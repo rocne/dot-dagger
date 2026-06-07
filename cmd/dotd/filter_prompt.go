@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -74,8 +73,3 @@ func printPersistHint(w io.Writer, filled map[string]string) {
 		fmt.Fprintf(w, "  %s\n", line)
 	}
 }
-
-// isTTYStdin is a bridge shim keeping adopt.go and annotate_cmd.go compiling
-// until Tasks 3 and 4 migrate those callers. Removed in Task 4.
-// Deprecated: use isTTY(cmd.InOrStdin()) instead.
-func isTTYStdin() bool { return isTTY(os.Stdin) }
