@@ -44,7 +44,7 @@ type listEntry struct {
 }
 
 func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) error {
-	ordered, err := cfg.walkOrdered()
+	ordered, err := cfg.walkOrdered(cmd)
 	if err != nil {
 		return err
 	}

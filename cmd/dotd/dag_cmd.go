@@ -20,7 +20,7 @@ func newDagCheckCmd(cfg *config) *cobra.Command {
 		Use:   "check",
 		Short: "Print nodes in dependency order",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ordered, err := cfg.walkOrdered()
+			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
 				return err
 			}

@@ -279,7 +279,7 @@ type pipelineRun struct {
 	result        *pipeline.ActResult
 }
 
-func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
+func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, error) {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return nil, annotateKeyError(err)
@@ -297,7 +297,7 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 		return nil, err
 	}
 
-	active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()))
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +333,7 @@ func runPipeline(cfg *config, dryRun bool) (*pipelineRun, error) {
 //
 // Validation is shared with the write path so a config that apply/check
 // rejects also fails under list/dag/bundle/compose/package.
-func (cfg *appConfig) walkOrdered() ([]pipeline.RawNode, error) {
+func (cfg *appConfig) walkOrdered(cmd *cobra.Command) ([]pipeline.RawNode, error) {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return nil, annotateKeyError(err)
@@ -342,7 +342,7 @@ func (cfg *appConfig) walkOrdered() ([]pipeline.RawNode, error) {
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
-	active, err := filterWithPrompt(nodes, resolved, isTTYStdin())
+	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()))
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +429,7 @@ func warnIfNosyncUnignored(cfg *config) {
 
 func runApply(cmd *cobra.Command, cfg *config) error {
 	warnIfNosyncUnignored(cfg)
-	run, err := runPipeline(cfg, false)
+	run, err := runPipeline(cmd, cfg, false)
 	if err != nil {
 		return err
 	}
@@ -457,7 +457,7 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 
 func runCheck(cmd *cobra.Command, cfg *config) error {
 	warnIfNosyncUnignored(cfg)
-	run, err := runPipeline(cfg, true)
+	run, err := runPipeline(cmd, cfg, true)
 	if err != nil {
 		return err
 	}

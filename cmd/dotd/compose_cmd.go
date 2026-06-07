@@ -30,7 +30,7 @@ func newComposeListCmd(cfg *config) *cobra.Command {
 		Use:   "list",
 		Short: "List active compose targets",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ordered, err := cfg.walkOrdered()
+			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
 				return err
 			}
@@ -50,7 +50,7 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 		Use:   "check",
 		Short: "Check compose targets for staleness",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ordered, err := cfg.walkOrdered()
+			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
 				return err
 			}

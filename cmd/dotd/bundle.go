@@ -42,7 +42,7 @@ Examples:
 }
 
 func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, includeEnv bool) error {
-	ordered, err := cfg.walkOrdered()
+	ordered, err := cfg.walkOrdered(cmd)
 	if err != nil {
 		return err
 	}
