@@ -12,12 +12,12 @@ dotd setup
 
 It will ask for:
 
-- **Dotfiles directory** — where to store your dotfiles (default: `~/dotfiles`)
-- **env.yaml location** — where to write the environment config (default: inside your dotfiles dir)
-- **init.sh output path** — where to write the generated shell init file (default: `~/.local/share/dot-dagger/init.sh`)
-- **Package managers** — which managers to pre-populate in `packages.yaml` (detects what's installed)
+- **Dotfiles directory** — where your dotfiles git repo lives (default: `~/dotfiles`)
+- **Bin directory** — where executable scripts from the repo are linked (default: `~/.local/bin/dot-dagger`)
+- **Generated files directory** — where compose-assembled shell fragments are written (default: `~/.local/share/dot-dagger/generated`)
+- **Link root** — home directory used for `~` expansion in link destinations (default: `$HOME`)
 
-After scaffolding, it offers to append the `source` line to your shell config file automatically.
+Writes config.yaml and (if absent) env.yaml. Run `dotd init` next to scaffold convention directories in your dotfiles repo.
 
 If you prefer to skip all prompts:
 
