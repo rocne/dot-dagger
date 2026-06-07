@@ -763,18 +763,98 @@ func TestEnvCmdsLifecycle(t *testing.T) {
 	}
 }
 
-func TestAnnotate_NonTTY(t *testing.T) {
+// TestAnnotate_AddWhen drives the wizard to add a @when(os=macos) annotation.
+// Accessible-mode input: select When (1), enter value, select Done (8), confirm Yes.
+func TestAnnotate_AddWhen(t *testing.T) {
 	e := newIenv(t)
-	// shellrc/aliases.sh exists in the testdata fixture.
 	target := filepath.Join(e.dotfiles, "shellrc", "aliases.sh")
-	// Root sets SilenceErrors: true, so the message is on the returned error,
-	// not in the captured output buffer. Assert on err — mirrors the existing
-	// runMayFail tests (e.g. the apply-without-force case).
-	_, err := e.runMayFail(t, "annotate", target)
-	if err == nil {
-		t.Fatal("expected error for non-TTY, got nil")
+
+	// aliases.sh already has @after(shellrc.path). We're adding @when on top.
+	// Menu: 8 options (7 types + Done). Select 1=When, input value, 8=Done, y=Yes.
+	stdin := strings.NewReader("1\nos=macos\n8\ny\n")
+	out, err := e.runWithStdin(t, stdin, "annotate", target)
+	if err != nil {
+		t.Fatalf("annotate wizard failed: %v\noutput:\n%s", err, out)
 	}
-	if !strings.Contains(err.Error(), "requires an interactive terminal") {
-		t.Errorf("want 'requires an interactive terminal' in error, got: %v", err)
+
+	content, readErr := os.ReadFile(target)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	got := string(content)
+	if !strings.Contains(got, "# @when(os=macos)") {
+		t.Errorf("expected @when(os=macos) in file, got:\n%s", got)
+	}
+	if !strings.Contains(got, "# @after(shellrc.path)") {
+		t.Errorf("expected original @after(shellrc.path) preserved, got:\n%s", got)
+	}
+}
+
+// TestAnnotate_SetAction drives the wizard to set @action(source).
+// Accessible-mode input: select Action (5), select source (1 of [source,no-source,link,none]), Done (8), Yes.
+func TestAnnotate_SetAction(t *testing.T) {
+	e := newIenv(t)
+	target := filepath.Join(e.dotfiles, "shellrc", "aliases.sh")
+
+	stdin := strings.NewReader("5\n1\n8\ny\n")
+	out, err := e.runWithStdin(t, stdin, "annotate", target)
+	if err != nil {
+		t.Fatalf("annotate wizard failed: %v\noutput:\n%s", err, out)
+	}
+
+	content, readErr := os.ReadFile(target)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !strings.Contains(string(content), "# @action(source)") {
+		t.Errorf("expected @action(source) in file, got:\n%s", string(content))
+	}
+}
+
+// TestAnnotate_SetDisable drives the wizard to set @disable.
+// Accessible-mode input: select Disable (7), confirm Set (y), Done (8), confirm write (y).
+func TestAnnotate_SetDisable(t *testing.T) {
+	e := newIenv(t)
+	target := filepath.Join(e.dotfiles, "shellrc", "aliases.sh")
+
+	stdin := strings.NewReader("7\ny\n8\ny\n")
+	out, err := e.runWithStdin(t, stdin, "annotate", target)
+	if err != nil {
+		t.Fatalf("annotate wizard failed: %v\noutput:\n%s", err, out)
+	}
+
+	content, readErr := os.ReadFile(target)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !strings.Contains(string(content), "# @disable") {
+		t.Errorf("expected @disable in file, got:\n%s", string(content))
+	}
+}
+
+// TestAnnotate_CancelAtConfirm drives the wizard to Done with no changes,
+// then cancels at the final confirm. The file must be unmodified.
+func TestAnnotate_CancelAtConfirm(t *testing.T) {
+	e := newIenv(t)
+	target := filepath.Join(e.dotfiles, "shellrc", "aliases.sh")
+
+	before, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Done immediately (8), then No at confirm (n).
+	stdin := strings.NewReader("8\nn\n")
+	out, runErr := e.runWithStdin(t, stdin, "annotate", target)
+	if runErr != nil {
+		t.Fatalf("annotate wizard failed: %v\noutput:\n%s", runErr, out)
+	}
+
+	after, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Errorf("file changed after cancel; before:\n%s\nafter:\n%s", before, after)
 	}
 }

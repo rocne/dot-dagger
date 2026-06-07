@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/dagger"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -88,11 +87,15 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 	}
 
 	// Confirmation prompt (skip if --yes or not a TTY).
-	nonInteractive := yes || !isTTYStdin()
+	// Note: isTTY returns false for strings.Reader, so this branch is not
+	// exercisable via cmd.SetIn in tests — it requires a real or pseudo-TTY.
+	nonInteractive := yes || !isTTY(cmd.InOrStdin())
 	if !nonInteractive {
-		confirmed, promptErr := promptAdoptConfirm(srcAbs, destRel)
-		if promptErr != nil {
-			return promptErr
+		confirmed, err := promptBool(cmd,
+			fmt.Sprintf("Adopt %s → %s and replace with symlink?", srcAbs, destRel),
+			"", "Yes", "No, cancel", false)
+		if err != nil {
+			return fmt.Errorf("adopt: %w", err)
 		}
 		if !confirmed {
 			cfg.log.Info("adopt cancelled")
@@ -156,16 +159,3 @@ func conventionsFrom(cfg *dagger.ComposableNode) adopter.ConventionNames {
 	return conv
 }
 
-func promptAdoptConfirm(src, destRel string) (bool, error) {
-	var confirmed bool
-	err := huh.NewConfirm().
-		Title(fmt.Sprintf("Adopt %s → %s and replace with symlink?", src, destRel)).
-		Affirmative("Yes").
-		Negative("No, cancel").
-		Value(&confirmed).
-		Run()
-	if err != nil {
-		return false, fmt.Errorf("adopt: prompt: %w", err)
-	}
-	return confirmed, nil
-}

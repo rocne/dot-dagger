@@ -72,7 +72,7 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 			planned = append(planned, linkPair{src: lnk.Src, dest: lnk.Dest})
 		}
 	} else {
-		prun, err := runPipeline(cfg, true)
+		prun, err := runPipeline(cmd, cfg, true)
 		if err != nil {
 			return err
 		}

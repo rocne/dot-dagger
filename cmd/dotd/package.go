@@ -29,7 +29,7 @@ func newPackageCheckCmd(cfg *config) *cobra.Command {
 		Use:   "check",
 		Short: "Report install status for all referenced packages",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ordered, err := cfg.walkOrdered()
+			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
 				return err
 			}
@@ -63,7 +63,7 @@ func newPackageGenerateCmd(cfg *config) *cobra.Command {
 		Use:   "generate",
 		Short: "Generate install script for required packages",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ordered, err := cfg.walkOrdered()
+			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
 				return err
 			}
@@ -84,7 +84,7 @@ func newPackageListCmd(cfg *config) *cobra.Command {
 		Use:   "list",
 		Short: "List all packages referenced in active nodes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ordered, err := cfg.walkOrdered()
+			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
 				return err
 			}

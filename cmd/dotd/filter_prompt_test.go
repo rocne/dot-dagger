@@ -2,12 +2,12 @@ package main
 
 import (
 	"bytes"
-	"errors"
+	"io"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/huh"
 	"github.com/rocne/dot-dagger/internal/pipeline"
+	"github.com/spf13/cobra"
 )
 
 func makeFilterNode(name, when string) pipeline.RawNode {
@@ -18,11 +18,21 @@ func makeFilterNode(name, when string) pipeline.RawNode {
 	}
 }
 
+// testCmd returns a cobra.Command wired to the given stdin.
+// stdout and stderr are discarded so test output stays clean.
+func testCmd(stdin io.Reader) *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.SetIn(stdin)
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	return cmd
+}
+
 func TestFilterWithPrompt_NonTTY_MissingKey_ReturnsAnnotatedError(t *testing.T) {
 	nodes := []pipeline.RawNode{makeFilterNode("a", "context=work")}
 	resolved := map[string]string{} // context missing
 
-	_, err := filterWithPrompt(nodes, resolved, false)
+	_, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, false)
 	if err == nil {
 		t.Fatal("expected error for missing key, got nil")
 	}
@@ -39,7 +49,7 @@ func TestFilterWithPrompt_NonTTY_NoMissingKeys_ReturnsActiveNodes(t *testing.T) 
 	}
 	resolved := map[string]string{"context": "work"}
 
-	active, err := filterWithPrompt(nodes, resolved, false)
+	active, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,11 +59,10 @@ func TestFilterWithPrompt_NonTTY_NoMissingKeys_ReturnsActiveNodes(t *testing.T) 
 }
 
 func TestFilterWithPrompt_TTY_NoMissingKeys_DoesNotPrompt(t *testing.T) {
-	// isTTY=true but no missing keys — should proceed without prompting.
 	nodes := []pipeline.RawNode{makeFilterNode("base", "")}
 	resolved := map[string]string{}
 
-	active, err := filterWithPrompt(nodes, resolved, true)
+	active, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,58 +71,27 @@ func TestFilterWithPrompt_TTY_NoMissingKeys_DoesNotPrompt(t *testing.T) {
 	}
 }
 
-func TestFilterWithPrompt_TTY_UserAbort_ReturnsErrUserAborted(t *testing.T) {
-	// Inject a stub prompter that simulates the user pressing Ctrl-C.
-	// Verifies filterWithPrompt returns errUserAborted (not os.Exit).
-	orig := prompter
-	defer func() { prompter = orig }()
-	prompter = func(keys []string) (map[string]string, error) {
-		return nil, huh.ErrUserAborted
-	}
-
-	// Node with a missing key so the TTY branch reaches the prompter.
-	nodes := []pipeline.RawNode{makeFilterNode("work", "context=work")}
-	resolved := map[string]string{} // context is missing
-
-	_, err := filterWithPrompt(nodes, resolved, true)
-	if !errors.Is(err, errUserAborted) {
-		t.Errorf("expected errUserAborted, got %v", err)
-	}
-}
-
-// TestFilterWithPrompt_TTY_HappyPath verifies that when the stub prompter
-// returns values for missing keys, those values are augmented into the env
-// and the nodes that match the supplied values filter through.
+// TestFilterWithPrompt_TTY_HappyPath verifies that when the user provides values
+// for missing keys via accessible-mode stdin, those values augment the env and
+// the correct nodes filter through.
 func TestFilterWithPrompt_TTY_HappyPath(t *testing.T) {
-	orig := prompter
-	defer func() { prompter = orig }()
-
-	// Stub returns values for the two missing keys.
-	prompter = func(keys []string) (map[string]string, error) {
-		result := map[string]string{}
-		for _, k := range keys {
-			switch k {
-			case "os":
-				result[k] = "linux"
-			case "context":
-				result[k] = "work"
-			default:
-				result[k] = "stubval"
-			}
-		}
-		return result, nil
-	}
-
 	nodes := []pipeline.RawNode{
 		makeFilterNode("base", ""),
 		makeFilterNode("linux-work", "os=linux"),
 		makeFilterNode("macos-only", "os=macos"),
 		makeFilterNode("work-context", "context=work"),
 	}
-	// Both "os" and "context" are missing from resolved.
-	resolved := map[string]string{}
+	resolved := map[string]string{} // both "os" and "context" missing
 
-	active, err := filterWithPrompt(nodes, resolved, true)
+	// Accessible mode: huh prompts for each missing key in order.
+	// promptMissingKeys calls CollectMissingKeys then promptInputs.
+	// CollectMissingKeys returns keys in encounter order (not sorted).
+	// Nodes iterate: "linux-work" has os=linux → "os" collected first;
+	// "work-context" has context=work → "context" collected second.
+	// Input: "linux" for os, "work" for context.
+	stdin := strings.NewReader("linux\nwork\n")
+
+	active, err := filterWithPrompt(testCmd(stdin), nodes, resolved, true)
 	if err != nil {
 		t.Fatalf("filterWithPrompt error = %v", err)
 	}
@@ -122,23 +100,20 @@ func TestFilterWithPrompt_TTY_HappyPath(t *testing.T) {
 	for _, n := range active {
 		names[n.LogicalName] = true
 	}
-
 	if !names["base"] {
 		t.Error("expected 'base' (unconditional) in active nodes")
 	}
 	if !names["linux-work"] {
-		t.Error("expected 'linux-work' (os=linux) in active nodes after prompt filled os=linux")
+		t.Error("expected 'linux-work' in active nodes")
 	}
 	if !names["work-context"] {
-		t.Error("expected 'work-context' (context=work) in active nodes after prompt filled context=work")
+		t.Error("expected 'work-context' in active nodes")
 	}
 	if names["macos-only"] {
-		t.Error("expected 'macos-only' (os=macos) NOT in active nodes when os was set to 'linux'")
+		t.Error("expected 'macos-only' NOT in active nodes")
 	}
 }
 
-// TestPrintPersistHint verifies that printPersistHint writes the YAML
-// representation of the filled map to the writer.
 func TestPrintPersistHint(t *testing.T) {
 	filled := map[string]string{
 		"os":      "linux",
@@ -161,7 +136,6 @@ func TestPrintPersistHint(t *testing.T) {
 	if !strings.Contains(out, "work") {
 		t.Errorf("expected 'work' value in persist hint output: %q", out)
 	}
-	// Output must mention the env file name (hint instructs the user where to persist).
 	if !strings.Contains(out, "env.yaml") {
 		t.Errorf("expected 'env.yaml' in persist hint output: %q", out)
 	}

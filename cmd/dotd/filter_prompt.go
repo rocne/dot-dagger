@@ -1,34 +1,24 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"strings"
 
-	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/x/term"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/pipeline"
+	"github.com/spf13/cobra"
 	yaml "gopkg.in/yaml.v3"
 )
 
-// errUserAborted is returned when the user cancels an interactive prompt.
-// main() maps this sentinel to a clean exit-1 with "cancelled" on stderr,
-// avoiding the noisy "Error: user aborted" that Cobra would otherwise print.
-var errUserAborted = errors.New("user aborted")
-
-// prompter is the function used to prompt for missing keys.
-// It defaults to promptMissingKeys; tests may replace it with a stub.
-var prompter = promptMissingKeys
-
 // filterWithPrompt wraps pipeline.Filter with TTY-aware missing-key prompting.
-// Non-TTY: identical to Filter + annotateKeyError.
-// TTY with missing keys: prompts for all missing keys, then runs Filter with augmented env.
-func filterWithPrompt(nodes []pipeline.RawNode, resolved map[string]string, isTTY bool) ([]pipeline.RawNode, error) {
-	if !isTTY {
+// tty=false: identical to Filter + annotateKeyError (non-interactive path).
+// tty=true with missing keys: prompts for all missing keys via cmd's I/O,
+// then re-runs Filter with the augmented env.
+// Call site: filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()))
+func filterWithPrompt(cmd *cobra.Command, nodes []pipeline.RawNode, resolved map[string]string, tty bool) ([]pipeline.RawNode, error) {
+	if !tty {
 		active, err := pipeline.Filter(nodes, resolved)
 		return active, annotateKeyError(err)
 	}
@@ -42,15 +32,12 @@ func filterWithPrompt(nodes []pipeline.RawNode, resolved map[string]string, isTT
 		return active, annotateKeyError(err)
 	}
 
-	filled, err := prompter(missing)
+	filled, err := promptMissingKeys(cmd, missing)
 	if err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return nil, errUserAborted
-		}
 		return nil, err
 	}
 
-	printPersistHint(os.Stderr, filled)
+	printPersistHint(cmd.ErrOrStderr(), filled)
 
 	augmented := maps.Clone(resolved)
 	for k, v := range filled {
@@ -61,47 +48,28 @@ func filterWithPrompt(nodes []pipeline.RawNode, resolved map[string]string, isTT
 	return active, annotateKeyError(err)
 }
 
-func promptMissingKeys(keys []string) (map[string]string, error) {
-	vals := make([]string, len(keys))
-	fields := make([]huh.Field, len(keys))
+func promptMissingKeys(cmd *cobra.Command, keys []string) (map[string]string, error) {
+	prompts := make([]inputPrompt, len(keys))
 	for i, k := range keys {
-		fields[i] = huh.NewInput().
-			Title(fmt.Sprintf("env key %q is not set", k)).
-			Value(&vals[i]).
-			Validate(func(s string) error {
-				if strings.TrimSpace(s) == "" {
-					return fmt.Errorf("value required")
-				}
-				return nil
-			})
+		prompts[i] = inputPrompt{
+			Key:   k,
+			Title: fmt.Sprintf("env key %q is not set", k),
+		}
 	}
-	if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
-		return nil, err
-	}
-	filled := make(map[string]string, len(keys))
-	for i, k := range keys {
-		filled[k] = vals[i]
-	}
-	return filled, nil
+	return promptInputs(cmd, prompts)
 }
 
 func printPersistHint(w io.Writer, filled map[string]string) {
+	fmt.Fprintf(w, "\nHint: to persist, add to %s:\n", ecosystem.EnvFileName)
 	out, err := yaml.Marshal(filled)
 	if err != nil {
-		// Fallback to raw output if marshaling fails (shouldn't happen for string maps).
-		fmt.Fprintf(w, "\nHint: to persist, add to %s:\n", ecosystem.EnvFileName)
+		// yaml.Marshal on map[string]string is infallible; this branch is unreachable in practice
 		for k, v := range filled {
 			fmt.Fprintf(w, "  %s: %s\n", k, v)
 		}
 		return
 	}
-	fmt.Fprintf(w, "\nHint: to persist, add to %s:\n", ecosystem.EnvFileName)
 	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
 		fmt.Fprintf(w, "  %s\n", line)
 	}
-}
-
-// isTTYStdin returns true when os.Stdin is an interactive terminal.
-func isTTYStdin() bool {
-	return term.IsTerminal(os.Stdin.Fd())
 }
