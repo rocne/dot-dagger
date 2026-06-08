@@ -47,6 +47,7 @@ type appConfig struct {
 	force        bool
 	logLevel     string
 	quiet        bool
+	debug        bool
 	log          *chlog.Logger
 }
 
@@ -77,6 +78,7 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.StringVar(&cfg.logLevel, "log-level", "info", "log verbosity ("+dotlog.LevelNames()+")")
 	pf.BoolVar(&cfg.quiet, "quiet", false, "suppress all output except errors")
+	pf.BoolVar(&cfg.debug, "debug", false, "set log level to debug (overridden by --log-level)")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		if err := resolvePaths(cfg); err != nil {
@@ -247,11 +249,22 @@ func resolvePaths(cfg *config) error {
 	return nil
 }
 
-func configureLogger(cfg *config, cmd *cobra.Command) error {
-	level := cfg.logLevel
-	if cfg.quiet {
+// resolveLogLevel determines effective log level from three sources.
+// Priority (highest wins): quiet > explicit --log-level > --debug > default.
+func resolveLogLevel(logLevel string, debug bool, logLevelExplicit bool, quiet bool) string {
+	level := logLevel
+	if debug && !logLevelExplicit {
+		level = "debug"
+	}
+	if quiet {
 		level = "error"
 	}
+	return level
+}
+
+func configureLogger(cfg *config, cmd *cobra.Command) error {
+	logLevelExplicit := cmd.Root().PersistentFlags().Changed("log-level")
+	level := resolveLogLevel(cfg.logLevel, cfg.debug, logLevelExplicit, cfg.quiet)
 	logger, err := dotlog.New(cmd.ErrOrStderr(), level)
 	if err != nil {
 		return fmt.Errorf("--log-level: %w", err)
