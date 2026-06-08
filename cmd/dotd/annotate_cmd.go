@@ -153,7 +153,8 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 			if len(entries) == 1 {
 				prefill = entries[0].Value
 			}
-			val, err := promptInput(cmd, t.Label(), t.Description()+"  (clear the field to remove)", prefill, t.Validate)
+			fmt.Fprintln(out, t.Description())
+			val, err := promptInput(cmd, t.Label(), "(enter value, or clear to remove)", prefill, t.Validate)
 			if err != nil {
 				return fmt.Errorf("annotate: input: %w", err)
 			}

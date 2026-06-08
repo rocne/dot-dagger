@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
@@ -21,6 +22,7 @@ func newEnvCmd(cfg *config) *cobra.Command {
 		newEnvSetCmd(cfg),
 		newEnvEditCmd(cfg),
 		newEnvDiffCmd(cfg),
+		newEnvPathCmd(cfg),
 	)
 	return cmd
 }
@@ -38,13 +40,22 @@ func newEnvShowCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			raw, err := env.Load(cfg.envFile)
+			if err != nil {
+				return err
+			}
 			keys := make([]string, 0, len(resolved))
 			for k := range resolved {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
 			for _, k := range keys {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
+				rawVal := raw[k]
+				if strings.HasPrefix(rawVal, "$(") && strings.HasSuffix(rawVal, ")") {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\t[%s]\n", k, resolved[k], rawVal)
+				} else {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
+				}
 			}
 			return nil
 		},
@@ -75,7 +86,16 @@ func newEnvSetCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: fmt.Sprintf("Set a key in %s", ecosystem.EnvFileName),
-		Args:  cobra.ExactArgs(2),
+		Long: fmt.Sprintf(`Set a key in %s.
+
+To store a shell expression that evaluates at runtime, use single quotes
+to prevent the shell from expanding it:
+
+  dotd env set os '$(dotd get-os)'
+  dotd env set hostname '$(hostname)'
+
+Values stored as $(…) are evaluated each time dotd runs.`, ecosystem.EnvFileName),
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := envYamlPath(cfg)
 			raw, err := env.Load(path)
@@ -84,6 +104,17 @@ func newEnvSetCmd(cfg *config) *cobra.Command {
 			}
 			raw[args[0]] = args[1]
 			return env.Save(path, raw)
+		},
+	}
+}
+
+func newEnvPathCmd(cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "path",
+		Short: "Show the path to env.yaml",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(cmd.OutOrStdout(), cfg.envFile)
+			return nil
 		},
 	}
 }

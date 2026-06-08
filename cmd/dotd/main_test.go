@@ -1499,6 +1499,31 @@ func TestUnapply_YesFlagSkipsConfirmation(t *testing.T) {
 
 // --- Real env.yaml expansion path (AUDIT-068) ---
 
+func TestResolveLogLevel(t *testing.T) {
+	cases := []struct {
+		logLevel         string
+		debug            bool
+		logLevelExplicit bool
+		quiet            bool
+		want             string
+	}{
+		{"info", false, false, false, "info"},
+		{"info", true, false, false, "debug"},  // --debug sets debug
+		{"info", true, true, false, "info"},    // --log-level wins over --debug
+		{"warn", true, true, false, "warn"},    // --log-level warn wins
+		{"info", true, false, true, "error"},   // --quiet wins over --debug
+		{"debug", false, true, false, "debug"}, // --log-level debug, no --debug flag
+		{"warn", false, true, true, "error"},   // --quiet wins over explicit --log-level
+	}
+	for _, c := range cases {
+		got := resolveLogLevel(c.logLevel, c.debug, c.logLevelExplicit, c.quiet)
+		if got != c.want {
+			t.Errorf("resolveLogLevel(%q, debug=%v, explicit=%v, quiet=%v) = %q, want %q",
+				c.logLevel, c.debug, c.logLevelExplicit, c.quiet, got, c.want)
+		}
+	}
+}
+
 // TestEnvResolution_ShellExpandedValue verifies the full env.yaml → Expand →
 // Resolve → normalize chain for shell-expanded values. An env.yaml that
 // contains `os: $(echo linux)` must produce the same predicate result as
