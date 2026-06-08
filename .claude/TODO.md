@@ -25,6 +25,10 @@ Items that are known but intentionally deferred. Update this as things get done 
 - [ ] cmd/dotd: `dotcfg.DefaultPath()` now has only one caller (`teardown_cmd.go`, deliberate exception per AUDIT-003); consider replacing with direct `ecosystem.DefaultConfigFile()` call and deleting the wrapper.
 - [ ] cmd/dotd test helper: `run()` at `main_test.go:14` could accept `io.Reader` for stdin so tests covering interactive commands (setup, init) don't need to reinvent the cobra wiring.
 
+## UX / Help
+
+- [ ] `dotd concepts`: add sub-topic routing (`dotd concepts when`, `dotd concepts env`, etc.) once the flat version is validated with users
+
 ## Git / CI Infrastructure
 
 - [x] Multi-distro integration testing via Docker — Ubuntu e2e done (PRs #77–78, v0.2.34). Three tests: binary, installer, combined. Failure opens GH issue. Fedora deferred.
