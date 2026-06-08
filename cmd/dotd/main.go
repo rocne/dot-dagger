@@ -57,10 +57,11 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:          ecosystem.ToolD,
-		Short:        "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
-		Version:      version,
+		Use:           ecosystem.ToolD,
+		Short:         "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
+		Version:       version,
 		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	pf := root.PersistentFlags()
