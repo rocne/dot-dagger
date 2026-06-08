@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/spf13/cobra"
@@ -36,8 +34,7 @@ func newConfigShowCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			keys := []string{"dotfiles", "bin_dir", "generated_dir", "link_root"}
-			for _, k := range keys {
+			for _, k := range dotcfg.Keys {
 				val, _ := toolCfg.Get(k)
 				fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, val)
 			}
@@ -89,15 +86,7 @@ func newConfigEditCmd(cfg *config) *cobra.Command {
 		Use:   "edit",
 		Short: "Open config.yaml in $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			editor := os.Getenv("EDITOR")
-			if editor == "" {
-				editor = "vi"
-			}
-			c := exec.Command(editor, cfg.configPath)
-			c.Stdin = os.Stdin
-			c.Stdout = os.Stdout
-			c.Stderr = os.Stderr
-			return c.Run()
+			return launchEditor(cfg.configPath)
 		},
 	}
 }

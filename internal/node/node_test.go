@@ -2,6 +2,27 @@ package node
 
 import "testing"
 
+func TestStripRepoPrefix(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"nosync-dot-secrets", "secrets"},
+		{"nosync-work", "work"},
+		{"dot-tmux.conf", "tmux.conf"},
+		{"shellrc", "shellrc"},
+		{"", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.in, func(t *testing.T) {
+			got := StripRepoPrefix(c.in)
+			if got != c.want {
+				t.Errorf("StripRepoPrefix(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
 func TestDeriveName(t *testing.T) {
 	cases := []struct {
 		path string

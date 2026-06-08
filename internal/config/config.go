@@ -13,6 +13,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config key names — single source of truth for Get/Set and command display.
+const (
+	KeyDotfiles     = "dotfiles"
+	KeyBinDir       = "bin_dir"
+	KeyGeneratedDir = "generated_dir"
+	KeyLinkRoot     = "link_root"
+)
+
+// Keys is the ordered list of all valid config keys.
+var Keys = []string{KeyDotfiles, KeyBinDir, KeyGeneratedDir, KeyLinkRoot}
+
 // Config holds tool preferences from config.yaml. These are machine-stable settings.
 type Config struct {
 	Dotfiles     string `yaml:"dotfiles"`
@@ -61,13 +72,13 @@ func Save(path string, cfg *Config) error {
 // Get returns the value of a named config key.
 func (c *Config) Get(key string) (string, error) {
 	switch key {
-	case "dotfiles":
+	case KeyDotfiles:
 		return c.Dotfiles, nil
-	case "bin_dir":
+	case KeyBinDir:
 		return c.BinDir, nil
-	case "generated_dir":
+	case KeyGeneratedDir:
 		return c.GeneratedDir, nil
-	case "link_root":
+	case KeyLinkRoot:
 		return c.LinkRoot, nil
 	default:
 		return "", fmt.Errorf("config: unknown key %q", key)
@@ -77,13 +88,13 @@ func (c *Config) Get(key string) (string, error) {
 // Set updates a named config key.
 func (c *Config) Set(key, value string) error {
 	switch key {
-	case "dotfiles":
+	case KeyDotfiles:
 		c.Dotfiles = value
-	case "bin_dir":
+	case KeyBinDir:
 		c.BinDir = value
-	case "generated_dir":
+	case KeyGeneratedDir:
 		c.GeneratedDir = value
-	case "link_root":
+	case KeyLinkRoot:
 		c.LinkRoot = value
 	default:
 		return fmt.Errorf("config: unknown key %q", key)

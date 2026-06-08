@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/fileutil"
+	"github.com/rocne/dot-dagger/internal/node"
 )
 
 // ActOptions configures Act behaviour.
@@ -183,8 +184,7 @@ func resolveLink(dest string, n RawNode, homeDir, binDir string) string {
 // Strips "nosync-" then "dot-" prefixes and the ".d" suffix.
 // "nosync-dot-shellrc.d" → "shellrc", "dot-tmux.conf.d" → "tmux.conf"
 func ComposeFileName(dirPath string) string {
-	base := strings.TrimPrefix(strings.TrimPrefix(filepath.Base(dirPath), "nosync-"), "dot-")
-	return strings.TrimSuffix(base, ".d")
+	return strings.TrimSuffix(node.StripRepoPrefix(filepath.Base(dirPath)), ".d")
 }
 
 // deriveLinkDest computes a link destination from n.LinkRoot + relative filename.

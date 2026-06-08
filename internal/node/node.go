@@ -6,6 +6,15 @@ import (
 	"strings"
 )
 
+// StripRepoPrefix strips the "nosync-" then "dot-" leading prefixes from a single
+// path component — the naming convention for repo entries that should not sync or
+// that map to dotfiles (hidden files).
+func StripRepoPrefix(s string) string {
+	s = strings.TrimPrefix(s, "nosync-")
+	s = strings.TrimPrefix(s, "dot-")
+	return s
+}
+
 // DeriveName computes the dot-separated logical name from a path
 // relative to the dotfiles repo root.
 //
@@ -17,8 +26,7 @@ func DeriveName(relPath string) string {
 	components := strings.Split(filepath.ToSlash(relPath), "/")
 	result := make([]string, len(components))
 	for i, c := range components {
-		c = strings.TrimPrefix(c, "nosync-")
-		c = strings.TrimPrefix(c, "dot-")
+		c = StripRepoPrefix(c)
 		if i == len(components)-1 {
 			if ext := filepath.Ext(c); ext != "" {
 				c = strings.TrimSuffix(c, ext)

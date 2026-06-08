@@ -30,14 +30,23 @@ const ToolD = "dotd"
 // Use this as the canonical XDG config home — do not call os.Getenv("XDG_CONFIG_HOME") directly.
 func XdgConfigHome() (string, error) { return xdgConfigHome() }
 
+// userHome wraps os.UserHomeDir with a package-uniform error message.
+func userHome() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+	}
+	return home, nil
+}
+
 // xdgConfigHome is the unexported implementation shared by all Default* functions in this package.
 func xdgConfigHome() (string, error) {
 	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" && filepath.IsAbs(d) {
 		return d, nil
 	}
-	home, err := os.UserHomeDir()
+	home, err := userHome()
 	if err != nil {
-		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+		return "", err
 	}
 	return filepath.Join(home, ".config"), nil
 }
@@ -47,9 +56,9 @@ func xdgDataHome() (string, error) {
 	if d := os.Getenv("XDG_DATA_HOME"); d != "" && filepath.IsAbs(d) {
 		return d, nil
 	}
-	home, err := os.UserHomeDir()
+	home, err := userHome()
 	if err != nil {
-		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+		return "", err
 	}
 	return filepath.Join(home, ".local", "share"), nil
 }
@@ -85,19 +94,15 @@ func DefaultInitFile() (string, error) {
 // DefaultLinkRoot returns the default link root directory: $HOME.
 // This is the directory used to expand "~" in link destinations.
 func DefaultLinkRoot() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
-	}
-	return home, nil
+	return userHome()
 }
 
 // DefaultBinDir returns the default path for user-managed binaries: ~/.local/bin/dot-dagger.
 // This follows the FHS convention for user-local executables (not an XDG path).
 func DefaultBinDir() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := userHome()
 	if err != nil {
-		return "", fmt.Errorf("ecosystem: cannot determine home directory: %w", err)
+		return "", err
 	}
 	return filepath.Join(home, ".local", "bin", Name), nil
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"sort"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -94,16 +93,7 @@ func newEnvEditCmd(cfg *config) *cobra.Command {
 		Use:   "edit",
 		Short: fmt.Sprintf("Open %s in $EDITOR", ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := envYamlPath(cfg)
-			editor := os.Getenv("EDITOR")
-			if editor == "" {
-				editor = "vi"
-			}
-			c := exec.Command(editor, path)
-			c.Stdin = os.Stdin
-			c.Stdout = os.Stdout
-			c.Stderr = os.Stderr
-			return c.Run()
+			return launchEditor(envYamlPath(cfg))
 		},
 	}
 }
