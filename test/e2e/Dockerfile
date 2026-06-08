@@ -29,4 +29,5 @@ COPY bundle.sh /tests/bundle.sh
 COPY dag-check.sh /tests/dag-check.sh
 COPY package-check.sh /tests/package-check.sh
 COPY annotate.sh /tests/annotate.sh
+COPY concepts.sh /tests/concepts.sh
 COPY procure/ /procure/
