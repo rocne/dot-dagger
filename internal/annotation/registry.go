@@ -40,7 +40,7 @@ func (WhenType) Description() string {
 		"  expr AND expr         both must match        os=macos AND context=work\n" +
 		"  expr OR expr          either matches         os=macos OR os=linux\n" +
 		"  (expr)                grouping               (os=macos OR os=linux) AND context=work\n\n" +
-		"Comma separates multiple values for ONE key. Use AND to join two conditions."
+		"Comma separates multiple values for ONE key. Use AND/OR to join two conditions."
 }
 func (WhenType) Kind()        InputKind { return KindText }
 func (WhenType) Options()     []string  { return nil }
