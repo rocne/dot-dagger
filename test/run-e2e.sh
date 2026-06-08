@@ -55,5 +55,6 @@ run_test bundle.sh
 run_test dag-check.sh
 run_test package-check.sh
 run_test annotate.sh
+run_test concepts.sh
 
 printf '\nAll e2e tests passed.\n'
