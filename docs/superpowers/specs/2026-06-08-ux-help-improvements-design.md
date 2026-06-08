@@ -55,7 +55,7 @@ Alignment: a single `\t` separates the `key=value` portion from the `[$(expr)]` 
 
 Values from DOTD_* shell vars or `--env` flags show as plain values with no annotation. The existing `diff` command covers the source-attribution question.
 
-Implementation: call `env.Load(cfg.envFile)` inside `newEnvShowCmd.RunE` to get the raw map. The `shellExpr` helper in `internal/env/env.go` is exported as `ShellExpr` so the command layer can use it without duplicating the pattern check.
+Implementation: call `env.Load(cfg.envFile)` inside `newEnvShowCmd.RunE` to get the raw map. Detect shell expressions inline: `strings.HasPrefix(v, "$(") && strings.HasSuffix(v, ")")`. No export needed — the check is two lines and doesn't belong in the internal API.
 
 ### 3. `dotd env set` — shell expression hint
 
@@ -81,11 +81,11 @@ Short description: `Show the path to env.yaml`
 
 ### 5. Error output — silence usage on domain errors
 
-`root.SilenceUsage = true` set on the root command in `newRootCmd`. This suppresses the usage block for all errors — domain errors, arg-count errors, and unknown-flag errors alike. The error message itself is always sufficient to understand what went wrong.
+`SilenceUsage: true` added to the root command struct literal in `newRootCmd` (alongside the existing `SilenceErrors: true`). This suppresses the usage block for all errors — domain errors, arg-count errors, and unknown-flag errors alike. The error message itself is always sufficient to understand what went wrong. `SilenceErrors` is already set so errors are never printed twice.
 
 ### 6. `--debug` flag
 
-A `--debug` bool persistent flag added to the root command alongside `--log-level`. In `configureLogger`:
+A `debug bool` field added to `appConfig`. A `--debug` bool persistent flag bound to `cfg.debug` added to the root command alongside `--log-level`. In `configureLogger`:
 
 - `--debug` sets the effective log level to `"debug"` as a baseline
 - `--log-level` is applied afterward and wins if explicitly set
@@ -111,7 +111,6 @@ Content is a Go string constant. No external files, no i18n.
 | File | Change |
 |------|--------|
 | `internal/annotation/registry.go` | Update `WhenType.Description()` and `WhenType.Validate()` error |
-| `internal/env/env.go` | Export `ShellExpr(v string) (string, bool)` |
 | `cmd/dotd/env.go` | Update `newEnvShowCmd`, `newEnvSetCmd Long`, add `newEnvPathCmd` |
 | `cmd/dotd/main.go` | Add `--debug` flag, set `SilenceUsage = true` |
 | `cmd/dotd/concepts_cmd.go` | New file: `newConceptsCmd` |
@@ -119,8 +118,8 @@ Content is a Go string constant. No external files, no i18n.
 
 ## Testing
 
-- `TestEnvShowExprAnnotation` — show output includes `[$(expr)]` for shell-expression values
+- `TestEnvShowExprAnnotation` — show output includes `[$(expr)]` for shell-expression values; plain values have no annotation
 - `TestEnvPathCmd` — prints resolved env file path
 - `TestDebugFlagSetsLogLevel` — `--debug` produces debug-level log output
-- `WhenType` description and validation changes covered by existing annotation tests (no behavior change, description only)
+- `TestWhenValidate_errorHint` — existing `WhenType.Validate` test updated to assert new error message (the error text is changing; this test will fail until updated)
 - `SilenceUsage` and `concepts` verified manually (output content, no errors)
