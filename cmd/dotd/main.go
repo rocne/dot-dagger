@@ -144,6 +144,7 @@ func newRootCmd() *cobra.Command {
 	}
 
 	root.AddCommand(newCompletionCmd())
+	root.AddCommand(newConceptsCmd())
 
 	return root
 }
