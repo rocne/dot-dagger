@@ -85,7 +85,16 @@ func newEnvSetCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: fmt.Sprintf("Set a key in %s", ecosystem.EnvFileName),
-		Args:  cobra.ExactArgs(2),
+		Long: fmt.Sprintf(`Set a key in %s.
+
+To store a shell expression that evaluates at runtime, use single quotes
+to prevent the shell from expanding it:
+
+  dotd env set os '$(dotd get-os)'
+  dotd env set hostname '$(hostname)'
+
+Values stored as $(…) are evaluated each time dotd runs.`, ecosystem.EnvFileName),
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := envYamlPath(cfg)
 			raw, err := env.Load(path)
