@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
@@ -38,13 +39,22 @@ func newEnvShowCmd(cfg *config) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			raw, err := env.Load(cfg.envFile)
+			if err != nil {
+				return err
+			}
 			keys := make([]string, 0, len(resolved))
 			for k := range resolved {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
 			for _, k := range keys {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
+				rawVal := raw[k]
+				if strings.HasPrefix(rawVal, "$(") && strings.HasSuffix(rawVal, ")") {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\t[%s]\n", k, resolved[k], rawVal)
+				} else {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
+				}
 			}
 			return nil
 		},
