@@ -39,13 +39,7 @@ func newPackageCheckCmd(cfg *config) *cobra.Command {
 				return regErr
 			}
 
-			reqs := collectPackageRequests(ordered)
-			seen := map[string]bool{}
-			for _, r := range reqs {
-				if seen[r.Package] {
-					continue
-				}
-				seen[r.Package] = true
+			for _, r := range uniquePackages(collectPackageRequests(ordered)) {
 				installed, _ := packages.Installed(r.Package, reg, exec.LookPath)
 				status := "not installed"
 				if installed {
@@ -89,13 +83,7 @@ func newPackageListCmd(cfg *config) *cobra.Command {
 				return err
 			}
 
-			reqs := collectPackageRequests(ordered)
-			seen := map[string]bool{}
-			for _, r := range reqs {
-				if seen[r.Package] {
-					continue
-				}
-				seen[r.Package] = true
+			for _, r := range uniquePackages(collectPackageRequests(ordered)) {
 				kind := "request"
 				if r.Hard {
 					kind = "require"
@@ -114,6 +102,23 @@ func loadRegistry(cfg *config) (*packages.Registry, error) {
 		return nil, fmt.Errorf("packages: load %s: %w", pkgsFile, err)
 	}
 	return reg, nil
+}
+
+// uniquePackages returns reqs with duplicate Package names removed, first occurrence wins.
+func uniquePackages(reqs []packages.PackageRequest) []packages.PackageRequest {
+	if reqs == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := reqs[:0:0]
+	for _, r := range reqs {
+		if seen[r.Package] {
+			continue
+		}
+		seen[r.Package] = true
+		out = append(out, r)
+	}
+	return out
 }
 
 func collectPackageRequests(nodes []pipeline.RawNode) []packages.PackageRequest {

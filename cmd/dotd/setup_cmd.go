@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -57,66 +58,22 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 		fmt.Fprintln(out, "Press Enter to accept the shown default.")
 	}
 
-	// Dotfiles path. Use cfg.files — already resolved by resolvePaths.
-	dotfilesDefault := existing.Dotfiles
-	if dotfilesDefault == "" {
-		dotfilesDefault = cfg.files
-	}
-	printField(out, "Dotfiles repo", "Your dotfiles git repository.")
-	dotfilesPath, err := promptDefault(out, reader, fieldPrompt(), dotfilesDefault, false)
-	if err != nil {
-		return err
-	}
-	dotfilesPath = fileutil.ExpandHome(dotfilesPath, home)
-	dotfilesPath, err = filepath.Abs(dotfilesPath)
+	dotfilesPath, err := promptPath(out, reader, "Dotfiles repo", "Your dotfiles git repository.", existing.Dotfiles, cfg.files, home)
 	if err != nil {
 		return err
 	}
 
-	// Bin dir. Use cfg.binDir — already resolved by resolvePaths.
-	binDirDefault := existing.BinDir
-	if binDirDefault == "" {
-		binDirDefault = cfg.binDir
-	}
-	printField(out, "Bin directory", "Where executable scripts from your dotfiles repo are linked.")
-	binDir, err := promptDefault(out, reader, fieldPrompt(), binDirDefault, false)
-	if err != nil {
-		return err
-	}
-	binDir = fileutil.ExpandHome(binDir, home)
-	binDir, err = filepath.Abs(binDir)
+	binDir, err := promptPath(out, reader, "Bin directory", "Where executable scripts from your dotfiles repo are linked.", existing.BinDir, cfg.binDir, home)
 	if err != nil {
 		return err
 	}
 
-	// Generated dir. Use cfg.generatedDir — already resolved by resolvePaths.
-	generatedDirDefault := existing.GeneratedDir
-	if generatedDirDefault == "" {
-		generatedDirDefault = cfg.generatedDir
-	}
-	printField(out, "Generated files directory", "Where compose-assembled shell fragments are written.")
-	generatedDir, err := promptDefault(out, reader, fieldPrompt(), generatedDirDefault, false)
-	if err != nil {
-		return err
-	}
-	generatedDir = fileutil.ExpandHome(generatedDir, home)
-	generatedDir, err = filepath.Abs(generatedDir)
+	generatedDir, err := promptPath(out, reader, "Generated files directory", "Where compose-assembled shell fragments are written.", existing.GeneratedDir, cfg.generatedDir, home)
 	if err != nil {
 		return err
 	}
 
-	// Link root. Use cfg.linkRoot — already resolved by resolvePaths.
-	linkRootDefault := existing.LinkRoot
-	if linkRootDefault == "" {
-		linkRootDefault = cfg.linkRoot
-	}
-	printField(out, "Link root", "Home directory used for ~ expansion in link destinations (default: $HOME).")
-	linkRoot, err := promptDefault(out, reader, fieldPrompt(), linkRootDefault, false)
-	if err != nil {
-		return err
-	}
-	linkRoot = fileutil.ExpandHome(linkRoot, home)
-	linkRoot, err = filepath.Abs(linkRoot)
+	linkRoot, err := promptPath(out, reader, "Link root", "Home directory used for ~ expansion in link destinations (default: $HOME).", existing.LinkRoot, cfg.linkRoot, home)
 	if err != nil {
 		return err
 	}
@@ -155,5 +112,21 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	fmt.Fprintln(out, "  2. Add dotfiles to your repo")
 	fmt.Fprintf(out, "  3. %s\n", ui.Key("dotd apply"))
 	return nil
+}
+
+// promptPath prints a field prompt, reads a path from the user, expands ~ and resolves to absolute.
+// existingVal takes precedence over resolvedDefault when non-empty (update vs first-run).
+func promptPath(out io.Writer, reader *bufio.Reader, label, desc, existingVal, resolvedDefault, home string) (string, error) {
+	def := existingVal
+	if def == "" {
+		def = resolvedDefault
+	}
+	printField(out, label, desc)
+	val, err := promptDefault(out, reader, fieldPrompt(), def, false)
+	if err != nil {
+		return "", err
+	}
+	val = fileutil.ExpandHome(val, home)
+	return filepath.Abs(val)
 }
 

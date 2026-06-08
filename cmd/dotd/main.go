@@ -500,3 +500,16 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 	return nil
 }
 
+// launchEditor opens path in $EDITOR, falling back to vi.
+func launchEditor(path string) error {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	c := exec.Command(editor, path)
+	c.Stdin = os.Stdin
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c.Run()
+}
+
