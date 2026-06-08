@@ -78,7 +78,7 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.StringVar(&cfg.logLevel, "log-level", "info", "log verbosity ("+dotlog.LevelNames()+")")
 	pf.BoolVar(&cfg.quiet, "quiet", false, "suppress all output except errors")
-	pf.BoolVar(&cfg.debug, "debug", false, "set log level to debug (overridden by --log-level)")
+	pf.BoolVar(&cfg.debug, "debug", false, "shorthand for --log-level=debug")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		if err := resolvePaths(cfg); err != nil {

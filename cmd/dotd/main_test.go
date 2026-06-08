@@ -1513,6 +1513,7 @@ func TestResolveLogLevel(t *testing.T) {
 		{"warn", true, true, false, "warn"},    // --log-level warn wins
 		{"info", true, false, true, "error"},   // --quiet wins over --debug
 		{"debug", false, true, false, "debug"}, // --log-level debug, no --debug flag
+		{"warn", false, true, true, "error"},   // --quiet wins over explicit --log-level
 	}
 	for _, c := range cases {
 		got := resolveLogLevel(c.logLevel, c.debug, c.logLevelExplicit, c.quiet)
