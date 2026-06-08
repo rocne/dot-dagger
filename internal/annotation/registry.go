@@ -33,14 +33,25 @@ type WhenType struct{}
 
 func (WhenType) Key()         string { return KeyWhen }
 func (WhenType) Label()       string { return "When" }
-func (WhenType) Description() string { return "Condition under which this file is active (e.g. os=macos, context=work)" }
+func (WhenType) Description() string {
+	return "Condition for when this file is active.\n\n" +
+		"  key=value              single condition       os=macos\n" +
+		"  key=v1,v2             match any value        os=macos,linux\n" +
+		"  expr AND expr         both must match        os=macos AND context=work\n" +
+		"  expr OR expr          either matches         os=macos OR os=linux\n" +
+		"  (expr)                grouping               (os=macos OR os=linux) AND context=work\n\n" +
+		"Comma separates multiple values for ONE key. Use AND to join two conditions."
+}
 func (WhenType) Kind()        InputKind { return KindText }
 func (WhenType) Options()     []string  { return nil }
 func (WhenType) Format(s string) string { return "# @when(" + s + ")" }
 func (WhenType) Validate(s string) error {
 	idx := strings.IndexByte(s, '=')
 	if idx < 1 || idx >= len(s)-1 {
-		return fmt.Errorf("@when: expected format key=value or key=v1,v2 (got %q)", s)
+		return fmt.Errorf(
+			"@when: expected format key=value or key=v1,v2 (got %q)\nhint: use AND/OR to join conditions; comma separates multiple values for one key (e.g. os=macos,linux)",
+			s,
+		)
 	}
 	return nil
 }

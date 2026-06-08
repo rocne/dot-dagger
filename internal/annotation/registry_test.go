@@ -1,6 +1,7 @@
 package annotation
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -85,6 +86,20 @@ func TestRegistry_AllKeysPresent(t *testing.T) {
 		if Registry[i].Key() != key {
 			t.Errorf("Registry[%d].Key() = %q, want %q", i, Registry[i].Key(), key)
 		}
+	}
+}
+
+func TestValidate_WhenErrorIncludesHint(t *testing.T) {
+	err := WhenType{}.Validate("invalid")
+	if err == nil {
+		t.Fatal("want error, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "AND/OR") {
+		t.Errorf("error message missing AND/OR hint: %q", msg)
+	}
+	if !strings.Contains(msg, "comma separates") {
+		t.Errorf("error message missing comma hint: %q", msg)
 	}
 }
 
