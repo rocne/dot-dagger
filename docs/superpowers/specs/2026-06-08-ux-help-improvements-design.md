@@ -19,7 +19,7 @@ Several friction points discovered during real usage:
 
 ### 1. `@when` description
 
-`WhenType.Description()` in `internal/annotation/registry.go` updated to:
+`WhenType.Description()` in `internal/annotation/registry.go` updated to return a multi-line syntax block:
 
 ```
 Condition for when this file is active.
@@ -33,7 +33,13 @@ Condition for when this file is active.
 Comma separates multiple values for ONE key. Use AND to join two conditions.
 ```
 
-The validation error message for bad `@when` input is also updated to append a one-line syntax reminder.
+`annotate_cmd.go` currently concatenates `t.Description() + "  (clear the field to remove)"` and passes the result inline to huh. A multi-line description breaks this concatenation. Fix: for `KindText` fields, print `t.Description()` as a preamble via `fmt.Fprintln` before invoking the huh prompt, and pass only `"(enter value, or clear to remove)"` as the huh description. This applies to all `KindText` fields — other KindText types have short descriptions so the change is invisible to them.
+
+`WhenType.Validate` error updated to:
+```
+@when: expected format key=value or key=v1,v2 (got %q)
+hint: use AND/OR to join conditions; comma separates multiple values for one key (e.g. os=macos,linux)
+```
 
 ### 2. `dotd env show` — expression annotation
 
@@ -41,9 +47,11 @@ The validation error message for bad `@when` input is also updated to append a o
 
 ```
 context=work
-hostname=personal-mac.local    [$(hostname)]
-os=macos                       [$(dotd get-os)]
+hostname=personal-mac.local	[$(hostname)]
+os=macos	[$(dotd get-os)]
 ```
+
+Alignment: a single `\t` separates the `key=value` portion from the `[$(expr)]` annotation. No dynamic padding — consistent, simple, terminal-width-independent.
 
 Values from DOTD_* shell vars or `--env` flags show as plain values with no annotation. The existing `diff` command covers the source-attribution question.
 
@@ -73,7 +81,7 @@ Short description: `Show the path to env.yaml`
 
 ### 5. Error output — silence usage on domain errors
 
-`root.SilenceUsage = true` set on the root command in `newRootCmd`. This suppresses the usage block for all errors returned from `RunE`. Cobra handles wrong-argument-count and unknown-flag errors before `RunE`, so those remain unaffected.
+`root.SilenceUsage = true` set on the root command in `newRootCmd`. This suppresses the usage block for all errors — domain errors, arg-count errors, and unknown-flag errors alike. The error message itself is always sufficient to understand what went wrong.
 
 ### 6. `--debug` flag
 
