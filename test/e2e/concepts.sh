@@ -12,9 +12,16 @@ printf '%s' "$OUT" | grep -q 'ENV.YAML' \
 printf 'PASS: concepts output\n'
 
 # --debug flag runs without error and produces debug log output
+mkdir -p /home/e2e/bin /tmp/generated
 dotd --debug list \
-  --env-file /fixture/env.yaml \
   --files /fixture \
+  --env-file /fixture/env.yaml \
+  --link-root /home/e2e \
+  --bin-dir /home/e2e/bin \
+  --init-file /tmp/init.sh \
+  --generated-dir /tmp/generated \
+  --env os=linux \
+  --env context=personal \
   >/dev/null 2>/tmp/debug.log \
   || { printf 'FAIL: dotd --debug list exited non-zero\n'; exit 1; }
 grep -q 'DEBU' /tmp/debug.log \
