@@ -22,6 +22,7 @@ func newEnvCmd(cfg *config) *cobra.Command {
 		newEnvSetCmd(cfg),
 		newEnvEditCmd(cfg),
 		newEnvDiffCmd(cfg),
+		newEnvPathCmd(cfg),
 	)
 	return cmd
 }
@@ -103,6 +104,17 @@ Values stored as $(…) are evaluated each time dotd runs.`, ecosystem.EnvFileNa
 			}
 			raw[args[0]] = args[1]
 			return env.Save(path, raw)
+		},
+	}
+}
+
+func newEnvPathCmd(cfg *config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "path",
+		Short: "Show the path to env.yaml",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(cmd.OutOrStdout(), cfg.envFile)
+			return nil
 		},
 	}
 }

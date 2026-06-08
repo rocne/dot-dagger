@@ -44,3 +44,19 @@ func TestEnvShowExprAnnotation(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvPathCmd(t *testing.T) {
+	cfg := &config{envFile: "/custom/path/env.yaml"}
+	cmd := newEnvPathCmd(cfg)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := strings.TrimSpace(buf.String())
+	if got != "/custom/path/env.yaml" {
+		t.Errorf("got %q, want %q", got, "/custom/path/env.yaml")
+	}
+}
