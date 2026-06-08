@@ -60,7 +60,7 @@ func promptMissingKeys(cmd *cobra.Command, keys []string) (map[string]string, er
 }
 
 func printPersistHint(w io.Writer, filled map[string]string) {
-	fmt.Fprintf(w, "\nHint: to persist, add to %s:\n", ecosystem.EnvFileName)
+	fmt.Fprintf(w, "\nhint: to persist, add to %s:\n", ecosystem.EnvFileName)
 	out, err := yaml.Marshal(filled)
 	if err != nil {
 		// yaml.Marshal on map[string]string is infallible; this branch is unreachable in practice

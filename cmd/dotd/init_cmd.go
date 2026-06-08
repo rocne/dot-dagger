@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,7 +35,10 @@ Requires config.yaml — run 'dotd setup' first if you haven't already.`,
 func runInit(cmd *cobra.Command, cfg *config) error {
 	// cfg.configPath is resolved by PersistentPreRunE.
 	if _, err := os.Stat(cfg.configPath); os.IsNotExist(err) {
-		return fmt.Errorf("no config found — run 'dotd setup' first")
+		return &hintError{
+			err:  errors.New("no config found"),
+			hint: "run 'dotd setup' first",
+		}
 	}
 
 	out := cmd.OutOrStdout()
