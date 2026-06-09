@@ -29,6 +29,10 @@ its files are concatenated in DAG order into "<name>".`,
 	return cmd
 }
 
+type composeListEntry struct {
+	Path string `json:"path"`
+}
+
 func newComposeListCmd(cfg *config) *cobra.Command {
 	var jsonOutput bool
 	cmd := &cobra.Command{
@@ -41,26 +45,26 @@ Filtered by @when predicates against the resolved env.
 Examples:
   dotd compose list
   dotd compose list --env context=work
-  dotd compose list --json | jq -r '.[]'`,
+  dotd compose list --json | jq -r '.[].path'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
 				return err
 			}
-			paths := make([]string, 0)
+			entries := make([]composeListEntry, 0)
 			for _, n := range ordered {
 				if !n.HasCompose() {
 					continue
 				}
-				paths = append(paths, pipeline.ComposeFileName(n.Path))
+				entries = append(entries, composeListEntry{Path: pipeline.ComposeFileName(n.Path)})
 			}
 			if jsonOutput {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
-				return enc.Encode(paths)
+				return enc.Encode(entries)
 			}
-			for _, p := range paths {
-				fmt.Fprintln(cmd.OutOrStdout(), p)
+			for _, e := range entries {
+				fmt.Fprintln(cmd.OutOrStdout(), e.Path)
 			}
 			return nil
 		},
