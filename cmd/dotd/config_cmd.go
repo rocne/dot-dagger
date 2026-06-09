@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -61,19 +62,36 @@ func configKeyError(err error) error {
 	}
 }
 
+type configEntry struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 func newConfigShowCmd(cfg *config) *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "show",
 		Short: "Display all config key=value pairs",
 		Long: `Display every config key and its current value.
 
 Examples:
   dotd config show
+  dotd config show --json | jq '.[] | select(.key=="dotfiles")'
   dotd config show | grep dotfiles`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			toolCfg, err := loadConfig(cfg.configPath)
 			if err != nil {
 				return err
+			}
+			if jsonOutput {
+				entries := make([]configEntry, 0, len(dotcfg.Keys))
+				for _, k := range dotcfg.Keys {
+					val, _ := toolCfg.Get(k)
+					entries = append(entries, configEntry{Key: k, Value: val})
+				}
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(entries)
 			}
 			for _, k := range dotcfg.Keys {
 				val, _ := toolCfg.Get(k)
@@ -82,6 +100,8 @@ Examples:
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	return cmd
 }
 
 func newConfigGetCmd(cfg *config) *cobra.Command {

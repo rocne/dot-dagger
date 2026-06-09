@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -55,8 +56,15 @@ func envYamlPath(cfg *config) string {
 	return cfg.envFile
 }
 
+type envShowEntry struct {
+	Key        string `json:"key"`
+	Value      string `json:"value"`
+	Expression string `json:"expression,omitempty"`
+}
+
 func newEnvShowCmd(cfg *config) *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "show",
 		Short: "Display all resolved env key=value pairs",
 		Long: fmt.Sprintf(`Display every key in the resolved env map and its value.
@@ -69,6 +77,7 @@ The resolved set is the merge of %s, DOTD_* shell vars, and --env overrides.
 Examples:
   dotd env show
   dotd env show --env context=work
+  dotd env show --json | jq -r '.[] | select(.expression) | .key'
   dotd env show | grep '^os='`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolved, err := resolveEnv(cfg)
@@ -84,6 +93,19 @@ Examples:
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
+			if jsonOutput {
+				entries := make([]envShowEntry, 0, len(keys))
+				for _, k := range keys {
+					e := envShowEntry{Key: k, Value: resolved[k]}
+					if rawVal := raw[k]; strings.HasPrefix(rawVal, "$(") && strings.HasSuffix(rawVal, ")") {
+						e.Expression = rawVal
+					}
+					entries = append(entries, e)
+				}
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(entries)
+			}
 			for _, k := range keys {
 				rawVal := raw[k]
 				if strings.HasPrefix(rawVal, "$(") && strings.HasSuffix(rawVal, ")") {
@@ -95,6 +117,8 @@ Examples:
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	return cmd
 }
 
 func newEnvGetCmd(cfg *config) *cobra.Command {
@@ -185,8 +209,16 @@ Examples:
 	}
 }
 
+type envDiffEntry struct {
+	Key       string `json:"key"`
+	EnvValue  string `json:"env_value"`
+	ShellSet  bool   `json:"shell_set"`
+	ShellVal  string `json:"shell_value,omitempty"`
+}
+
 func newEnvDiffCmd(cfg *config) *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "diff",
 		Short: fmt.Sprintf("Show %s keys that override shell-detected values", ecosystem.EnvFileName),
 		Long: fmt.Sprintf(`Compare %s keys against the matching DOTD_* shell vars.
@@ -198,6 +230,7 @@ overrides at runtime.
 
 Examples:
   dotd env diff
+  dotd env diff --json
   dotd env diff && echo "env.yaml is in sync"`, ecosystem.EnvFileName, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Intentionally compares env.yaml values against DOTD_* shell vars,
@@ -219,6 +252,26 @@ Examples:
 			}
 			sort.Strings(keys)
 
+			if jsonOutput {
+				entries := make([]envDiffEntry, 0)
+				for _, k := range keys {
+					envVal := expanded[k]
+					shellVal, inShell := shellVars[k]
+					if inShell && envVal == shellVal {
+						continue
+					}
+					entries = append(entries, envDiffEntry{
+						Key:      k,
+						EnvValue: envVal,
+						ShellSet: inShell,
+						ShellVal: shellVal,
+					})
+				}
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(entries)
+			}
+
 			hasAny := false
 			for _, k := range keys {
 				envVal := expanded[k]
@@ -239,4 +292,6 @@ Examples:
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	return cmd
 }
