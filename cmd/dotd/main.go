@@ -28,7 +28,11 @@ func main() {
 		if errors.Is(err, errUserAborted) {
 			fmt.Fprintln(os.Stderr, "cancelled")
 		} else {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprintf(os.Stderr, "error: %s\n", err)
+			var h Hinter
+			if errors.As(err, &h) {
+				fmt.Fprintf(os.Stderr, "hint:  %s\n", h.Hint())
+			}
 		}
 		os.Exit(1)
 	}
@@ -374,7 +378,10 @@ func (cfg *appConfig) walkOrdered(cmd *cobra.Command) ([]pipeline.RawNode, error
 func annotateKeyError(err error) error {
 	var mke *predicate.MissingKeyError
 	if errors.As(err, &mke) {
-		return fmt.Errorf("%w\n\nHint: set it with --env %s=<value> or add it to %s", err, mke.Key, ecosystem.EnvFileName)
+		return &hintError{
+			err:  err,
+			hint: fmt.Sprintf("set it with --env %s=<value> or add it to %s", mke.Key, ecosystem.EnvFileName),
+		}
 	}
 	return err
 }
