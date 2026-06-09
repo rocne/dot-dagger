@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/spf13/cobra"
@@ -11,6 +12,11 @@ func newConfigCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Inspect and modify tool configuration",
+		Long: `Read and write entries in config.yaml.
+
+Stored values are path defaults for dot-dagger itself: where the dotfiles
+repo lives, where bin scripts are linked, where generated files go, and
+which directory ~ expands to in link destinations.`,
 	}
 	cmd.AddCommand(
 		newConfigShowCmd(cfg),
@@ -25,10 +31,45 @@ func loadConfig(configPath string) (*dotcfg.Config, error) {
 	return dotcfg.Load(configPath)
 }
 
+// configKeyArgs accepts exactly nArgs arguments. On error, the returned
+// hintError lists the valid config keys.
+func configKeyArgs(nArgs int, usage string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) == nArgs {
+			return nil
+		}
+		return &hintError{
+			err:  fmt.Errorf("expected %s, got %d", plural(nArgs, "argument"), len(args)),
+			hint: usage + " — valid keys: " + strings.Join(dotcfg.Keys, ", "),
+		}
+	}
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, word)
+	}
+	return fmt.Sprintf("%d %ss", n, word)
+}
+
+// configKeyError wraps an unknown-key error from dotcfg.Get/Set with a hint
+// listing the valid keys.
+func configKeyError(err error) error {
+	return &hintError{
+		err:  err,
+		hint: "valid keys: " + strings.Join(dotcfg.Keys, ", "),
+	}
+}
+
 func newConfigShowCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "show",
 		Short: "Display all config key=value pairs",
+		Long: `Display every config key and its current value.
+
+Examples:
+  dotd config show
+  dotd config show | grep dotfiles`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			toolCfg, err := loadConfig(cfg.configPath)
 			if err != nil {
@@ -47,7 +88,12 @@ func newConfigGetCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <key>",
 		Short: "Get a single config value",
-		Args:  cobra.ExactArgs(1),
+		Long: `Print the value of a single config key to stdout.
+
+Examples:
+  dotd config get dotfiles
+  dotd config get link_root`,
+		Args: configKeyArgs(1, "usage: dotd config get <key>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			toolCfg, err := loadConfig(cfg.configPath)
 			if err != nil {
@@ -55,7 +101,7 @@ func newConfigGetCmd(cfg *config) *cobra.Command {
 			}
 			val, err := toolCfg.Get(args[0])
 			if err != nil {
-				return err
+				return configKeyError(err)
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), val)
 			return nil
@@ -67,14 +113,19 @@ func newConfigSetCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set a config value",
-		Args:  cobra.ExactArgs(2),
+		Long: `Write a value to a config key. Persists to config.yaml.
+
+Examples:
+  dotd config set dotfiles ~/dotfiles
+  dotd config set link_root /home/me`,
+		Args: configKeyArgs(2, "usage: dotd config set <key> <value>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			toolCfg, err := loadConfig(cfg.configPath)
 			if err != nil {
 				return err
 			}
 			if err := toolCfg.Set(args[0], args[1]); err != nil {
-				return err
+				return configKeyError(err)
 			}
 			return dotcfg.Save(cfg.configPath, toolCfg)
 		},
@@ -85,8 +136,14 @@ func newConfigEditCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
 		Short: "Open config.yaml in $EDITOR",
+		Long: `Open config.yaml in $EDITOR. Falls back to vi if $EDITOR is unset.
+
+Examples:
+  dotd config edit
+  EDITOR=nano dotd config edit`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return launchEditor(cfg.configPath)
 		},
 	}
 }
+

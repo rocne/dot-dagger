@@ -76,6 +76,13 @@ func newConceptsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "concepts",
 		Short: "Print a reference of dotd concepts and syntax",
+		Long: `Print a single-page reference of dotd concepts: pipeline stages,
+@when predicates, annotations, env.yaml, and directory naming conventions.
+
+Examples:
+  dotd concepts
+  dotd concepts | less
+  dotd concepts | grep -A4 PREDICATES`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprint(cmd.OutOrStdout(), conceptsText)
 			return nil

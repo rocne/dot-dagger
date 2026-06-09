@@ -20,7 +20,13 @@ Opens a menu to select annotation types. Existing annotations are pre-loaded.
 Writes the updated annotation block atomically when confirmed.
 
 Works in both interactive terminals and non-interactive contexts (accessible mode).
-The file must be inside the dotfiles directory (--files).`,
+The file must be inside the dotfiles directory (--files).
+
+For the full annotation reference, run: dotd concepts
+
+Examples:
+  dotd annotate shellrc/base.sh
+  dotd annotate conf/dot-gitconfig`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAnnotate(cmd, rootCfg, args[0])

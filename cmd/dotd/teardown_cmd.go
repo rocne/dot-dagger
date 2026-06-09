@@ -30,7 +30,11 @@ Removes:
 Does NOT remove symlinks or .dagger files.
 Run 'dotd unapply' first to remove symlinks, then 'dotd teardown'.
 
-Shows a preview and prompts for confirmation before making any changes.`, ecosystem.EnvFileName),
+Shows a preview and prompts for confirmation before making any changes.
+
+Examples:
+  dotd teardown            # interactive — shows preview, asks before removing
+  dotd teardown --yes      # non-interactive (CI / scripts)`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTeardown(cmd, cfg, yes)
 		},

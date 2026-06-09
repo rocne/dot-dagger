@@ -25,7 +25,11 @@ func newInitCmd(cfg *config) *cobra.Command {
 Prompts for shell scripts, config files, and bin scripts directories.
 Creates each directory if absent, writes .dagger if absent (idempotent).
 
-Requires config.yaml — run 'dotd setup' first if you haven't already.`,
+Requires config.yaml — run 'dotd setup' first if you haven't already.
+
+Examples:
+  dotd init
+  dotd init --files /path/to/dotfiles`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(cmd, cfg)
 		},
