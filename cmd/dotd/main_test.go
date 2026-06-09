@@ -713,6 +713,29 @@ func TestSetup_WritesConfigAndEnv(t *testing.T) {
 	}
 }
 
+// TestSetup_NonInteractive verifies that --non-interactive writes a config
+// without reading any stdin input.
+func TestSetup_NonInteractive(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", t.TempDir())
+
+	root := newRootCmd()
+	root.SetIn(strings.NewReader("")) // empty stdin — must not block
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"setup", "--non-interactive"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup --non-interactive error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	configPath := filepath.Join(xdg, "dot-dagger", "config.yaml")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("config.yaml not written: %v", err)
+	}
+}
+
 func TestSetup_UsesCurrentValuesAsDefaults(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
