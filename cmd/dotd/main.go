@@ -100,6 +100,15 @@ func newRootCmd() *cobra.Command {
 				sub.Hidden = false
 			}
 		}
+		// Mirror cobra's default Help: print Long (or Short) then Usage.
+		// cmd.Usage() alone uses UsageTemplate which omits the Long block.
+		if cmd.Long != "" {
+			cmd.Println(cmd.Long)
+			cmd.Println()
+		} else if cmd.Short != "" {
+			cmd.Println(cmd.Short)
+			cmd.Println()
+		}
 		_ = cmd.Usage()
 	})
 
@@ -155,8 +164,25 @@ func newRootCmd() *cobra.Command {
 
 func newCompletionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:       "completion <shell>",
-		Short:     "Generate shell completion script",
+		Use:   "completion <shell>",
+		Short: "Generate shell completion script",
+		Long: `Print a shell completion script to stdout for the chosen shell.
+
+Source the script (or save it to your shell's completions dir) to enable
+tab-completion for dotd commands and flags.
+
+Examples:
+  # bash — append to ~/.bashrc
+  dotd completion bash >> ~/.bashrc
+
+  # zsh — write to a completions dir
+  dotd completion zsh > "${fpath[1]}/_dotd"
+
+  # fish
+  dotd completion fish > ~/.config/fish/completions/dotd.fish
+
+  # powershell
+  dotd completion powershell | Out-String | Invoke-Expression`,
 		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
 		Args:      cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

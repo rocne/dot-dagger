@@ -15,6 +15,10 @@ func newPackageCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "package",
 		Short: "Package management — filtered by active predicates",
+		Long: `Inspect and install packages referenced by @require / @request annotations
+on active nodes. Only nodes whose @when predicate evaluates true are considered.
+
+Package definitions live in packages.yaml at the dotfiles repo root.`,
 	}
 	cmd.AddCommand(
 		newPackageCheckCmd(cfg),
@@ -28,6 +32,12 @@ func newPackageCheckCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "check",
 		Short: "Report install status for all referenced packages",
+		Long: `For each unique package referenced by @require / @request on active nodes,
+look it up on PATH via the registry and report installed / not installed.
+
+Examples:
+  dotd package check
+  dotd package check --env os=macos`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
@@ -56,6 +66,15 @@ func newPackageGenerateCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "generate",
 		Short: "Generate install script for required packages",
+		Long: `Emit a shell script that installs every missing @require / @request
+package using the platform's package manager (resolved from packages.yaml).
+
+The script is written to stdout. Pipe to sh to execute, or redirect to a file.
+
+Examples:
+  dotd package generate
+  dotd package generate > install-packages.sh
+  dotd package generate | sh`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
@@ -77,6 +96,14 @@ func newPackageListCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all packages referenced in active nodes",
+		Long: `List every unique package referenced by @require or @request on active nodes.
+
+  require   blocks activation if not installed (hard dependency)
+  request   installed if missing, but absence doesn't block (soft)
+
+Examples:
+  dotd package list
+  dotd package list --env os=linux`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {

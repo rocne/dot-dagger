@@ -26,7 +26,11 @@ Writes config.yaml and (if absent) %s to the platform config dir.
 If config.yaml already exists, current values are shown as defaults.
 
 Does not create symlinks or scaffold .dagger files.
-Run 'dotd init' next to scaffold your dotfiles repo.`, ecosystem.EnvFileName),
+Run 'dotd init' next to scaffold your dotfiles repo.
+
+Examples:
+  dotd setup                              # first-time interactive setup
+  dotd setup --config /tmp/custom.yaml    # write to a non-default path`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSetup(cmd, cfg)
 		},

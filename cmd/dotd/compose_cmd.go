@@ -17,6 +17,9 @@ func newComposeCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "compose",
 		Short: "Manage compose targets (assembled fragment files)",
+		Long: `Compose targets are directories whose contents 'dotd apply' assembles into
+a single generated file. A directory named "<name>.d" is a compose target;
+its files are concatenated in DAG order into "<name>".`,
 	}
 	cmd.AddCommand(
 		newComposeListCmd(cfg),
@@ -29,6 +32,13 @@ func newComposeListCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List active compose targets",
+		Long: `List the generated file path for each active compose target.
+
+Filtered by @when predicates against the resolved env.
+
+Examples:
+  dotd compose list
+  dotd compose list --env context=work`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
@@ -49,6 +59,12 @@ func newComposeCheckCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "check",
 		Short: "Check compose targets for staleness",
+		Long: `Compare the on-disk generated file for each compose target against the
+freshly assembled content. Exits non-zero if any target is missing or stale.
+
+Examples:
+  dotd compose check
+  dotd compose check && echo "all clean"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
