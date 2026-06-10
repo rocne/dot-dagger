@@ -99,12 +99,16 @@ func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		if errors.Is(err, errUserAborted) {
 			fmt.Fprintln(os.Stderr, "cancelled")
-		} else {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
-			var h Hinter
-			if errors.As(err, &h) {
-				fmt.Fprintf(os.Stderr, "hint:  %s\n", h.Hint())
-			}
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		var h Hinter
+		if errors.As(err, &h) {
+			fmt.Fprintf(os.Stderr, "hint:  %s\n", h.Hint())
+		}
+		var ue *usageError
+		if errors.As(err, &ue) {
+			os.Exit(2)
 		}
 		os.Exit(1)
 	}
@@ -155,6 +159,12 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&cfg.logLevel, "log-level", "info", "log verbosity ("+dotlog.LevelNames()+")")
 	pf.BoolVar(&cfg.quiet, "quiet", false, "suppress informational logs (data output is unaffected)")
 	pf.BoolVar(&cfg.debug, "debug", false, "shorthand for --log-level=debug")
+
+	// Flag parse errors (unknown flag, bad value, etc.) are usage errors —
+	// wrap them so main() can exit 2 instead of 1.
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return asUsageError(err)
+	})
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		if err := resolvePaths(cfg); err != nil {
@@ -263,7 +273,7 @@ Examples:
   # powershell
   dotd completion powershell | Out-String | Invoke-Expression`,
 		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
-		Args:      cobra.ExactArgs(1),
+		Args:      usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root := cmd.Root()
 			switch args[0] {
@@ -276,7 +286,7 @@ Examples:
 			case "powershell":
 				return root.GenPowerShellCompletionWithDesc(cmd.OutOrStdout())
 			default:
-				return fmt.Errorf("unsupported shell %q — choose bash, zsh, fish, or powershell", args[0])
+				return &usageError{err: fmt.Errorf("unsupported shell %q — choose bash, zsh, fish, or powershell", args[0])}
 			}
 		},
 	}

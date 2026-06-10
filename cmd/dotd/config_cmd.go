@@ -39,10 +39,10 @@ func configKeyArgs(nArgs int, usage string) cobra.PositionalArgs {
 		if len(args) == nArgs {
 			return nil
 		}
-		return &hintError{
+		return &usageError{err: &hintError{
 			err:  fmt.Errorf("expected %s, got %d", plural(nArgs, "argument"), len(args)),
 			hint: usage + " — valid keys: " + strings.Join(dotcfg.Keys, ", "),
-		}
+		}}
 	}
 }
 

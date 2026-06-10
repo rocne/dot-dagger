@@ -42,7 +42,7 @@ Examples:
   dotd adopt ~/bin/my-script                        # → bin/my-script
   dotd adopt ~/.gitconfig --to conf/dot-gitconfig-work
   dotd adopt ~/.zshrc --yes                         # skip confirmation`,
-		Args: cobra.ExactArgs(1),
+		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAdopt(cmd, rootCfg, args[0], to, yes)
 		},

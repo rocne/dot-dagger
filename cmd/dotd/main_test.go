@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1521,6 +1522,76 @@ func TestUnapply_YesFlagSkipsConfirmation(t *testing.T) {
 }
 
 // --- Real env.yaml expansion path (AUDIT-068) ---
+
+// --- Exit code semantics: usage (2) vs runtime (1) ---
+
+// runErr runs the root command and returns just the resulting error so tests
+// can assert on its type (e.g. usageError).
+func runErr(t *testing.T, args ...string) error {
+	t.Helper()
+	root := newRootCmd()
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs(args)
+	return root.Execute()
+}
+
+func assertUsageError(t *testing.T, err error, label string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("%s: expected error, got nil", label)
+	}
+	var ue *usageError
+	if !errors.As(err, &ue) {
+		t.Errorf("%s: error is not *usageError (would exit 1, not 2): %v", label, err)
+	}
+}
+
+func assertRuntimeError(t *testing.T, err error, label string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("%s: expected error, got nil", label)
+	}
+	var ue *usageError
+	if errors.As(err, &ue) {
+		t.Errorf("%s: error wrongly classified as usage (would exit 2 instead of 1): %v", label, err)
+	}
+}
+
+// TestUsageError_ArgValidator verifies that a missing-arg failure on an env
+// subcommand classifies as usage (would exit 2).
+func TestUsageError_ArgValidator(t *testing.T) {
+	err := runErr(t, "env", "get",
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	assertUsageError(t, err, "env get (no args)")
+}
+
+// TestUsageError_UnknownFlag verifies that an unknown flag classifies as
+// usage (would exit 2).
+func TestUsageError_UnknownFlag(t *testing.T) {
+	err := runErr(t, "--no-such-flag")
+	assertUsageError(t, err, "unknown flag")
+}
+
+// TestUsageError_CompletionInvalidShell verifies that the completion command's
+// "unsupported shell" error classifies as usage (would exit 2).
+func TestUsageError_CompletionInvalidShell(t *testing.T) {
+	err := runErr(t, "completion", "nosuchshell")
+	assertUsageError(t, err, "completion nosuchshell")
+}
+
+// TestRuntimeError_UnknownConfigKey verifies that a domain failure (bad key
+// passed to a syntactically-valid command) stays a runtime error (exit 1).
+func TestRuntimeError_UnknownConfigKey(t *testing.T) {
+	err := runErr(t, "config", "get", "bogus",
+		"--env-file", emptyEnvFile(t),
+		"--files", emptyDotfiles(t),
+	)
+	assertRuntimeError(t, err, "config get bogus")
+}
 
 // TestHelp_HidesIrrelevantPathFlags verifies that `dotd config get --help`
 // omits global path/mutation flags it doesn't act on (--bin-dir, --init-file,

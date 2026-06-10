@@ -31,7 +31,7 @@ Examples:
   dotd bundle shellrc/my-script.sh
   dotd bundle shellrc/my-script.sh --output /tmp/bundled.sh
   dotd bundle shellrc/my-script.sh --include-env`,
-		Args: cobra.ExactArgs(1),
+		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBundle(cmd, cfg, args[0], output, includeEnv)
 		},
