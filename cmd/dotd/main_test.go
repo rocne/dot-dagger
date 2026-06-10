@@ -1522,6 +1522,60 @@ func TestUnapply_YesFlagSkipsConfirmation(t *testing.T) {
 
 // --- Real env.yaml expansion path (AUDIT-068) ---
 
+// TestHelp_HidesIrrelevantPathFlags verifies that `dotd config get --help`
+// omits global path/mutation flags it doesn't act on (--bin-dir, --init-file,
+// etc.), while `dotd apply --help` still advertises every flag.
+func TestHelp_HidesIrrelevantPathFlags(t *testing.T) {
+	hiddenOnConfigGet := []string{
+		"--bin-dir", "--init-file", "--link-root",
+		"--generated-dir", "--force", "--dry-run",
+	}
+
+	out, err := run(t, "config", "get", "--help")
+	if err != nil {
+		t.Fatalf("config get --help error = %v", err)
+	}
+	for _, flag := range hiddenOnConfigGet {
+		if strings.Contains(out, flag) {
+			t.Errorf("config get --help should not advertise %s; got:\n%s", flag, out)
+		}
+	}
+	// Sanity: globally relevant flags must remain visible.
+	for _, flag := range []string{"--log-level", "--config", "--env-file"} {
+		if !strings.Contains(out, flag) {
+			t.Errorf("config get --help should still show %s; got:\n%s", flag, out)
+		}
+	}
+
+	out, err = run(t, "apply", "--help")
+	if err != nil {
+		t.Fatalf("apply --help error = %v", err)
+	}
+	for _, flag := range hiddenOnConfigGet {
+		if !strings.Contains(out, flag) {
+			t.Errorf("apply --help should still show %s; got:\n%s", flag, out)
+		}
+	}
+}
+
+// TestHelp_HiddenStateRestored verifies that filtering one subcommand's --help
+// doesn't permanently mutate flag state — a subsequent root --help must still
+// show every flag.
+func TestHelp_HiddenStateRestored(t *testing.T) {
+	if _, err := run(t, "config", "get", "--help"); err != nil {
+		t.Fatalf("config get --help error = %v", err)
+	}
+	out, err := run(t, "--help")
+	if err != nil {
+		t.Fatalf("root --help error = %v", err)
+	}
+	for _, flag := range []string{"--bin-dir", "--init-file", "--link-root", "--generated-dir"} {
+		if !strings.Contains(out, flag) {
+			t.Errorf("root --help should show %s after subcommand --help ran; got:\n%s", flag, out)
+		}
+	}
+}
+
 func TestResolveLogLevel(t *testing.T) {
 	cases := []struct {
 		logLevel         string
