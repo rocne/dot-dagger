@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -28,8 +29,14 @@ Package definitions live in packages.yaml at the dotfiles repo root.`,
 	return cmd
 }
 
+type packageCheckEntry struct {
+	Package   string `json:"package"`
+	Installed bool   `json:"installed"`
+}
+
 func newPackageCheckCmd(cfg *config) *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Report install status for all referenced packages",
 		Long: `For each unique package referenced by @require / @request on active nodes,
@@ -37,7 +44,8 @@ look it up on PATH via the registry and report installed / not installed.
 
 Examples:
   dotd package check
-  dotd package check --env os=macos`,
+  dotd package check --env os=macos
+  dotd package check --json | jq '.[] | select(.installed == false)'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
@@ -49,7 +57,18 @@ Examples:
 				return regErr
 			}
 
-			for _, r := range uniquePackages(collectPackageRequests(ordered)) {
+			pkgs := uniquePackages(collectPackageRequests(ordered))
+			if jsonOutput {
+				entries := make([]packageCheckEntry, len(pkgs))
+				for i, r := range pkgs {
+					installed, _ := packages.Installed(r.Package, reg, exec.LookPath)
+					entries[i] = packageCheckEntry{Package: r.Package, Installed: installed}
+				}
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(entries)
+			}
+			for _, r := range pkgs {
 				installed, _ := packages.Installed(r.Package, reg, exec.LookPath)
 				status := "not installed"
 				if installed {
@@ -60,6 +79,8 @@ Examples:
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	return cmd
 }
 
 func newPackageGenerateCmd(cfg *config) *cobra.Command {
@@ -92,8 +113,14 @@ Examples:
 	}
 }
 
+type packageListEntry struct {
+	Package string `json:"package"`
+	Kind    string `json:"kind"` // require | request
+}
+
 func newPackageListCmd(cfg *config) *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all packages referenced in active nodes",
 		Long: `List every unique package referenced by @require or @request on active nodes.
@@ -103,14 +130,29 @@ func newPackageListCmd(cfg *config) *cobra.Command {
 
 Examples:
   dotd package list
-  dotd package list --env os=linux`,
+  dotd package list --env os=linux
+  dotd package list --json | jq '.[] | select(.kind=="require") | .package'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ordered, err := cfg.walkOrdered(cmd)
 			if err != nil {
 				return err
 			}
 
-			for _, r := range uniquePackages(collectPackageRequests(ordered)) {
+			pkgs := uniquePackages(collectPackageRequests(ordered))
+			if jsonOutput {
+				entries := make([]packageListEntry, len(pkgs))
+				for i, r := range pkgs {
+					kind := "request"
+					if r.Hard {
+						kind = "require"
+					}
+					entries[i] = packageListEntry{Package: r.Package, Kind: kind}
+				}
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(entries)
+			}
+			for _, r := range pkgs {
 				kind := "request"
 				if r.Hard {
 					kind = "require"
@@ -120,6 +162,8 @@ Examples:
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	return cmd
 }
 
 func loadRegistry(cfg *config) (*packages.Registry, error) {
