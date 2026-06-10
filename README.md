@@ -141,6 +141,27 @@ cd dot-dagger
 go install ./cmd/dotd
 ```
 
+### Shell completion
+
+`dotd completion` prints a completion script for the chosen shell. Pick the line
+matching your shell:
+
+```sh
+# bash
+dotd completion bash >> ~/.bashrc
+
+# zsh
+dotd completion zsh > "${fpath[1]}/_dotd"
+
+# fish
+dotd completion fish > ~/.config/fish/completions/dotd.fish
+
+# powershell
+dotd completion powershell | Out-String | Invoke-Expression
+```
+
+Reload your shell and tab-completion for commands, flags, and subcommands works.
+
 ---
 
 ## Quick start

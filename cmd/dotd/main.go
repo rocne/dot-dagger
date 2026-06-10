@@ -19,9 +19,81 @@ import (
 	"github.com/rocne/dot-dagger/internal/predicate"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var version = "dev"
+
+// pathFlagOwners restricts which subcommands advertise each persistent
+// path/mutation flag in --help. The flag stays registered on the root
+// PersistentFlags (so cfg paths still resolve uniformly via resolvePaths),
+// but Cobra's "Global Flags" block hides it on commands that don't act
+// on it — e.g. `dotd config get` no longer surfaces --bin-dir.
+//
+// Keys are the full command path ("dotd apply", "dotd dag check"). The
+// root command and `dotd help` are intentionally absent: root --help
+// shows every flag so users can discover them.
+var pathFlagOwners = map[string]map[string]bool{
+	"init-file": {
+		"dotd apply": true, "dotd check": true,
+		"dotd init": true, "dotd teardown": true, "dotd unapply": true,
+	},
+	"link-root": {
+		"dotd apply": true, "dotd check": true, "dotd adopt": true,
+		"dotd init": true, "dotd setup": true,
+		"dotd teardown": true, "dotd unapply": true,
+	},
+	"bin-dir": {
+		"dotd apply": true, "dotd check": true,
+		"dotd adopt": true, "dotd setup": true,
+	},
+	"generated-dir": {
+		"dotd apply": true, "dotd check": true, "dotd setup": true,
+	},
+	"dry-run": {
+		"dotd apply": true, "dotd adopt": true,
+		"dotd unapply": true, "dotd teardown": true,
+	},
+	"force": {
+		"dotd apply": true, "dotd adopt": true,
+	},
+}
+
+// hideIrrelevantInheritedFlags toggles Hidden on inherited persistent flags
+// so cmd's --help only advertises flags relevant to it. Returns a restore
+// func that resets the prior Hidden state — callers should defer it.
+//
+// Root and the built-in `help` command get every flag (no filtering), so
+// `dotd --help` remains the canonical flag reference.
+func hideIrrelevantInheritedFlags(cmd *cobra.Command) func() {
+	if !cmd.HasParent() || cmd.Name() == "help" {
+		return func() {}
+	}
+	path := cmd.CommandPath()
+	var prev []struct {
+		flag   *pflag.Flag
+		hidden bool
+	}
+	cmd.InheritedFlags().VisitAll(func(f *pflag.Flag) {
+		owners, scoped := pathFlagOwners[f.Name]
+		if !scoped {
+			return
+		}
+		if owners[path] {
+			return
+		}
+		prev = append(prev, struct {
+			flag   *pflag.Flag
+			hidden bool
+		}{f, f.Hidden})
+		f.Hidden = true
+	})
+	return func() {
+		for _, p := range prev {
+			p.flag.Hidden = p.hidden
+		}
+	}
+}
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
@@ -100,6 +172,8 @@ func newRootCmd() *cobra.Command {
 				sub.Hidden = false
 			}
 		}
+		restore := hideIrrelevantInheritedFlags(cmd)
+		defer restore()
 		// Mirror cobra's default Help: print Long (or Short) then Usage.
 		// cmd.Usage() alone uses UsageTemplate which omits the Long block.
 		if cmd.Long != "" {
