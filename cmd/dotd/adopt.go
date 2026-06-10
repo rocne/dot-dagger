@@ -105,7 +105,7 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 
 	if cfg.dryRun {
 		destAbs := filepath.Join(cfg.files, destRel)
-		fmt.Fprintf(cmd.OutOrStdout(), "# adopt %s → %s\n", srcAbs, destAbs)
+		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: adopt %s → %s\n", srcAbs, destAbs)
 		return nil
 	}
 

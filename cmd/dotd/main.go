@@ -118,6 +118,7 @@ func newRootCmd() *cobra.Command {
 		&cobra.Group{ID: "core", Title: "Core Commands:"},
 		&cobra.Group{ID: "config", Title: "Configuration:"},
 		&cobra.Group{ID: "advanced", Title: "Advanced:"},
+		&cobra.Group{ID: "reference", Title: "Reference:"},
 	)
 
 	// hidden internal helpers — no group
@@ -156,8 +157,12 @@ func newRootCmd() *cobra.Command {
 		root.AddCommand(cmd)
 	}
 
-	root.AddCommand(newCompletionCmd())
-	root.AddCommand(newConceptsCmd())
+	conceptsCmd := newConceptsCmd()
+	conceptsCmd.GroupID = "reference"
+	completionCmd := newCompletionCmd()
+	completionCmd.GroupID = "reference"
+	root.AddCommand(completionCmd)
+	root.AddCommand(conceptsCmd)
 
 	return root
 }
@@ -486,9 +491,9 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 
 	if cfg.dryRun {
 		for _, lnk := range run.result.Links {
-			fmt.Fprintf(cmd.OutOrStdout(), "# link %s %s %s\n", lnk.Src, ui.Arrow("→"), lnk.Dest)
+			fmt.Fprintf(cmd.OutOrStdout(), "dry-run: link %s %s %s\n", lnk.Src, ui.Arrow("→"), lnk.Dest)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "# would write %s (%d sourced nodes)\n", cfg.initFile, len(run.result.Sourced))
+		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: would write %s (%d sourced nodes)\n", cfg.initFile, len(run.result.Sourced))
 		return nil
 	}
 

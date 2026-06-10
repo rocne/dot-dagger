@@ -16,8 +16,9 @@ func newUnapplyCmd(cfg *config) *cobra.Command {
 	var yes bool
 	var all bool
 	cmd := &cobra.Command{
-		Use:   "unapply",
-		Short: "Remove symlinks created by 'dotd apply'",
+		Use:     "unapply",
+		Aliases: []string{"remove"},
+		Short:   "Remove symlinks created by 'dotd apply'",
 		Long: `Remove symlinks that were created by 'dotd apply'.
 
 Re-runs the pipeline to determine the expected link plan, then removes each
