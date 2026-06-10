@@ -27,7 +27,7 @@ For the full annotation reference, run: dotd concepts
 Examples:
   dotd annotate shellrc/base.sh
   dotd annotate conf/dot-gitconfig`,
-		Args: cobra.ExactArgs(1),
+		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAnnotate(cmd, rootCfg, args[0])
 		},

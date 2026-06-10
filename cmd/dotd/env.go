@@ -45,10 +45,10 @@ func envKeyArgs(nArgs int, usage string) cobra.PositionalArgs {
 		if len(args) == nArgs {
 			return nil
 		}
-		return &hintError{
+		return &usageError{err: &hintError{
 			err:  fmt.Errorf("expected %s, got %d", plural(nArgs, "argument"), len(args)),
 			hint: usage + " — run 'dotd env show' to list keys",
-		}
+		}}
 	}
 }
 
@@ -69,8 +69,8 @@ func newEnvShowCmd(cfg *config) *cobra.Command {
 		Short: "Display all resolved env key=value pairs",
 		Long: fmt.Sprintf(`Display every key in the resolved env map and its value.
 
-Shell expressions are shown alongside the resolved value:
-  key=resolved-value  [$(shell-expression)]
+Text output is uniform: one key=value pair per line. Use --json to also see
+the underlying shell expression for keys backed by $(…) values.
 
 The resolved set is the merge of %s, DOTD_* shell vars, and --env overrides.
 
@@ -107,12 +107,7 @@ Examples:
 				return enc.Encode(entries)
 			}
 			for _, k := range keys {
-				rawVal := raw[k]
-				if strings.HasPrefix(rawVal, "$(") && strings.HasSuffix(rawVal, ")") {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\t[%s]\n", k, resolved[k], rawVal)
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
-				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
 			}
 			return nil
 		},

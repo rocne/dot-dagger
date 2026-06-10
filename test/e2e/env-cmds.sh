@@ -34,14 +34,19 @@ OUT=$(dotd env diff \
 printf '%s' "$OUT" | grep -q "context" \
   || { printf 'FAIL: env diff missing context\nOutput:\n%s\n' "$OUT"; exit 1; }
 
-# env show annotates shell expressions with [$(expr)]
+# env show text output is uniform key=val (no inline source column).
+# Shell expressions are surfaced through --json instead.
 OUT=$(dotd env show \
   --env-file /tmp/env.yaml \
   --files /fixture)
-printf '%s' "$OUT" | grep -q 'hostname=.*\[\$(hostname)\]' \
-  || { printf 'FAIL: env show missing shell expr annotation\nOutput:\n%s\n' "$OUT"; exit 1; }
-printf '%s' "$OUT" | grep '^context=' | grep -qv '\[\$(' \
-  || { printf 'FAIL: plain value should not have annotation\nOutput:\n%s\n' "$OUT"; exit 1; }
+printf '%s' "$OUT" | grep -q '\[\$(' \
+  && { printf 'FAIL: env show text must be uniform key=val\nOutput:\n%s\n' "$OUT"; exit 1; }
+
+JSON=$(dotd env show --json \
+  --env-file /tmp/env.yaml \
+  --files /fixture)
+printf '%s' "$JSON" | grep -q '"expression": "\$(hostname)"' \
+  || { printf 'FAIL: env show --json missing expression for hostname\nOutput:\n%s\n' "$JSON"; exit 1; }
 
 # env path prints the env file path
 OUT=$(dotd env path \
