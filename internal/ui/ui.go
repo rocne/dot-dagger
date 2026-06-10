@@ -54,7 +54,7 @@ func Wrongf(w io.Writer, format string, a ...any) {
 
 func OK(s string) string          { return green.Sprint(s) }
 func Missing(s string) string     { return yellow.Sprint(s) }
-func Wrong(s string) string       { return yellow.Sprint(s) }
+func Wrong(s string) string       { return red.Sprint(s) }
 func Conflict(s string) string    { return red.Sprint(s) }
 func Installed(s string) string   { return green.Sprint(s) }
 func Installable(s string) string { return cyan.Sprint(s) }
