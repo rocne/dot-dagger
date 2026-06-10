@@ -81,7 +81,7 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.StringVar(&cfg.logLevel, "log-level", "info", "log verbosity ("+dotlog.LevelNames()+")")
-	pf.BoolVar(&cfg.quiet, "quiet", false, "suppress all output except errors")
+	pf.BoolVar(&cfg.quiet, "quiet", false, "suppress informational logs (data output is unaffected)")
 	pf.BoolVar(&cfg.debug, "debug", false, "shorthand for --log-level=debug")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {

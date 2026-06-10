@@ -17,7 +17,8 @@ import (
 )
 
 func newSetupCmd(cfg *config) *cobra.Command {
-	return &cobra.Command{
+	var nonInteractive bool
+	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Interactive wizard: configure dot-dagger at the system level",
 		Long: fmt.Sprintf(`Configure dot-dagger for this machine.
@@ -28,16 +29,23 @@ If config.yaml already exists, current values are shown as defaults.
 Does not create symlinks or scaffold .dagger files.
 Run 'dotd init' next to scaffold your dotfiles repo.
 
+Use --non-interactive (or -n) to accept every shown default without
+prompting. Combine with the global path flags (--files, --bin-dir,
+--link-root, --generated-dir) to script a fresh install.
+
 Examples:
-  dotd setup                              # first-time interactive setup
-  dotd setup --config /tmp/custom.yaml    # write to a non-default path`, ecosystem.EnvFileName),
+  dotd setup                                       # interactive
+  dotd setup --non-interactive                     # accept all defaults
+  dotd setup -n --files ~/dotfiles --bin-dir ~/bin # scripted with overrides`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSetup(cmd, cfg)
+			return runSetup(cmd, cfg, nonInteractive)
 		},
 	}
+	cmd.Flags().BoolVarP(&nonInteractive, "non-interactive", "n", false, "accept all shown defaults without prompting")
+	return cmd
 }
 
-func runSetup(cmd *cobra.Command, cfg *config) error {
+func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 	out := cmd.OutOrStdout()
 	reader := bufio.NewReader(cmd.InOrStdin())
 	// home is used only to expand "~" in user-typed paths, not for config resolution.
@@ -54,30 +62,37 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 	}
 
 	isUpdate := existing.Dotfiles != "" || existing.BinDir != "" || existing.GeneratedDir != "" || existing.LinkRoot != ""
-	if isUpdate {
+	switch {
+	case nonInteractive && isUpdate:
+		fmt.Fprintf(out, "%s — update machine configuration (non-interactive)\n", ui.Header("dotd setup"))
+		fmt.Fprintln(out, "Keeping current values.")
+	case nonInteractive:
+		fmt.Fprintf(out, "%s — configure this machine (non-interactive)\n", ui.Header("dotd setup"))
+		fmt.Fprintln(out, "Accepting shown defaults.")
+	case isUpdate:
 		fmt.Fprintf(out, "%s — update machine configuration\n", ui.Header("dotd setup"))
 		fmt.Fprintln(out, "Press Enter to keep the current value.")
-	} else {
+	default:
 		fmt.Fprintf(out, "%s — configure this machine\n", ui.Header("dotd setup"))
 		fmt.Fprintln(out, "Press Enter to accept the shown default.")
 	}
 
-	dotfilesPath, err := promptPath(out, reader, "Dotfiles repo", "Your dotfiles git repository.", existing.Dotfiles, cfg.files, home)
+	dotfilesPath, err := promptPath(out, reader, "Dotfiles repo", "Your dotfiles git repository.", existing.Dotfiles, cfg.files, home, nonInteractive)
 	if err != nil {
 		return err
 	}
 
-	binDir, err := promptPath(out, reader, "Bin directory", "Where executable scripts from your dotfiles repo are linked.", existing.BinDir, cfg.binDir, home)
+	binDir, err := promptPath(out, reader, "Bin directory", "Where executable scripts from your dotfiles repo are linked.", existing.BinDir, cfg.binDir, home, nonInteractive)
 	if err != nil {
 		return err
 	}
 
-	generatedDir, err := promptPath(out, reader, "Generated files directory", "Where compose-assembled shell fragments are written.", existing.GeneratedDir, cfg.generatedDir, home)
+	generatedDir, err := promptPath(out, reader, "Generated files directory", "Where compose-assembled shell fragments are written.", existing.GeneratedDir, cfg.generatedDir, home, nonInteractive)
 	if err != nil {
 		return err
 	}
 
-	linkRoot, err := promptPath(out, reader, "Link root", "Home directory used for ~ expansion in link destinations (default: $HOME).", existing.LinkRoot, cfg.linkRoot, home)
+	linkRoot, err := promptPath(out, reader, "Link root", "Home directory used for ~ expansion in link destinations (default: $HOME).", existing.LinkRoot, cfg.linkRoot, home, nonInteractive)
 	if err != nil {
 		return err
 	}
@@ -120,13 +135,14 @@ func runSetup(cmd *cobra.Command, cfg *config) error {
 
 // promptPath prints a field prompt, reads a path from the user, expands ~ and resolves to absolute.
 // existingVal takes precedence over resolvedDefault when non-empty (update vs first-run).
-func promptPath(out io.Writer, reader *bufio.Reader, label, desc, existingVal, resolvedDefault, home string) (string, error) {
+// When nonInteractive is true, the default is accepted without reading from stdin.
+func promptPath(out io.Writer, reader *bufio.Reader, label, desc, existingVal, resolvedDefault, home string, nonInteractive bool) (string, error) {
 	def := existingVal
 	if def == "" {
 		def = resolvedDefault
 	}
 	printField(out, label, desc)
-	val, err := promptDefault(out, reader, fieldPrompt(), def, false)
+	val, err := promptDefault(out, reader, fieldPrompt(), def, nonInteractive)
 	if err != nil {
 		return "", err
 	}
