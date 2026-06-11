@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,10 +15,22 @@ import (
 // run executes the root command with the given args, capturing combined stdout+stderr.
 func run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
+	return runWithStdin(t, nil, args...)
+}
+
+// runWithStdin is run() but also wires stdin so tests covering interactive
+// commands (setup, teardown's confirm prompt, unapply's confirm prompt) don't
+// need to re-wire the cobra plumbing themselves. A nil stdin is allowed for
+// non-interactive invocations.
+func runWithStdin(t *testing.T, stdin io.Reader, args ...string) (string, error) {
+	t.Helper()
 	root := newRootCmd()
 	buf := &bytes.Buffer{}
 	root.SetOut(buf)
 	root.SetErr(buf)
+	if stdin != nil {
+		root.SetIn(stdin)
+	}
 	root.SetArgs(args)
 	err := root.Execute()
 	return buf.String(), err
@@ -692,16 +705,9 @@ func TestSetup_WritesConfigAndEnv(t *testing.T) {
 	t.Setenv("DOTFILES", t.TempDir()) // so default dotfiles path exists
 
 	// Simulate pressing Enter for all prompts (accept defaults).
-	input := strings.Repeat("\n", 10)
-
-	root := newRootCmd()
-	root.SetIn(strings.NewReader(input))
-	var buf bytes.Buffer
-	root.SetOut(&buf)
-	root.SetErr(&buf)
-	root.SetArgs([]string{"setup"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	out, err := runWithStdin(t, strings.NewReader(strings.Repeat("\n", 10)), "setup")
+	if err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, out)
 	}
 
 	configPath := filepath.Join(xdg, "dot-dagger", "config.yaml")
@@ -721,14 +727,9 @@ func TestSetup_NonInteractive(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	t.Setenv("DOTFILES", t.TempDir())
 
-	root := newRootCmd()
-	root.SetIn(strings.NewReader("")) // empty stdin — must not block
-	var buf bytes.Buffer
-	root.SetOut(&buf)
-	root.SetErr(&buf)
-	root.SetArgs([]string{"setup", "--non-interactive"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("setup --non-interactive error = %v\noutput:\n%s", err, buf.String())
+	out, err := runWithStdin(t, strings.NewReader(""), "setup", "--non-interactive")
+	if err != nil {
+		t.Fatalf("setup --non-interactive error = %v\noutput:\n%s", err, out)
 	}
 
 	configPath := filepath.Join(xdg, "dot-dagger", "config.yaml")
@@ -753,14 +754,9 @@ func TestSetup_UsesCurrentValuesAsDefaults(t *testing.T) {
 	}
 
 	// Accept all defaults (Enter for each prompt).
-	input := strings.Repeat("\n", 10)
-	root := newRootCmd()
-	root.SetIn(strings.NewReader(input))
-	var buf bytes.Buffer
-	root.SetOut(&buf)
-	root.SetArgs([]string{"setup"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	out, err := runWithStdin(t, strings.NewReader(strings.Repeat("\n", 10)), "setup")
+	if err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, out)
 	}
 
 	content, err := os.ReadFile(filepath.Join(configDir, "config.yaml"))
@@ -787,14 +783,9 @@ func TestSetup_SkipsEnvIfExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	input := strings.Repeat("\n", 10)
-	root := newRootCmd()
-	root.SetIn(strings.NewReader(input))
-	var buf bytes.Buffer
-	root.SetOut(&buf)
-	root.SetArgs([]string{"setup"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("setup error = %v\noutput:\n%s", err, buf.String())
+	out, err := runWithStdin(t, strings.NewReader(strings.Repeat("\n", 10)), "setup")
+	if err != nil {
+		t.Fatalf("setup error = %v\noutput:\n%s", err, out)
 	}
 
 	got, _ := os.ReadFile(filepath.Join(configDir, "env.yaml"))
@@ -882,24 +873,19 @@ func TestTeardown_CancelExits0(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	root := newRootCmd()
-	root.SetIn(strings.NewReader("n\n"))
-	var buf bytes.Buffer
-	root.SetOut(&buf)
-	root.SetErr(&buf)
-	root.SetArgs([]string{"teardown",
+	out, err := runWithStdin(t, strings.NewReader("n\n"), "teardown",
 		"--files", emptyDotfiles(t),
 		"--env-file", filepath.Join(xdg, "env.yaml"),
-	})
-	if err := root.Execute(); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("teardown cancel should exit 0, got %v", err)
 	}
 
 	if _, err := os.Stat(configPath); err != nil {
 		t.Error("config.yaml should be preserved on cancel")
 	}
-	if !strings.Contains(buf.String(), "cancelled") {
-		t.Errorf("expected 'cancelled' in output: %q", buf.String())
+	if !strings.Contains(out, "cancelled") {
+		t.Errorf("expected 'cancelled' in output: %q", out)
 	}
 }
 
@@ -1086,24 +1072,19 @@ func TestUnapply_CancelExits0(t *testing.T) {
 		t.Fatalf("apply error = %v", err)
 	}
 
-	root := newRootCmd()
-	root.SetIn(strings.NewReader("n\n"))
-	var buf bytes.Buffer
-	root.SetOut(&buf)
-	root.SetErr(&buf)
-	root.SetArgs([]string{"unapply",
+	out, err := runWithStdin(t, strings.NewReader("n\n"), "unapply",
 		"--files", dotfiles, "--env-file", envFile,
 		"--link-root", home, "--init-file", initFile,
-	})
-	if err := root.Execute(); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("unapply cancel should exit 0, got %v", err)
 	}
 
 	if _, err := os.Lstat(filepath.Join(home, ".gitconfig")); err != nil {
 		t.Error("symlink must be preserved on cancel")
 	}
-	if !strings.Contains(buf.String(), "cancelled") {
-		t.Errorf("expected 'cancelled' in output: %q", buf.String())
+	if !strings.Contains(out, "cancelled") {
+		t.Errorf("expected 'cancelled' in output: %q", out)
 	}
 }
 
@@ -1278,15 +1259,10 @@ func TestSetup_HonorsConfigFlag(t *testing.T) {
 	overrideConfig := filepath.Join(overrideDir, "my-config.yaml")
 
 	// Simulate pressing Enter for all prompts (accept all defaults).
-	input := strings.Repeat("\n", 10)
-	root := newRootCmd()
-	root.SetIn(strings.NewReader(input))
-	var buf bytes.Buffer
-	root.SetOut(&buf)
-	root.SetErr(&buf)
-	root.SetArgs([]string{"setup", "--config", overrideConfig})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("setup --config error = %v\noutput:\n%s", err, buf.String())
+	out, err := runWithStdin(t, strings.NewReader(strings.Repeat("\n", 10)),
+		"setup", "--config", overrideConfig)
+	if err != nil {
+		t.Fatalf("setup --config error = %v\noutput:\n%s", err, out)
 	}
 
 	// Override path must have been written.

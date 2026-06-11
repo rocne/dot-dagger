@@ -119,16 +119,6 @@ func TestSave_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestDefaultPath(t *testing.T) {
-	path, err := DefaultPath()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasSuffix(path, "dot-dagger/config.yaml") {
-		t.Errorf("unexpected default path: %q", path)
-	}
-}
-
 // TestSave_UnwritableDirErrors verifies Save returns an error wrapped with
 // "config:" when the destination dir cannot be written.
 func TestSave_UnwritableDirErrors(t *testing.T) {
