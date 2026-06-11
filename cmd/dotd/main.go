@@ -396,14 +396,14 @@ func configureLogger(cfg *config, cmd *cobra.Command) error {
 // buildActOptions constructs pipeline.ActOptions from cfg.
 // dryRun forces dry-run mode regardless of cfg.dryRun.
 // cfg.linkRoot is guaranteed non-empty after resolvePaths succeeds.
-func buildActOptions(cfg *config, dryRun bool) (pipeline.ActOptions, error) {
+func buildActOptions(cfg *config, dryRun bool) pipeline.ActOptions {
 	return pipeline.ActOptions{
 		HomeDir:      cfg.linkRoot,
 		BinDir:       cfg.binDir,
 		GeneratedDir: cfg.generatedDir,
 		DryRun:       dryRun || cfg.dryRun,
 		Force:        cfg.force,
-	}, nil
+	}
 }
 
 type pipelineRun struct {
@@ -441,10 +441,7 @@ func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, er
 		return nil, fmt.Errorf("order: %w", err)
 	}
 
-	actOpts, err := buildActOptions(cfg, dryRun)
-	if err != nil {
-		return nil, err
-	}
+	actOpts := buildActOptions(cfg, dryRun)
 	res, err := pipeline.Act(ordered, actOpts)
 	if err != nil {
 		return nil, fmt.Errorf("act: %w", err)

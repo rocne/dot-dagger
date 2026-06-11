@@ -21,9 +21,9 @@ Items that are known but intentionally deferred. Update this as things get done 
 
 ## Code Quality
 
-- [ ] cmd/dotd: `buildActOptions` returns `(ActOptions, error)` but error is now always nil after AUDIT-001; drop the error return and clean up the three call sites (`runPipeline`, `compose_cmd.go`, `unapply_cmd.go`).
-- [ ] cmd/dotd: `dotcfg.DefaultPath()` now has only one caller (`teardown_cmd.go`, deliberate exception per AUDIT-003); consider replacing with direct `ecosystem.DefaultConfigFile()` call and deleting the wrapper.
-- [ ] cmd/dotd test helper: `run()` at `main_test.go:14` could accept `io.Reader` for stdin so tests covering interactive commands (setup, init) don't need to reinvent the cobra wiring.
+- [x] cmd/dotd: drop error return on `buildActOptions` (always nil).
+- [x] cmd/dotd: inline `dotcfg.DefaultPath()`; sole caller now uses `ecosystem.DefaultConfigFile()` directly.
+- [x] cmd/dotd test helper: `runWithStdin(t, io.Reader, args...)` added; interactive-prompt tests no longer re-wire cobra.
 
 ## UX / Help
 

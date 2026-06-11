@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/fileutil"
 	"gopkg.in/yaml.v3"
 )
@@ -30,11 +29,6 @@ type Config struct {
 	BinDir       string `yaml:"bin_dir"`
 	GeneratedDir string `yaml:"generated_dir"`
 	LinkRoot     string `yaml:"link_root"`
-}
-
-// DefaultPath returns the default config.yaml path: $XDG_CONFIG_HOME/dot-dagger/config.yaml.
-func DefaultPath() (string, error) {
-	return ecosystem.DefaultConfigFile()
 }
 
 // Load parses config.yaml at path.

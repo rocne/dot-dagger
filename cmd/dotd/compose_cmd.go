@@ -95,10 +95,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			actOpts, err := buildActOptions(cfg, true)
-			if err != nil {
-				return err
-			}
+			actOpts := buildActOptions(cfg, true)
 			res, err := pipeline.Act(ordered, actOpts)
 			if err != nil {
 				return fmt.Errorf("compose check: %w", err)

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/fileutil"
@@ -60,10 +59,10 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 		ui.Warnf(errOut, ".dagger files present in dotfiles repo — these will not be removed")
 	}
 
-	// Determine paths. Both call DefaultPath() directly — teardown removes the
-	// system-level files regardless of any --env-file / --files flag overrides.
-	// This is a deliberate exception to the canonical resolution rule.
-	configPath, err := dotcfg.DefaultPath()
+	// Determine paths via the ecosystem defaults directly — teardown removes
+	// the system-level files regardless of any --env-file / --files flag
+	// overrides. This is a deliberate exception to the canonical resolution rule.
+	configPath, err := ecosystem.DefaultConfigFile()
 	if err != nil {
 		return err
 	}
