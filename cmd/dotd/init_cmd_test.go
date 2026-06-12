@@ -127,7 +127,7 @@ func TestScaffoldDaggerInteractive_AcceptAll(t *testing.T) {
 	// 3 roles × (y\n for promptYN + \n for promptDefault)
 	reader := makeBufioReader("y\n\ny\n\ny\n\n")
 
-	written, err := scaffoldDaggerInteractive(&out, reader, tmp)
+	written, err := scaffoldDaggerInteractive(&out, reader, tmp, false)
 	if err != nil {
 		t.Fatalf("scaffoldDaggerInteractive error: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestScaffoldDaggerInteractive_DeclineAll(t *testing.T) {
 
 	reader := makeBufioReader("n\nn\nn\n")
 
-	written, err := scaffoldDaggerInteractive(&out, reader, tmp)
+	written, err := scaffoldDaggerInteractive(&out, reader, tmp, false)
 	if err != nil {
 		t.Fatalf("scaffoldDaggerInteractive error: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestScaffoldDaggerInteractive_IdempotentSecondRun(t *testing.T) {
 
 	// First run — accept all with defaults.
 	firstReader := makeBufioReader("y\n\ny\n\ny\n\n")
-	written1, err := scaffoldDaggerInteractive(&out, firstReader, tmp)
+	written1, err := scaffoldDaggerInteractive(&out, firstReader, tmp, false)
 	if err != nil {
 		t.Fatalf("first run error: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestScaffoldDaggerInteractive_IdempotentSecondRun(t *testing.T) {
 	// Second run — accept all again.
 	out.Reset()
 	secondReader := makeBufioReader("y\n\ny\n\ny\n\n")
-	_, err = scaffoldDaggerInteractive(&out, secondReader, tmp)
+	_, err = scaffoldDaggerInteractive(&out, secondReader, tmp, false)
 	if err != nil {
 		t.Fatalf("second run error: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestScaffoldDaggerInteractive_DefaultDirsUnderDotfilesPath(t *testing.T) {
 	var out bytes.Buffer
 
 	reader := makeBufioReader("y\n\ny\n\ny\n\n")
-	written, err := scaffoldDaggerInteractive(&out, reader, tmp)
+	written, err := scaffoldDaggerInteractive(&out, reader, tmp, false)
 	if err != nil {
 		t.Fatalf("scaffoldDaggerInteractive error: %v", err)
 	}

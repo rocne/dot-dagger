@@ -17,26 +17,36 @@ import (
 )
 
 func newInitCmd(cfg *config) *cobra.Command {
-	return &cobra.Command{
+	var nonInteractive bool
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Scaffold .dagger convention files in your dotfiles repo",
 		Long: `Scaffold .dagger convention files in the configured dotfiles repo.
 
 Prompts for shell scripts, config files, and bin scripts directories.
 Creates each directory if absent, writes .dagger if absent (idempotent).
+Also offers to append the init.sh source line to your shell RC file.
 
 Requires config.yaml — run 'dotd setup' first if you haven't already.
 
+Use --non-interactive (or -n) to accept every default without prompting:
+all three convention directories are created under their default names and
+the shell source line is added. Combine with 'dotd setup -n' to script a
+fresh install.
+
 Examples:
   dotd init
-  dotd init --files /path/to/dotfiles`,
+  dotd init --files /path/to/dotfiles
+  dotd init --non-interactive`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(cmd, cfg)
+			return runInit(cmd, cfg, nonInteractive)
 		},
 	}
+	cmd.Flags().BoolVarP(&nonInteractive, "non-interactive", "n", false, "accept all defaults without prompting")
+	return cmd
 }
 
-func runInit(cmd *cobra.Command, cfg *config) error {
+func runInit(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 	// cfg.configPath is resolved by PersistentPreRunE.
 	if _, err := os.Stat(cfg.configPath); os.IsNotExist(err) {
 		return &hintError{
@@ -48,10 +58,14 @@ func runInit(cmd *cobra.Command, cfg *config) error {
 	out := cmd.OutOrStdout()
 	reader := bufio.NewReader(cmd.InOrStdin())
 
-	fmt.Fprintf(out, "%s — scaffold convention directories\n", ui.Header("dotd init"))
+	if nonInteractive {
+		fmt.Fprintf(out, "%s — scaffold convention directories (non-interactive)\n", ui.Header("dotd init"))
+	} else {
+		fmt.Fprintf(out, "%s — scaffold convention directories\n", ui.Header("dotd init"))
+	}
 	fmt.Fprintf(out, "Directories are created inside: %s\n", ui.Key(cfg.files))
 
-	written, err := scaffoldDaggerInteractive(out, reader, cfg.files)
+	written, err := scaffoldDaggerInteractive(out, reader, cfg.files, nonInteractive)
 	if err != nil {
 		return err
 	}
@@ -61,7 +75,7 @@ func runInit(cmd *cobra.Command, cfg *config) error {
 		ui.OKf(out, "  wrote %s", path)
 	}
 
-	if err := maybeAddSourceLine(out, reader, cfg); err != nil {
+	if err := maybeAddSourceLine(out, reader, cfg, nonInteractive); err != nil {
 		return err
 	}
 
@@ -74,7 +88,7 @@ func runInit(cmd *cobra.Command, cfg *config) error {
 // maybeAddSourceLine checks if the shell RC file already sources the dotd init
 // file and, if not, prompts the user to add it. Shell and OS are resolved from
 // the canonical env map (never queried directly from the OS here).
-func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config) error {
+func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config, nonInteractive bool) error {
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		// env.yaml not yet present (edge case); skip silently.
@@ -101,9 +115,12 @@ func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config) error 
 		return nil
 	}
 
-	yes, err := promptYN(out, reader, fmt.Sprintf("Add dotd source line to %s?", sc.RCFile))
-	if err != nil {
-		return err
+	yes := true
+	if !nonInteractive {
+		yes, err = promptYN(out, reader, fmt.Sprintf("Add dotd source line to %s?", sc.RCFile))
+		if err != nil {
+			return err
+		}
 	}
 	if !yes {
 		ui.Skipf(out, "  skipping source line — add manually: source %q", cfg.initFile)
@@ -146,23 +163,26 @@ var conventionRoles = []conventionRole{
 }
 
 // scaffoldDaggerInteractive prompts for each convention dir and scaffolds .dagger files.
-// Returns the absolute paths that were written.
-func scaffoldDaggerInteractive(out io.Writer, reader *bufio.Reader, dotfilesPath string) ([]string, error) {
+// When nonInteractive is true every directory is created under its default name
+// without prompting. Returns the absolute paths that were written.
+func scaffoldDaggerInteractive(out io.Writer, reader *bufio.Reader, dotfilesPath string, nonInteractive bool) ([]string, error) {
 	var written []string
 
 	for _, role := range conventionRoles {
 		printField(out, role.label, role.desc)
 
-		yes, err := promptYN(out, reader, "Create this directory?")
-		if err != nil {
-			return written, err
-		}
-		if !yes {
-			ui.Skipf(out, "  skipping")
-			continue
+		if !nonInteractive {
+			yes, err := promptYN(out, reader, "Create this directory?")
+			if err != nil {
+				return written, err
+			}
+			if !yes {
+				ui.Skipf(out, "  skipping")
+				continue
+			}
 		}
 
-		dirName, err := promptDefault(out, reader, fieldPrompt()+" name", role.defDir, false)
+		dirName, err := promptDefault(out, reader, fieldPrompt()+" name", role.defDir, nonInteractive)
 		if err != nil {
 			return written, err
 		}
