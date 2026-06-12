@@ -23,10 +23,11 @@ Writes config.yaml and (if absent) env.yaml. Then run `dotd init` to scaffold th
 dotd init
 ```
 
-If you prefer to skip all setup prompts:
+If you prefer to skip all prompts (both commands accept `-n`):
 
 ```sh
 dotd setup --non-interactive
+dotd init --non-interactive
 ```
 
 ## 2. Adopt your existing config files
