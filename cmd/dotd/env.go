@@ -106,6 +106,15 @@ Examples:
 				enc.SetIndent("", "  ")
 				return enc.Encode(entries)
 			}
+			if len(keys) == 0 {
+				// Logged (stderr) so piped stdout stays empty for scripts.
+				if _, statErr := os.Stat(cfg.envFile); statErr != nil {
+					cfg.log.Infof("no env values resolved — %s not found at %s; run 'dotd setup'", ecosystem.EnvFileName, cfg.envFile)
+				} else {
+					cfg.log.Infof("no env values resolved — %s is empty", cfg.envFile)
+				}
+				return nil
+			}
 			for _, k := range keys {
 				fmt.Fprintf(cmd.OutOrStdout(), "%s=%s\n", k, resolved[k])
 			}
