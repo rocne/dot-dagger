@@ -60,7 +60,7 @@ See [`.dagger` reference](../reference/dagger.md) for the full format.
 Most files don't need any annotations at all. The conventions handle the common cases:
 
 - Files in `shellrc/` are automatically sourced in `init.sh`
-- Files in `conf/` are automatically symlinked into `$HOME`
+- Files in `config/` are automatically symlinked into `~/.config`
 - Files in `bin/` are automatically symlinked onto `$PATH`
 
 Annotations are for exceptions: "source this only on macOS", "source this after that", "this needs ripgrep installed first".

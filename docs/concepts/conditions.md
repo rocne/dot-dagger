@@ -117,10 +117,10 @@ If a file isn't being included when you expect it to be, check the resolved envi
 dotd env show
 ```
 
-Then try a dry run with verbose output:
+Then try a dry run with debug logging:
 
 ```sh
-dotd apply --dry-run --verbose
+dotd apply --dry-run --debug
 ```
 
 You can also override a key temporarily to test:

@@ -4,7 +4,7 @@ This tutorial walks through setting up dotd from scratch — creating a dotfiles
 
 ## 1. Scaffold the repo
 
-Run `dotd setup` to create the directory structure and config files:
+Run `dotd setup` to write the config files:
 
 ```sh
 dotd setup
@@ -17,12 +17,16 @@ It will ask for:
 - **Generated files directory** — where compose-assembled shell fragments are written (default: `~/.local/share/dot-dagger/generated`)
 - **Link root** — home directory used for `~` expansion in link destinations (default: `$HOME`)
 
-Writes config.yaml and (if absent) env.yaml. Run `dotd init` next to scaffold convention directories in your dotfiles repo.
-
-If you prefer to skip all prompts:
+Writes config.yaml and (if absent) env.yaml. Then run `dotd init` to scaffold the convention directories (`shellrc/`, `config/`, `bin/`) in your dotfiles repo and wire the init.sh source line into your shell:
 
 ```sh
-dotd setup --yes
+dotd init
+```
+
+If you prefer to skip all setup prompts:
+
+```sh
+dotd setup --non-interactive
 ```
 
 ## 2. Adopt your existing config files
@@ -35,7 +39,7 @@ dotd adopt ~/.gitconfig      # → config/dot-gitconfig
 dotd adopt ~/.bashrc         # → config/dot-bashrc
 ```
 
-Each adoption copies the file into your dotfiles repo and offers to remove the original. After removal, running `dotd apply` creates a symlink from `~/.zshrc` back to `dotfiles/config/dot-zshrc` — so everything continues to work but is now managed.
+Each adoption moves the file into your dotfiles repo and replaces the original with a symlink — `~/.zshrc` now points at `dotfiles/config/dot-zshrc`, so everything continues to work but is now managed.
 
 You can override the destination with `--to`:
 
@@ -100,7 +104,7 @@ dotd apply -f ~/dotfiles --dry-run
 
 ## 6. Wire up your shell
 
-If `dotd setup` didn't append the source line automatically, add it yourself:
+If `dotd init` didn't append the source line automatically, add it yourself:
 
 ```sh
 # zsh
