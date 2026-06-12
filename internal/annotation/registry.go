@@ -100,6 +100,8 @@ func (ActionType) Key()         string { return KeyAction }
 func (ActionType) Label()       string { return "Action" }
 func (ActionType) Description() string { return "How dotd processes this file (source, no-source, or link)" }
 func (ActionType) Kind()        InputKind { return KindChoice }
+// NOTE: must stay in sync with the pipeline.Action* constants in
+// internal/pipeline/walk.go; annotation cannot import pipeline (import cycle).
 func (ActionType) Options()     []string  { return []string{"source", "no-source", "link"} }
 func (ActionType) Format(s string) string { return "# @action(" + s + ")" }
 func (ActionType) Validate(string) error  { return nil }

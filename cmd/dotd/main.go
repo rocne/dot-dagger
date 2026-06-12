@@ -574,18 +574,18 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		for _, lnk := range run.result.Links {
 			fmt.Fprintf(cmd.OutOrStdout(), "dry-run: link %s %s %s\n", lnk.Src, ui.Arrow("→"), lnk.Dest)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: would write %s (%d sourced nodes)\n", cfg.initFile, len(run.result.Sourced))
+		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: would write %s (%s sourced)\n", cfg.initFile, plural(len(run.result.Sourced), "node"))
 		return nil
 	}
 
-	cfg.log.Infof("%s %d symlinks applied", ui.Header("links:"), len(run.result.Links))
+	cfg.log.Infof("%s %s applied", ui.Header("links:"), plural(len(run.result.Links), "symlink"))
 
 	if err := pipeline.Generate(cfg.initFile, run.result.Sourced, pipeline.GenerateOptions{
 		BinDir: cfg.binDir,
 	}); err != nil {
 		return fmt.Errorf("generate init.sh: %w", err)
 	}
-	cfg.log.Infof("%s wrote %s (%d nodes)", ui.Header("init.sh:"), cfg.initFile, len(run.result.Sourced))
+	cfg.log.Infof("%s wrote %s (%s)", ui.Header("init.sh:"), cfg.initFile, plural(len(run.result.Sourced), "node"))
 	return nil
 }
 
@@ -624,7 +624,7 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 		cfg.log.Warn(cfg.initFile, "state", "missing")
 		hasIssues = true
 	} else {
-		cfg.log.Infof("%s %s present (%d sourced nodes)", ui.Header("init.sh:"), cfg.initFile, len(run.result.Sourced))
+		cfg.log.Infof("%s %s present (%s sourced)", ui.Header("init.sh:"), cfg.initFile, plural(len(run.result.Sourced), "node"))
 	}
 
 	if hasIssues {

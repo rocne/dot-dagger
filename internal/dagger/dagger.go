@@ -79,7 +79,7 @@ func LoadFile(path string) (*ComposableNode, error) {
 		return &ComposableNode{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("dagger: open %s: %w", path, err)
+		return nil, fmt.Errorf("dagger: %w", err) // *PathError already names the path
 	}
 	defer func() { _ = f.Close() }()
 	return Load(f)
