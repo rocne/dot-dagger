@@ -14,6 +14,9 @@ import (
 )
 
 // Action type constants for Action.Type.
+// NOTE: the user-facing option list in internal/annotation/registry.go
+// (ActionType.Options) must stay in sync with these values; annotation
+// cannot import pipeline (import cycle).
 const (
 	ActionCompose  = "compose"
 	ActionSource   = "source"
