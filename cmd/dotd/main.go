@@ -129,6 +129,13 @@ type appConfig struct {
 	quiet        bool
 	debug        bool
 	log          *chlog.Logger
+
+	// Provenance recorded by resolvePaths for the first-run guard:
+	// filesFromCwd is true when cfg.files fell through every explicit tier
+	// (flag, $DOTD_FILES, $DOTFILES, config.yaml) to the cwd default;
+	// configExists is whether config.yaml was present at resolve time.
+	filesFromCwd bool
+	configExists bool
 }
 
 // config is a type alias so sub-command constructors can use the short name.
@@ -338,6 +345,14 @@ func resolvePaths(cfg *config) error {
 	if err != nil {
 		return err
 	}
+	_, statErr := os.Stat(cfg.configPath)
+	cfg.configExists = statErr == nil
+
+	// Record provenance before resolving: when every explicit tier is empty
+	// the default falls through to the cwd ($DOTFILES is checked here too
+	// because DefaultDotfiles consults it inside the default tier).
+	cfg.filesFromCwd = cfg.files == "" && os.Getenv("DOTD_FILES") == "" &&
+		os.Getenv("DOTFILES") == "" && toolCfg.Dotfiles == ""
 
 	cfg.files, err = ecosystem.ResolvePath(cfg.files, "DOTD_FILES", toolCfg.Dotfiles, func() (string, error) {
 		return ecosystem.DefaultDotfiles(), nil
@@ -413,7 +428,25 @@ type pipelineRun struct {
 	result        *pipeline.ActResult
 }
 
+// guardWalkSource refuses to walk the cwd-fallback dotfiles path on an
+// unconfigured machine. Without it, a fresh-machine 'dotd apply' silently
+// walks whatever directory the user happens to be in. The guard fires only
+// when no explicit source was given AND config.yaml is absent, so configured
+// setups (including an intentionally empty 'dotfiles' key) are unaffected.
+func guardWalkSource(cfg *config) error {
+	if cfg.filesFromCwd && !cfg.configExists {
+		return &hintError{
+			err:  errors.New("no dotfiles repo configured (refusing to walk the current directory)"),
+			hint: "run 'dotd setup', or pass -f <path> / set $DOTFILES",
+		}
+	}
+	return nil
+}
+
 func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, error) {
+	if err := guardWalkSource(cfg); err != nil {
+		return nil, err
+	}
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return nil, annotateKeyError(err)
@@ -465,6 +498,9 @@ func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, er
 // Validation is shared with the write path so a config that apply/check
 // rejects also fails under list/dag/bundle/compose/package.
 func (cfg *appConfig) walkOrdered(cmd *cobra.Command) ([]pipeline.RawNode, error) {
+	if err := guardWalkSource(cfg); err != nil {
+		return nil, err
+	}
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
 		return nil, annotateKeyError(err)
@@ -541,6 +577,9 @@ Examples:
 
 // warnIfNosyncUnignored warns about nosync- paths in the dotfiles repo that are not gitignored.
 func warnIfNosyncUnignored(cfg *config) {
+	if guardWalkSource(cfg) != nil {
+		return // unconfigured cwd fallback — the pipeline will refuse anyway
+	}
 	_ = filepath.WalkDir(cfg.files, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -569,6 +608,12 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 	}
 	cfg.log.Debugf("%s %d keys", ui.Header("env:"), run.resolvedCount)
 	cfg.log.Debugf("%s %d active / %d total", ui.Header("filter:"), run.activeCount, run.allCount)
+
+	if run.activeCount > 0 &&
+		len(run.result.Links)+len(run.result.Sourced)+len(run.result.Generated) == 0 {
+		cfg.log.Warnf("%s produced no actions — convention dirs may be missing .dagger files; run 'dotd init'",
+			plural(run.activeCount, "active node"))
+	}
 
 	if cfg.dryRun {
 		for _, lnk := range run.result.Links {
@@ -629,6 +674,12 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 
 	if hasIssues {
 		cmd.SilenceErrors = true
+		if !cfg.configExists {
+			return &hintError{
+				err:  errors.New("check: issues found"),
+				hint: "no config.yaml found — run 'dotd setup' to configure this machine",
+			}
+		}
 		return errors.New("check: issues found")
 	}
 	return nil

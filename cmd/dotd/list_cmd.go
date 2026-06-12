@@ -78,6 +78,12 @@ func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) err
 		return enc.Encode(entries)
 	}
 
+	if len(entries) == 0 {
+		// Logged (stderr) so piped stdout stays empty for scripts.
+		cfg.log.Infof("no nodes found in %s — is this a dotfiles repo?", cfg.files)
+		return nil
+	}
+
 	for _, e := range entries {
 		status := ""
 		if showInactive {

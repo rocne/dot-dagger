@@ -1701,3 +1701,107 @@ func TestEnvResolution_ShellExpandedValue(t *testing.T) {
 		t.Errorf("shellrc.macos should be inactive when os=linux; got %q", out)
 	}
 }
+
+// --- first-run guardrails (2026-06-12 audit, PR 3) ---
+
+// TestApplyRefusesCwdFallbackWhenUnconfigured: with no -f, no $DOTFILES, and
+// no config.yaml, apply must refuse to walk the cwd rather than scanning
+// whatever directory the user happens to be in.
+func TestApplyRefusesCwdFallbackWhenUnconfigured(t *testing.T) {
+	t.Setenv("DOTFILES", "")
+	t.Setenv("DOTD_FILES", "")
+	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
+	out, err := run(t, "apply",
+		"--config", missingConfig,
+		"--env-file", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatalf("expected error, got none\noutput: %s", out)
+	}
+	if !strings.Contains(err.Error(), "no dotfiles repo configured") {
+		t.Errorf("error = %q, want cwd-fallback refusal", err)
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "dotd setup") {
+		t.Errorf("expected 'dotd setup' hint, got %v", err)
+	}
+}
+
+// TestListRefusesCwdFallbackWhenUnconfigured: the same guard covers the
+// read path (walkOrdered).
+func TestListRefusesCwdFallbackWhenUnconfigured(t *testing.T) {
+	t.Setenv("DOTFILES", "")
+	t.Setenv("DOTD_FILES", "")
+	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
+	_, err := run(t, "list",
+		"--config", missingConfig,
+		"--env-file", emptyEnvFile(t),
+	)
+	if err == nil || !strings.Contains(err.Error(), "no dotfiles repo configured") {
+		t.Errorf("list error = %v, want cwd-fallback refusal", err)
+	}
+}
+
+// TestApplyWarnsWhenNoActions: active nodes that produce zero actions
+// (convention dir without .dagger) must surface a warning instead of a
+// silent no-op.
+func TestApplyWarnsWhenNoActions(t *testing.T) {
+	dotfiles := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dotfiles, "shellrc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dotfiles, "shellrc", "a.sh"), []byte("a=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tmp := t.TempDir()
+	out, err := run(t, "apply",
+		"-f", dotfiles,
+		"--env-file", emptyEnvFile(t),
+		"--init-file", filepath.Join(tmp, "init.sh"),
+		"--link-root", tmp,
+		"--bin-dir", filepath.Join(tmp, "bin"),
+	)
+	if err != nil {
+		t.Fatalf("apply error = %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "produced no actions") {
+		t.Errorf("expected no-actions warning in output:\n%s", out)
+	}
+	if !strings.Contains(out, "dotd init") {
+		t.Errorf("expected 'dotd init' pointer in warning:\n%s", out)
+	}
+}
+
+// TestCheckHintsSetupWhenUnconfigured: check failures on a machine without
+// config.yaml must point at 'dotd setup'.
+func TestCheckHintsSetupWhenUnconfigured(t *testing.T) {
+	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
+	_, err := run(t, "check",
+		"-f", emptyDotfiles(t),
+		"--config", missingConfig,
+		"--env-file", emptyEnvFile(t),
+		"--init-file", filepath.Join(t.TempDir(), "init.sh"),
+	)
+	if err == nil {
+		t.Fatal("expected check to report issues")
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "dotd setup") {
+		t.Errorf("expected 'dotd setup' hint, got %v", err)
+	}
+}
+
+// TestListEmptyPrintsNote: empty repo gives an orienting stderr note while
+// stdout stays empty for pipes.
+func TestListEmptyPrintsNote(t *testing.T) {
+	out, err := run(t, "list",
+		"-f", emptyDotfiles(t),
+		"--env-file", emptyEnvFile(t),
+	)
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+	if !strings.Contains(out, "no nodes found") {
+		t.Errorf("expected 'no nodes found' note, got:\n%s", out)
+	}
+}
