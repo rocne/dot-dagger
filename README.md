@@ -107,7 +107,7 @@ dotd runs four stages in sequence:
 3. **Packages** — reads `@require` and `@request` annotations and installs packages using whichever manager is available on this machine.
 4. **Symlinks + init.sh** — creates symlinks for `config/` and `bin/` files; resolves `@after` dependencies and writes a single `init.sh` that sources only the active scripts in the right order.
 
-Each stage is also available standalone: `dotd env`, `dotd dag`, `dotd link`, `dotd package`.
+Most stages are also inspectable standalone: `dotd env show`, `dotd dag check`, `dotd package check`, `dotd compose check`.
 
 ---
 
@@ -167,19 +167,23 @@ Reload your shell and tab-completion for commands, flags, and subcommands works.
 ## Quick start
 
 ```sh
-# Apply everything — symlinks, packages, init.sh
-dotd apply -f ~/dotfiles
+# First time on a machine: write config, then scaffold + wire your shell
+dotd setup
+dotd init
 
-# Wire init.sh into your shell (pick your shell)
-echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.zshrc   # zsh
-echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.bashrc  # bash
+# Apply everything — symlinks, packages, init.sh
+dotd apply
 
 # See what would change without touching anything
-dotd apply -f ~/dotfiles --dry-run
+dotd apply --dry-run
 
 # Check current state across all stages
-dotd check -f ~/dotfiles
+dotd check
 ```
+
+`dotd setup` writes `config.yaml` (and `env.yaml` if absent). `dotd init`
+scaffolds the convention directories in your dotfiles repo and offers to
+append the `init.sh` source line to your shell RC file.
 
 ---
 
@@ -199,12 +203,14 @@ dotd walks the entire repo. Files under `shellrc/`, `config/`, or `bin/` are pic
 
 ### Naming conventions
 
-**`dot-` prefix** is stripped when computing symlink destinations, so `dot-` prefixed names become hidden paths:
+**`dot-` prefix** turns into a leading `.` when computing symlink destinations, so `dot-` prefixed names become hidden paths:
 
 ```
-config/nvim/init.lua           →  ~/.config/nvim/init.lua
-config/dot-config/nvim/init.lua  →  ~/.config/nvim/init.lua
+config/nvim/init.lua     →  ~/.config/nvim/init.lua
+config/dot-tmux.conf     →  ~/.config/.tmux.conf
 ```
+
+Note that `config/` links into `~/.config` by default, so a `dot-` prefixed file there becomes a hidden file *inside* `~/.config`. For a dotfile that belongs at the top of your home directory, use an explicit destination instead: `# @symlink ~/.tmux.conf`.
 
 **`nosync-` prefix** is stripped from path components when computing a file's identity. This is useful for machine-specific directories you don't want to commit — they still participate in the process but don't pollute logical names:
 
@@ -223,7 +229,7 @@ Full reconciliation: resolves environment, installs packages, applies symlinks, 
 ```sh
 dotd apply -f ~/dotfiles
 dotd apply -f ~/dotfiles --dry-run
-dotd apply -f ~/dotfiles --verbose
+dotd apply -f ~/dotfiles --debug
 dotd apply -f ~/dotfiles --env context=work
 ```
 
@@ -233,22 +239,22 @@ Validates all stages without making any changes.
 
 ```sh
 dotd check -f ~/dotfiles
-dotd check -f ~/dotfiles --verbose
+dotd check -f ~/dotfiles --debug
 ```
 
 ### dotd setup — onboarding
 
-Interactive setup that scaffolds a dotfiles repo, writes config files, and wires up your shell.
+Interactive wizard that writes `config.yaml` (and `env.yaml` if absent). It does not touch your dotfiles repo or shell RC — run `dotd init` next for that.
 
 ```sh
-dotd setup                  # interactive — walks through each step
-dotd setup --yes            # non-interactive, accept all defaults
-dotd setup -f ~/my-dotfiles # specify a dotfiles directory
+dotd setup                            # interactive — walks through each step
+dotd setup --non-interactive          # accept all defaults (alias: -n)
+dotd setup -n --files ~/my-dotfiles   # scripted, with a custom dotfiles directory
 ```
 
 ### dotd adopt — bring a file in
 
-Copies an existing file into your dotfiles repo, inferring the right destination directory.
+Moves an existing file into your dotfiles repo — inferring the right destination directory — and replaces the original with a symlink.
 
 ```sh
 dotd adopt ~/.bashrc              # infers config/dot-bashrc
@@ -267,53 +273,52 @@ dotd adopt ~/.zshrc --yes         # accept inferred destination without promptin
 | `.conf`, `.config`, `.toml`, `.yaml`, `.yml`, `.ini`, `.cfg`, `.json` extension | `config/<name>` |
 | Anything else | Error — use `--to` |
 
-### dotd files — inspect the file set
+### dotd list — inspect the file set
 
 ```sh
-dotd files list                              # list active files for this machine
-dotd files list --all                        # include inactive and disabled files
-dotd files list --all --env os=macos        # preview for a different environment
+dotd list                          # list active nodes for this machine
+dotd list --inactive               # show nodes filtered out by predicates
+dotd list --env os=macos           # preview for a different environment
+dotd list --json                   # machine-readable output
 ```
 
-`dotd files list` is useful for understanding which files are active and why. `--all` shows inactive files alongside the condition that excluded them.
+`dotd list` is useful for understanding which files are active and why. `--inactive` shows the nodes that predicates filtered out.
 
 ### dotd env — environment
 
 ```sh
 dotd env show                  # print all resolved key=value pairs
 dotd env get os                # print a single key's value
-dotd env set context=work      # write a key to env.yaml
+dotd env set context work      # write a key to env.yaml
+dotd env diff                  # keys where env.yaml overrides detected values
 ```
 
 `dotd env show` is the first thing to reach for when a `@when` condition isn't behaving as expected.
 
-### dotd dag — init.sh generation
+### dotd dag — load order
 
 ```sh
-dotd dag apply                         # write init.sh
-dotd dag apply --dry-run               # preview without writing
-dotd dag apply --init-file ~/init.sh   # custom output path
-dotd dag check                         # validate without writing
-dotd dag check --verbose               # show numbered load order
+dotd dag check                              # print active nodes in dependency order
+dotd dag check --env os=macos               # preview for a different environment
+dotd dag check --json | jq -r '.[].logical_name'
 ```
 
-### dotd link — symlinks
+init.sh itself is written by `dotd apply`. Symlinks are managed by `dotd apply` / `dotd check` / `dotd unapply` — there is no separate link command.
+
+### dotd unapply — undo
 
 ```sh
-dotd link apply                # create/update symlinks
-dotd link apply --dry-run      # preview
-dotd link apply --force        # overwrite conflicting files
-dotd link check                # report state
-dotd link check --verbose      # include ok symlinks in output
-dotd link remove               # remove owned symlinks
+dotd unapply                   # preview, then prompt for confirmation
+dotd unapply --dry-run         # preview only
+dotd unapply --yes             # skip confirmation prompt
 ```
 
 ### dotd package — packages
 
 ```sh
 dotd package generate          # generate shell install script (preview)
-dotd package generate | sudo sh  # install packages
-dotd package generate -o packages-install.sh  # write to file
+dotd package generate | sudo sh                 # install packages
+dotd package generate > packages-install.sh    # write to file
 dotd package check             # report status without installing
 dotd package list              # list all declared packages
 ```
@@ -508,23 +513,27 @@ packages:
     apt: {}
 ```
 
-### .dotd.yaml
+### .dagger
 
-Per-directory config for files that can't carry annotations (JSON, XML, binaries, etc.).
+Per-directory config. Controls how files in a directory are processed, and declares metadata for files that can't carry annotations (JSON, XML, binaries, etc.). Settings cascade downward; `defaults` apply to the whole subtree. (`.dotd.yaml` is the legacy name — rename to `.dagger`.)
 
 ```yaml
-dotd:
-  when: "os=macos"
-  defaults:
-    when: "context=work"
-  files:
-    - path: dot-gitconfig-work
-      when: "context=work"
-      symlink: ~/.gitconfig
+when: os=macos
+link_root: ~/.config/nvim
 
-link:
-  link_root: ~/.config/nvim
+defaults:
+  when: context=work
+  actions:
+    - link
+
+files:
+  settings.json:
+    when: os=macos
+    actions:
+      - link(~/.config/nvim/settings.json)
 ```
+
+See the [`.dagger` reference](https://rocne.github.io/dot-dagger/reference/dagger/) for all fields, including `compose:` targets and convention-directory overrides.
 
 ---
 

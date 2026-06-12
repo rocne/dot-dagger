@@ -8,15 +8,22 @@ These flags apply to all `dotd` subcommands:
 
 | Flag | Default | Description |
 |---|---|---|
-| `-f, --files` | `$DOTFILES` or `./` | Path to dotfiles repo |
-| `--env-file` | `~/.config/dot-dagger/env.yaml` | Path to env.yaml |
-| `--env key=value` | — | Override a key (repeatable) |
-| `--init-file` | `~/.local/share/dot-dagger/init.sh` | Path to write init.sh |
-| `--link-root` | `~/.config` | Config directory for config/ files |
-| `--bin-dir` | — | Bin directory for bin/ files |
+| `-f, --files` | `$DOTD_FILES` → `$DOTFILES` → config.yaml `dotfiles` → cwd | Path to dotfiles repo |
+| `--config` | `$DOTD_CONFIG_FILE` → `~/.config/dot-dagger/config.yaml` | Path to config.yaml |
+| `--env-file` | `$DOTD_ENV_FILE` → `~/.config/dot-dagger/env.yaml` | Path to env.yaml |
+| `--env key=value` | — | Override an env key (repeatable) |
+| `--init-file` | `$DOTD_INIT_FILE` → `~/.local/share/dot-dagger/init.sh` | Path to write init.sh |
+| `--link-root` | config.yaml `link_root` → `$HOME` | Home dir for `~` expansion in link destinations |
+| `--bin-dir` | config.yaml `bin_dir` → `~/.local/bin/dot-dagger` | Bin directory for bin/ files |
+| `--generated-dir` | config.yaml `generated_dir` → `~/.local/share/dot-dagger/generated` | Directory for compose-assembled files |
 | `--dry-run` | false | Print actions without executing |
 | `--force` | false | Override safety checks |
-| `--verbose` | false | Detailed output |
+| `--log-level` | `info` | Log verbosity: debug, info, warn, error |
+| `--debug` | false | Shorthand for `--log-level=debug` |
+| `--quiet` | false | Suppress informational logs (data output unaffected) |
+| `--all` | false | Show all commands including internal helpers |
+
+Path flags appear in a subcommand's `--help` only when relevant to that command; all of them parse everywhere.
 
 ---
 
@@ -40,7 +47,7 @@ Full reconciliation: resolves environment, installs packages, applies symlinks, 
 ```sh
 dotd apply -f ~/dotfiles
 dotd apply -f ~/dotfiles --dry-run
-dotd apply -f ~/dotfiles --verbose
+dotd apply -f ~/dotfiles --debug
 dotd apply -f ~/dotfiles --env context=work
 ```
 
@@ -52,19 +59,28 @@ Validates all stages without making any changes. Reports the state of packages, 
 
 ```sh
 dotd check -f ~/dotfiles
-dotd check -f ~/dotfiles --verbose
+dotd check -f ~/dotfiles --debug
 ```
+
+**Symlink states:**
+
+| State | Meaning |
+|---|---|
+| `ok` | Symlink exists and points to the right file |
+| `missing` | Symlink doesn't exist yet |
+| `wrong-target` | Symlink exists but points elsewhere |
+| `conflict` | A non-symlink file exists at the destination |
 
 ---
 
 ## dotd setup
 
-Interactive onboarding. Scaffolds a dotfiles repo, writes config files, and wires up your shell.
+Interactive onboarding. Writes config.yaml and (if absent) env.yaml. Does not touch your dotfiles repo or shell RC file — `dotd init` does that.
 
 ```sh
 dotd setup
-dotd setup --yes              # non-interactive, accept all defaults
-dotd setup -f ~/my-dotfiles   # custom dotfiles directory
+dotd setup --non-interactive  # accept all defaults (alias: -n)
+dotd setup -n -f ~/my-dotfiles  # scripted, custom dotfiles directory
 ```
 
 Steps through: dotfiles path, bin directory, generated files directory, and link root. Writes config.yaml and (if absent) env.yaml. Run `dotd init` next to scaffold convention directories in your dotfiles repo.
@@ -84,7 +100,7 @@ dotd teardown --yes            # skip confirmation prompt
 
 ## dotd init
 
-Scaffold `.dagger` convention directories in your dotfiles repo. Prompts for shell scripts, config files, and bin scripts directories. Creates each directory if absent and writes a `.dagger` file (idempotent). Also offers to wire up the shell source line.
+Scaffold `.dagger` convention directories in your dotfiles repo. Prompts for shell scripts, config files, and bin scripts directories. Creates each directory if absent and writes a `.dagger` file (idempotent). Also offers to append the init.sh source line to your shell RC file — this is the step that wires dotd into your shell (not `setup`).
 
 Requires config.yaml — run `dotd setup` first.
 
@@ -118,7 +134,7 @@ dotd config edit               # open config.yaml in $EDITOR
 
 ## dotd adopt
 
-Copies a file into the dotfiles repo, inferring the destination from the file's name and properties.
+Moves a file into the dotfiles repo — inferring the destination from the file's name and properties — and replaces the original with a symlink.
 
 ```sh
 dotd adopt ~/.bashrc                  # → config/dot-bashrc
@@ -141,11 +157,10 @@ dotd adopt ~/.zshrc --yes             # accept inferred destination without prom
 
 | Flag | Description |
 |---|---|
-| `--to <path>` | Destination path relative to dotfiles root |
-| `--yes`, `-y` | Non-interactive: accept inferred destination |
-| `--no-interactive` | Same as `--yes` |
+| `--to <path>` | Destination path relative to dotfiles root (overrides inference) |
+| `--yes`, `-y` | Skip the confirmation prompt |
 
-After copying, `adopt` offers to remove the original (interactive mode only). Run `dotd apply` afterwards to create the symlink.
+The original file is replaced with a symlink to its new location in the repo. Use `--dry-run` to preview without moving anything.
 
 ---
 
@@ -175,17 +190,15 @@ dotd env diff                  # show keys where env.yaml differs from shell env
 
 ## dotd dag
 
-Dependency graph (load order) management for init.sh.
+Inspect the dependency graph (load order) used for init.sh.
 
 ```sh
-dotd dag apply                         # write init.sh
-dotd dag apply --dry-run               # preview without writing
-dotd dag apply --init-file ~/init.sh   # custom output path
-dotd dag check                         # validate without writing
-dotd dag check --verbose               # show numbered load order
+dotd dag check                         # print active nodes in dependency order
+dotd dag check --env os=macos          # preview for a different environment
+dotd dag check --json                  # machine-readable output
 ```
 
-The generated `init.sh` sources all active scripts in dependency order. It contains only `source` calls — no conditions, no loops. All condition evaluation happened at `apply` time.
+init.sh itself is written by `dotd apply`. The generated file sources all active scripts in dependency order and contains only `source` calls — no conditions, no loops. All condition evaluation happened at `apply` time.
 
 ---
 
@@ -208,31 +221,6 @@ dotd bundle shellrc/my-script.sh --include-env       # prepend resolved env as e
 
 ---
 
-## dotd link
-
-Symlink management.
-
-```sh
-dotd link apply                # create/update symlinks
-dotd link apply --dry-run      # preview
-dotd link apply --force        # overwrite conflicting files
-dotd link check                # report state
-dotd link check --verbose      # include ok symlinks in output
-dotd link remove               # remove owned symlinks
-dotd link remove --dry-run     # preview removal
-```
-
-**Symlink states:**
-
-| State | Meaning |
-|---|---|
-| `ok` | Symlink exists and points to the right file |
-| `missing` | Symlink doesn't exist yet |
-| `wrong-target` | Symlink exists but points elsewhere |
-| `conflict` | A non-symlink file exists at the destination |
-
----
-
 ## dotd package
 
 Package management.
@@ -240,7 +228,7 @@ Package management.
 ```sh
 dotd package generate          # generate shell install script (preview)
 dotd package generate | sudo sh  # install packages
-dotd package generate -o packages-install.sh  # write to file
+dotd package generate > packages-install.sh  # write to file
 dotd package check             # report status without installing
 dotd package list              # list all declared packages
 ```

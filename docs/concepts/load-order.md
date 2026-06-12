@@ -82,7 +82,7 @@ On Linux (where `homebrew.sh` is excluded by `@when os=macos`):
 ## Checking the load order
 
 ```sh
-dotd dag check --verbose
+dotd dag check
 ```
 
-This prints the numbered load order for the current machine without writing `init.sh`.
+This prints the load order for the current machine without writing `init.sh`.

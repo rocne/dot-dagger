@@ -95,7 +95,7 @@ defaults:
     - source
 ```
 
-This is the `.dagger` that `dotd setup` writes into `shellrc/` — it's what makes every file there get sourced into `init.sh`.
+This is the `.dagger` that `dotd init` writes into `shellrc/` — it's what makes every file there get sourced into `init.sh`.
 
 ---
 
