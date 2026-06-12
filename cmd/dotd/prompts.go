@@ -222,6 +222,7 @@ func promptDefault(w io.Writer, reader *bufio.Reader, msg, defaultVal string, no
 	}
 	line, err := reader.ReadString('\n')
 	if err != nil {
+		fmt.Fprintln(w) // terminate the dangling prompt line
 		return defaultVal, nil // EOF — use default
 	}
 	line = strings.TrimSpace(line)
@@ -238,6 +239,7 @@ func promptYN(w io.Writer, reader *bufio.Reader, msg string) (bool, error) {
 	fmt.Fprintf(w, "  %s [Y/n]: ", msg)
 	line, err := reader.ReadString('\n')
 	if err != nil {
+		fmt.Fprintln(w) // terminate the dangling prompt line
 		return false, nil // EOF → safe default: no
 	}
 	line = strings.ToLower(strings.TrimSpace(line))

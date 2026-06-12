@@ -147,6 +147,13 @@ func promptPath(out io.Writer, reader *bufio.Reader, label, desc, existingVal, r
 		return "", err
 	}
 	val = fileutil.ExpandHome(val, home)
-	return filepath.Abs(val)
+	abs, err := filepath.Abs(val)
+	if err != nil {
+		return "", err
+	}
+	if nonInteractive {
+		fmt.Fprintf(out, "%s %s\n", fieldPrompt(), abs)
+	}
+	return abs, nil
 }
 

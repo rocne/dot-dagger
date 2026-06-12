@@ -661,6 +661,73 @@ func TestInitAfterSetup(t *testing.T) {
 	}
 }
 
+// TestInitNonInteractive verifies that 'dotd init -n' scaffolds all three
+// convention directories under their default names without reading stdin.
+func TestInitNonInteractive(t *testing.T) {
+	xdg := t.TempDir()
+	dotfilesDir := t.TempDir()
+	linkRoot := t.TempDir() // keeps the RC source line away from the real home dir
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", dotfilesDir)
+
+	setupCmd := newRootCmd()
+	setupCmd.SetIn(strings.NewReader(""))
+	var setupBuf bytes.Buffer
+	setupCmd.SetOut(&setupBuf)
+	setupCmd.SetErr(&setupBuf)
+	setupCmd.SetArgs([]string{"setup", "-n", "--link-root", linkRoot})
+	if err := setupCmd.Execute(); err != nil {
+		t.Fatalf("setup -n error = %v\noutput:\n%s", err, setupBuf.String())
+	}
+
+	initCmd := newRootCmd()
+	initCmd.SetIn(strings.NewReader("")) // EOF immediately — -n must not need input
+	var initBuf bytes.Buffer
+	initCmd.SetOut(&initBuf)
+	initCmd.SetErr(&initBuf)
+	initCmd.SetArgs([]string{"init", "-n",
+		"--files", dotfilesDir,
+		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
+		"--link-root", linkRoot,
+	})
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("init -n error = %v\noutput:\n%s", err, initBuf.String())
+	}
+
+	for _, dir := range []string{"shellrc", "config", "bin"} {
+		daggerPath := filepath.Join(dotfilesDir, dir, ".dagger")
+		if _, err := os.Stat(daggerPath); err != nil {
+			t.Errorf(".dagger not scaffolded in %s/: %v", dir, err)
+		}
+	}
+	if strings.Contains(initBuf.String(), "skipping") {
+		t.Errorf("init -n skipped a directory:\n%s", initBuf.String())
+	}
+}
+
+// TestSetupNonInteractivePrintsValues verifies that 'dotd setup -n' shows the
+// values it accepted, not just the section labels.
+func TestSetupNonInteractivePrintsValues(t *testing.T) {
+	xdg := t.TempDir()
+	dotfilesDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("DOTFILES", dotfilesDir)
+
+	setupCmd := newRootCmd()
+	setupCmd.SetIn(strings.NewReader(""))
+	var buf bytes.Buffer
+	setupCmd.SetOut(&buf)
+	setupCmd.SetErr(&buf)
+	setupCmd.SetArgs([]string{"setup", "-n"})
+	if err := setupCmd.Execute(); err != nil {
+		t.Fatalf("setup -n error = %v\noutput:\n%s", err, buf.String())
+	}
+
+	if !strings.Contains(buf.String(), dotfilesDir) {
+		t.Errorf("setup -n output does not show the accepted dotfiles path %q:\n%s", dotfilesDir, buf.String())
+	}
+}
+
 // TestConfigCmdsLifecycle exercises config show / set / get as a lifecycle.
 func TestConfigCmdsLifecycle(t *testing.T) {
 	// config show on missing file exits 0 with dotfiles= in output

@@ -106,7 +106,10 @@ Requires config.yaml — run `dotd setup` first.
 
 ```sh
 dotd init
+dotd init --non-interactive   # accept all defaults (alias: -n)
 ```
+
+`dotd setup -n && dotd init -n` scripts a full bootstrap on a fresh machine.
 
 ---
 
