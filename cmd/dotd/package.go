@@ -58,28 +58,27 @@ Examples:
 			}
 
 			pkgs := uniquePackages(collectPackageRequests(ordered))
+			entries := make([]packageCheckEntry, len(pkgs))
+			for i, r := range pkgs {
+				installed, _ := packages.Installed(r.Package, reg, exec.LookPath)
+				entries[i] = packageCheckEntry{Package: r.Package, Installed: installed}
+			}
 			if jsonOutput {
-				entries := make([]packageCheckEntry, len(pkgs))
-				for i, r := range pkgs {
-					installed, _ := packages.Installed(r.Package, reg, exec.LookPath)
-					entries[i] = packageCheckEntry{Package: r.Package, Installed: installed}
-				}
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(entries)
 			}
-			for _, r := range pkgs {
-				installed, _ := packages.Installed(r.Package, reg, exec.LookPath)
+			for _, e := range entries {
 				status := "not installed"
-				if installed {
+				if e.Installed {
 					status = "installed"
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %s\n", r.Package, status)
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %s\n", e.Package, status)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	addJSONFlag(cmd, &jsonOutput)
 	return cmd
 }
 
@@ -139,30 +138,26 @@ Examples:
 			}
 
 			pkgs := uniquePackages(collectPackageRequests(ordered))
-			if jsonOutput {
-				entries := make([]packageListEntry, len(pkgs))
-				for i, r := range pkgs {
-					kind := "request"
-					if r.Hard {
-						kind = "require"
-					}
-					entries[i] = packageListEntry{Package: r.Package, Kind: kind}
-				}
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
-			}
-			for _, r := range pkgs {
+			entries := make([]packageListEntry, len(pkgs))
+			for i, r := range pkgs {
 				kind := "request"
 				if r.Hard {
 					kind = "require"
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %s\n", r.Package, kind)
+				entries[i] = packageListEntry{Package: r.Package, Kind: kind}
+			}
+			if jsonOutput {
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(entries)
+			}
+			for _, e := range entries {
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %s\n", e.Package, e.Kind)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	addJSONFlag(cmd, &jsonOutput)
 	return cmd
 }
 
@@ -207,4 +202,3 @@ func collectPackageRequests(nodes []pipeline.RawNode) []packages.PackageRequest 
 	}
 	return reqs
 }
-

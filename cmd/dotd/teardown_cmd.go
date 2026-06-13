@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
-	"github.com/rocne/dot-dagger/internal/env"
 	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -50,7 +49,7 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	// Non-fatal if walk fails (env.yaml or dotfiles repo may be absent).
 	if prun, err := runPipeline(cmd, cfg, true); err == nil {
 		if len(prun.result.Links) > 0 {
-			ui.Warnf(errOut, "%d symlink(s) still active — consider running 'dotd unapply' first", len(prun.result.Links))
+			ui.Warnf(errOut, "%s still active — consider running 'dotd unapply' first", plural(len(prun.result.Links), "symlink"))
 		}
 	}
 
@@ -66,7 +65,7 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	if err != nil {
 		return err
 	}
-	envPath, err := env.DefaultPath()
+	envPath, err := ecosystem.DefaultEnvFile()
 	if err != nil {
 		return err
 	}

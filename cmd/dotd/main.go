@@ -330,7 +330,7 @@ func resolvePaths(cfg *config) error {
 	var err error
 
 	// env-file first — no config.yaml lookup (would be circular).
-	cfg.envFile, err = ecosystem.ResolvePath(cfg.envFile, "DOTD_ENV_FILE", "", env.DefaultPath)
+	cfg.envFile, err = ecosystem.ResolvePath(cfg.envFile, "DOTD_ENV_FILE", "", ecosystem.DefaultEnvFile)
 	if err != nil {
 		return err
 	}
@@ -443,42 +443,57 @@ func guardWalkSource(cfg *config) error {
 	return nil
 }
 
-func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, error) {
+// walkActive runs the shared pipeline preamble:
+//
+//	guard → resolveEnv → Walk → ValidateNodes(all) → filterWithPrompt → Order
+//
+// Validation covers every walked node (not just active ones) in both the
+// read and write paths, so a config that apply rejects also fails under
+// list/dag/bundle/compose/package — including nodes currently filtered out.
+func walkActive(cmd *cobra.Command, cfg *config) (ordered []pipeline.RawNode, resolvedCount, allCount int, err error) {
 	if err := guardWalkSource(cfg); err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
-		return nil, annotateKeyError(err)
+		return nil, 0, 0, annotateKeyError(err)
 	}
 
 	nodes, disabled, err := pipeline.Walk(cfg.files)
 	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
+		return nil, 0, 0, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
 	for _, p := range disabled {
 		cfg.log.Debugf("disabled: %s", p)
 	}
 
 	if err := pipeline.ValidateNodes(nodes, pipeline.ActOptions{HomeDir: cfg.linkRoot, BinDir: cfg.binDir}); err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 
 	// Registry backs installed()/installable() in @when predicates — the same
 	// packages.yaml the package subcommands consult (empty when absent).
 	reg, err := loadRegistry(cfg)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 
 	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()), reg)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 
-	ordered, err := pipeline.Order(active)
+	ordered, err = pipeline.Order(active)
 	if err != nil {
-		return nil, fmt.Errorf("order: %w", err)
+		return nil, 0, 0, fmt.Errorf("order: %w", err)
+	}
+	return ordered, len(resolved), len(nodes), nil
+}
+
+func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, error) {
+	ordered, resolvedCount, allCount, err := walkActive(cmd, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	actOpts := buildActOptions(cfg, dryRun)
@@ -488,50 +503,18 @@ func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, er
 	}
 
 	return &pipelineRun{
-		resolvedCount: len(resolved),
-		allCount:      len(nodes),
-		activeCount:   len(active),
+		resolvedCount: resolvedCount,
+		allCount:      allCount,
+		activeCount:   len(ordered),
 		result:        res,
 	}, nil
 }
 
-// walkOrdered runs the read-path pipeline preamble:
-//
-//	resolveEnv → Walk → filterWithPrompt → Order → ValidateNodes
-//
-// Returns the ordered active node slice ready for read-only commands.
-// Write-path commands use runPipeline instead, which additionally performs Act.
-//
-// Validation is shared with the write path so a config that apply/check
-// rejects also fails under list/dag/bundle/compose/package.
+// walkOrdered is walkActive for read-only commands that need just the
+// ordered active nodes. Write-path commands use runPipeline (walkActive + Act).
 func (cfg *appConfig) walkOrdered(cmd *cobra.Command) ([]pipeline.RawNode, error) {
-	if err := guardWalkSource(cfg); err != nil {
-		return nil, err
-	}
-	resolved, err := resolveEnv(cfg)
-	if err != nil {
-		return nil, annotateKeyError(err)
-	}
-	nodes, _, err := pipeline.Walk(cfg.files)
-	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
-	}
-	reg, err := loadRegistry(cfg)
-	if err != nil {
-		return nil, err
-	}
-	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()), reg)
-	if err != nil {
-		return nil, err
-	}
-	ordered, err := pipeline.Order(active)
-	if err != nil {
-		return nil, fmt.Errorf("order: %w", err)
-	}
-	if err := pipeline.ValidateNodes(ordered, pipeline.ActOptions{HomeDir: cfg.linkRoot, BinDir: cfg.binDir}); err != nil {
-		return nil, err
-	}
-	return ordered, nil
+	ordered, _, _, err := walkActive(cmd, cfg)
+	return ordered, err
 }
 
 func annotateKeyError(err error) error {
@@ -712,4 +695,3 @@ func launchEditor(path string) error {
 	c.Stderr = os.Stderr
 	return c.Run()
 }
-

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -57,6 +58,21 @@ func asUsageError(err error) error {
 		return err
 	}
 	return &usageError{err: err}
+}
+
+// keyArgs returns a PositionalArgs validator accepting exactly nArgs
+// arguments. Failures are usage errors carrying usage + hint lines —
+// the shared shape behind the config/env key commands.
+func keyArgs(nArgs int, usage, hint string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) == nArgs {
+			return nil
+		}
+		return &usageError{err: &hintError{
+			err:  fmt.Errorf("expected %s, got %d", plural(nArgs, "argument"), len(args)),
+			hint: usage + " — " + hint,
+		}}
+	}
 }
 
 // usageArgs wraps a cobra.PositionalArgs so validation failures surface as

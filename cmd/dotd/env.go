@@ -38,22 +38,10 @@ Resolution order (highest priority wins):
 	return cmd
 }
 
-// envKeyArgs accepts exactly nArgs arguments. On error, the returned
-// hintError points the user at 'dotd env show' for the dynamic key set.
+// envKeyArgs accepts exactly nArgs arguments. On error, the hint points at
+// 'dotd env show' for the dynamic key set.
 func envKeyArgs(nArgs int, usage string) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if len(args) == nArgs {
-			return nil
-		}
-		return &usageError{err: &hintError{
-			err:  fmt.Errorf("expected %s, got %d", plural(nArgs, "argument"), len(args)),
-			hint: usage + " — run 'dotd env show' to list keys",
-		}}
-	}
-}
-
-func envYamlPath(cfg *config) string {
-	return cfg.envFile
+	return keyArgs(nArgs, usage, "run 'dotd env show' to list keys")
 }
 
 type envShowEntry struct {
@@ -121,7 +109,7 @@ Examples:
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	addJSONFlag(cmd, &jsonOutput)
 	return cmd
 }
 
@@ -168,7 +156,7 @@ to prevent the shell from expanding it:
 Values stored as $(…) are evaluated each time dotd runs.`, ecosystem.EnvFileName),
 		Args: envKeyArgs(2, "usage: dotd env set <key> <value>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := envYamlPath(cfg)
+			path := cfg.envFile
 			raw, err := env.Load(path)
 			if err != nil {
 				return err
@@ -208,16 +196,16 @@ Examples:
   dotd env edit
   EDITOR=nano dotd env edit`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return launchEditor(envYamlPath(cfg))
+			return launchEditor(cfg.envFile)
 		},
 	}
 }
 
 type envDiffEntry struct {
-	Key       string `json:"key"`
-	EnvValue  string `json:"env_value"`
-	ShellSet  bool   `json:"shell_set"`
-	ShellVal  string `json:"shell_value,omitempty"`
+	Key      string `json:"key"`
+	EnvValue string `json:"env_value"`
+	ShellSet bool   `json:"shell_set"`
+	ShellVal string `json:"shell_value,omitempty"`
 }
 
 func newEnvDiffCmd(cfg *config) *cobra.Command {
@@ -256,46 +244,41 @@ Examples:
 			}
 			sort.Strings(keys)
 
-			if jsonOutput {
-				entries := make([]envDiffEntry, 0)
-				for _, k := range keys {
-					envVal := expanded[k]
-					shellVal, inShell := shellVars[k]
-					if inShell && envVal == shellVal {
-						continue
-					}
-					entries = append(entries, envDiffEntry{
-						Key:      k,
-						EnvValue: envVal,
-						ShellSet: inShell,
-						ShellVal: shellVal,
-					})
-				}
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
-			}
-
-			hasAny := false
+			// Entries built once; JSON and text render the same slice.
+			entries := make([]envDiffEntry, 0)
 			for _, k := range keys {
 				envVal := expanded[k]
 				shellVal, inShell := shellVars[k]
 				if inShell && envVal == shellVal {
 					continue
 				}
-				if inShell {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: %q (shell) → %q (%s)\n", k, shellVal, envVal, ecosystem.EnvFileName)
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: (unset) → %q (%s)\n", k, envVal, ecosystem.EnvFileName)
-				}
-				hasAny = true
+				entries = append(entries, envDiffEntry{
+					Key:      k,
+					EnvValue: envVal,
+					ShellSet: inShell,
+					ShellVal: shellVal,
+				})
 			}
-			if !hasAny {
+
+			if jsonOutput {
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(entries)
+			}
+
+			for _, e := range entries {
+				if e.ShellSet {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: %q (shell) → %q (%s)\n", e.Key, e.ShellVal, e.EnvValue, ecosystem.EnvFileName)
+				} else {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: (unset) → %q (%s)\n", e.Key, e.EnvValue, ecosystem.EnvFileName)
+				}
+			}
+			if len(entries) == 0 {
 				fmt.Fprintf(cmd.OutOrStdout(), "no overrides — %s values match shell\n", ecosystem.EnvFileName)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	addJSONFlag(cmd, &jsonOutput)
 	return cmd
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/adopter"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/fileutil"
+	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/rocne/dot-dagger/internal/setup"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
@@ -48,7 +49,7 @@ Examples:
 
 func runInit(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 	// cfg.configPath is resolved by PersistentPreRunE.
-	if _, err := os.Stat(cfg.configPath); os.IsNotExist(err) {
+	if !fileutil.Exists(cfg.configPath) {
 		return &hintError{
 			err:  errors.New("no config found"),
 			hint: "run 'dotd setup' first",
@@ -59,9 +60,9 @@ func runInit(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 	reader := bufio.NewReader(cmd.InOrStdin())
 
 	if nonInteractive {
-		fmt.Fprintf(out, "%s — scaffold convention directories (non-interactive)\n", ui.Header("dotd init"))
+		bannerf(out, cmd, "scaffold convention directories (non-interactive)")
 	} else {
-		fmt.Fprintf(out, "%s — scaffold convention directories\n", ui.Header("dotd init"))
+		bannerf(out, cmd, "scaffold convention directories")
 	}
 	fmt.Fprintf(out, "Directories are created inside: %s\n", ui.Key(cfg.files))
 
@@ -143,22 +144,22 @@ type conventionRole struct {
 
 var conventionRoles = []conventionRole{
 	{
-		label:  "Shell scripts",
-		desc:   "Files here are auto-sourced by your shell on startup.",
-		defDir: adopter.DirShellrc,
+		label:   "Shell scripts",
+		desc:    "Files here are auto-sourced by your shell on startup.",
+		defDir:  adopter.DirShellrc,
 		content: "defaults:\n  actions:\n    - source\n",
 	},
 	{
-		label:  "Config files",
-		desc:   "Files here are symlinked into ~/.config by default (e.g. config/nvim/init.lua → ~/.config/nvim/init.lua).",
-		defDir: adopter.DirConfig,
+		label:   "Config files",
+		desc:    "Files here are symlinked into ~/.config by default (e.g. config/nvim/init.lua → ~/.config/nvim/init.lua).",
+		defDir:  adopter.DirConfig,
 		content: "link_root: \"~/.config\"\ndefaults:\n  actions:\n    - link\n",
 	},
 	{
-		label:  "Bin scripts",
-		desc:   "Executable scripts here are linked to your bin directory.",
-		defDir: adopter.DirBin,
-		content: "link_root: \"~bin\"\ndefaults:\n  actions:\n    - link\n",
+		label:   "Bin scripts",
+		desc:    "Executable scripts here are linked to your bin directory.",
+		defDir:  adopter.DirBin,
+		content: "link_root: \"" + pipeline.BinPrefix + "\"\ndefaults:\n  actions:\n    - link\n",
 	},
 }
 
@@ -210,4 +211,3 @@ func scaffoldDagger(dir, content string) error {
 	}
 	return os.WriteFile(path, []byte(content), fileutil.ModeFile)
 }
-

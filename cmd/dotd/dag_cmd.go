@@ -66,6 +66,6 @@ Examples:
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	addJSONFlag(cmd, &jsonOutput)
 	return cmd
 }
