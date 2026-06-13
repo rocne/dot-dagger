@@ -30,7 +30,7 @@ var version = "dev"
 // but Cobra's "Global Flags" block hides it on commands that don't act
 // on it — e.g. `dotd config get` no longer surfaces --bin-dir.
 //
-// Keys are the full command path ("dotd apply", "dotd dag check"). The
+// Keys are the full command path ("dotd apply", "dotd dag order"). The
 // root command and `dotd help` are intentionally absent: root --help
 // shows every flag so users can discover them.
 var pathFlagOwners = map[string]map[string]bool{
@@ -180,11 +180,30 @@ func newRootCmd() *cobra.Command {
 		return configureLogger(cfg, cmd)
 	}
 
-	// dotd help --all reveals hidden internal commands.
-	root.PersistentFlags().Bool("all", false, "show all commands including internal helpers")
+	// 'dotd help --all' reveals hidden internal commands. The flag lives on
+	// the help command itself (git-style), not on the root persistent set —
+	// a persistent --all would collide with 'unapply --all', which means
+	// something unrelated.
+	var helpAll bool
+	helpCmd := &cobra.Command{
+		Use:   "help [command]",
+		Short: "Help about any command",
+		Long:  fmt.Sprintf("Help provides help for any command in the application.\nSimply type %s help [path to command] for full details.", ecosystem.ToolD),
+		Run: func(c *cobra.Command, args []string) {
+			target, _, err := c.Root().Find(args)
+			if target == nil || err != nil {
+				c.Printf("Unknown help topic %#q\n", args)
+				_ = c.Root().Usage()
+				return
+			}
+			target.InitDefaultHelpFlag()
+			_ = target.Help()
+		},
+	}
+	helpCmd.Flags().BoolVar(&helpAll, "all", false, "show all commands including internal helpers")
+	root.SetHelpCommand(helpCmd)
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		showAll, _ := cmd.Root().PersistentFlags().GetBool("all")
-		if showAll {
+		if helpAll {
 			for _, sub := range cmd.Root().Commands() {
 				sub.Hidden = false
 			}

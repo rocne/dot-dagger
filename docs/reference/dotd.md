@@ -21,9 +21,10 @@ These flags apply to all `dotd` subcommands:
 | `--log-level` | `info` | Log verbosity: debug, info, warn, error |
 | `--debug` | false | Shorthand for `--log-level=debug` |
 | `--quiet` | false | Suppress informational logs (data output unaffected) |
-| `--all` | false | Show all commands including internal helpers |
 
 Path flags appear in a subcommand's `--help` only when relevant to that command; all of them parse everywhere.
+
+`dotd help --all` shows all commands, including hidden internal helpers.
 
 ---
 
@@ -89,7 +90,7 @@ Steps through: dotfiles path, bin directory, generated files directory, and link
 
 ## dotd teardown
 
-Remove dot-dagger system-level configuration from this machine. Removes config.yaml, env.yaml, and the dotd source line from your shell RC file. Does not remove symlinks — run `dotd unapply` first.
+Remove dot-dagger system-level configuration from this machine. Removes config.yaml, env.yaml (at the resolved paths — `--config`, `--env-file`, and `DOTD_*` overrides are honored), and the dotd source line from your shell RC file. The preview shows the exact paths before anything is removed. Does not remove symlinks — run `dotd unapply` first.
 
 ```sh
 dotd teardown                  # preview, then prompt for confirmation
@@ -196,9 +197,9 @@ dotd env diff                  # show keys where env.yaml differs from shell env
 Inspect the dependency graph (load order) used for init.sh.
 
 ```sh
-dotd dag check                         # print active nodes in dependency order
-dotd dag check --env os=macos          # preview for a different environment
-dotd dag check --json                  # machine-readable output
+dotd dag order                         # print active nodes in dependency order
+dotd dag order --env os=macos          # preview for a different environment
+dotd dag order --json                  # machine-readable output
 ```
 
 init.sh itself is written by `dotd apply`. The generated file sources all active scripts in dependency order and contains only `source` calls — no conditions, no loops. All condition evaluation happened at `apply` time.

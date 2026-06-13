@@ -36,10 +36,6 @@ Examples:
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip confirmation prompt")
-	// Note: --all is also a persistent flag on the root command (for --help --all).
-	// pflag's AddFlagSet skips existing flags, so this local flag wins during parsing
-	// for the unapply subcommand. Root's SetHelpFunc reads cmd.Root().PersistentFlags()
-	// directly — unaffected by this shadow.
 	cmd.Flags().BoolVar(&all, "all", false, "remove all dotfiles symlinks regardless of @when predicates")
 	return cmd
 }

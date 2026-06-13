@@ -38,7 +38,7 @@ run_test() {
 
 run_test apply.sh
 run_test context.sh
-run_test dag-order.sh
+run_test init-order.sh
 run_test dry-run.sh
 run_test idempotent.sh
 run_test check.sh
@@ -60,7 +60,7 @@ run_test config-cmds.sh
 run_test env-cmds.sh
 run_test adopt.sh
 run_test bundle.sh
-run_test dag-check.sh
+run_test dag-order.sh
 run_test package-check.sh
 run_test annotate.sh
 

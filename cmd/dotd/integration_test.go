@@ -319,10 +319,10 @@ func TestMultipleAppliesIdempotent(t *testing.T) {
 	}
 }
 
-// TestDAGVerboseOrder verifies the dag check output lists scripts in dependency order.
+// TestDAGVerboseOrder verifies the dag order output lists scripts in dependency order.
 func TestDAGVerboseOrder(t *testing.T) {
 	e := newIenv(t)
-	out := e.run(t, "dag", "check", "--log-level", "debug", "--env", "os=linux", "--env", "context=work")
+	out := e.run(t, "dag", "order", "--log-level", "debug", "--env", "os=linux", "--env", "context=work")
 
 	// Verbose output lists scripts numbered; verify ordering by finding line numbers.
 	lines := strings.Split(out, "\n")
@@ -615,7 +615,6 @@ func TestSetupThenTeardown(t *testing.T) {
 	teardownCmd.SetErr(&teardownBuf)
 	teardownCmd.SetArgs([]string{"teardown",
 		"--files", dotfilesDir,
-		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
 	})
 	if err := teardownCmd.Execute(); err != nil {
 		t.Fatalf("teardown error = %v\noutput:\n%s", err, teardownBuf.String())
@@ -623,6 +622,9 @@ func TestSetupThenTeardown(t *testing.T) {
 
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		t.Error("config.yaml should be removed by teardown")
+	}
+	if _, err := os.Stat(filepath.Join(xdg, "dot-dagger", "env.yaml")); !os.IsNotExist(err) {
+		t.Error("env.yaml should be removed by teardown")
 	}
 }
 

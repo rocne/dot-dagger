@@ -29,7 +29,7 @@ dotd <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `dotd dag check` | Print nodes in dependency order |
+| `dotd dag order` | Print nodes in dependency order (alias: `check`) |
 
 ### `dotd env` subcommands
 
