@@ -66,13 +66,12 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 		if !n.IsCompose {
 			continue
 		}
-		var data []byte
-		if !opts.DryRun {
-			var err error
-			data, err = os.ReadFile(n.Path)
-			if err != nil {
-				return nil, fmt.Errorf("act: read compose fragment %s: %w", n.Path, err)
-			}
+		// Content is read even in dry-run: the dry-run plan must equal the
+		// real plan (compose check runs Act in dry-run and compares Content
+		// against the on-disk generated file). Dry-run skips writes only.
+		data, err := os.ReadFile(n.Path)
+		if err != nil {
+			return nil, fmt.Errorf("act: read compose fragment %s: %w", n.Path, err)
 		}
 		composeFragments[n.ComposeTarget] = append(composeFragments[n.ComposeTarget], fragment{node: n, content: data})
 	}

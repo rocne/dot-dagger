@@ -889,6 +889,44 @@ func TestTeardown_CancelExits0(t *testing.T) {
 	}
 }
 
+// TestTeardown_DryRunRemovesNothing: --dry-run is advertised for teardown
+// (pathFlagOwners) and must stop after the preview — even with --yes
+// (2026-06-13 audit, B1).
+func TestTeardown_DryRunRemovesNothing(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	envPath := filepath.Join(configDir, "env.yaml")
+	if err := os.WriteFile(configPath, []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(envPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "teardown", "--yes", "--dry-run",
+		"--files", emptyDotfiles(t),
+		"--env-file", envPath,
+	)
+	if err != nil {
+		t.Fatalf("teardown --dry-run error = %v\noutput:\n%s", err, out)
+	}
+	if !strings.Contains(out, "Will remove:") {
+		t.Errorf("expected preview in dry-run output: %q", out)
+	}
+	if _, err := os.Stat(configPath); err != nil {
+		t.Error("config.yaml must survive --dry-run")
+	}
+	if _, err := os.Stat(envPath); err != nil {
+		t.Error("env.yaml must survive --dry-run")
+	}
+}
+
 // --- dotd unapply ---
 
 func TestUnapply_RemovesSymlink(t *testing.T) {

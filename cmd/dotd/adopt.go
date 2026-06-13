@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -86,11 +87,23 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 		cfg.log.Debugf("inferred destination: %s (%s)", destRel, inf.Reason)
 	}
 
-	// Confirmation prompt (skip if --yes or not a TTY).
-	// Note: isTTY returns false for strings.Reader, so this branch is not
-	// exercisable via cmd.SetIn in tests — it requires a real or pseudo-TTY.
-	nonInteractive := yes || !isTTY(cmd.InOrStdin())
-	if !nonInteractive {
+	// Dry-run stops here — nothing moves, so no confirmation is needed.
+	if cfg.dryRun {
+		destAbs := filepath.Join(cfg.files, destRel)
+		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: adopt %s → %s\n", srcAbs, destAbs)
+		return nil
+	}
+
+	// Confirmation prompt. --yes skips it. A non-TTY stdin without --yes is
+	// refused — adopt moves a file, and prompts must never auto-accept a
+	// mutating action on piped or closed stdin (see prompts.go conventions).
+	if !yes {
+		if !isTTY(cmd.InOrStdin()) {
+			return &hintError{
+				err:  errors.New("adopt: confirmation required on non-interactive stdin"),
+				hint: "pass --yes (-y) to adopt without prompting",
+			}
+		}
 		confirmed, err := promptBool(cmd,
 			fmt.Sprintf("Adopt %s → %s and replace with symlink?", srcAbs, destRel),
 			"", "Yes", "No, cancel", false)
@@ -101,12 +114,6 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 			cfg.log.Info("adopt cancelled")
 			return nil
 		}
-	}
-
-	if cfg.dryRun {
-		destAbs := filepath.Join(cfg.files, destRel)
-		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: adopt %s → %s\n", srcAbs, destAbs)
-		return nil
 	}
 
 	opts := adopter.AdoptOptions{

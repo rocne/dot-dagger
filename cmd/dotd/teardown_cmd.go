@@ -108,6 +108,11 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 		fmt.Fprintf(out, "  RC source line %s\n", ui.Skip("(not detected, skip)"))
 	}
 
+	// Dry-run stops here — preview printed, nothing removed.
+	if cfg.dryRun {
+		return nil
+	}
+
 	// Confirmation.
 	if !yes && !promptConfirm(out, cmd.InOrStdin()) {
 		return nil
