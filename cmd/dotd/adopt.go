@@ -29,8 +29,8 @@ Destination is inferred from the file type:
 
   Executable bit set           →  bin/<name>
   .sh / .bash / .zsh / .fish   →  shellrc/<name>
-  Hidden file (.bashrc, …)     →  conf/dot-<name>   (dot- prefix added)
-  .conf / .toml / .yaml / …    →  conf/<name>
+  Hidden file (.bashrc, …)     →  config/dot-<name>   (dot- prefix added)
+  .conf / .toml / .yaml / …    →  config/<name>
 
 Use --to to override the inferred destination. If inference fails and --to
 is not provided, the command errors.
@@ -39,9 +39,9 @@ For shellrc/ files, no symlink is created. The file is sourced via init.sh
 after running dotd apply.
 
 Examples:
-  dotd adopt ~/.bashrc                              # → conf/dot-bashrc
+  dotd adopt ~/.bashrc                              # → config/dot-bashrc
   dotd adopt ~/bin/my-script                        # → bin/my-script
-  dotd adopt ~/.gitconfig --to conf/dot-gitconfig-work
+  dotd adopt ~/.gitconfig --to config/dot-gitconfig-work
   dotd adopt ~/.zshrc --yes                         # skip confirmation`,
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {

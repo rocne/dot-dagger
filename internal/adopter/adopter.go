@@ -35,7 +35,7 @@ func DefaultConventions() ConventionNames {
 
 // Inference is the result of inferring a dotfiles destination for a source file.
 type Inference struct {
-	DestRel string // relative path from dotfiles root, e.g. "conf/dot-bashrc"
+	DestRel string // relative path from dotfiles root, e.g. "config/dot-bashrc"
 	Reason  string // human-readable description of why this destination was chosen
 	Unknown bool   // true if no rule matched — caller must require --to
 }
@@ -54,8 +54,8 @@ type AdoptOptions struct {
 // Inference rules (in priority order):
 //  1. Executable bit → <bin>/<name>
 //  2. Shell extension (.sh .bash .zsh .fish) → <shellrc>/<name>
-//  3. Hidden file (.bashrc) → <conf>/dot-<name>
-//  4. Config extension (.toml .yaml .conf …) → <conf>/<name>
+//  3. Hidden file (.bashrc) → <config>/dot-<name>
+//  4. Config extension (.toml .yaml .conf …) → <config>/<name>
 //  5. Unknown → Inference{Unknown: true}
 func Infer(src string, info os.FileInfo, conv ConventionNames) Inference {
 	name := info.Name()
@@ -78,7 +78,7 @@ func Infer(src string, info os.FileInfo, conv ConventionNames) Inference {
 		}
 	}
 
-	// Hidden dotfile (.bashrc, .gitconfig) → conf/dot-<name>
+	// Hidden dotfile (.bashrc, .gitconfig) → config/dot-<name>
 	if strings.HasPrefix(name, ".") && len(name) > 1 {
 		dotName := "dot-" + name[1:]
 		return Inference{
@@ -87,7 +87,7 @@ func Infer(src string, info os.FileInfo, conv ConventionNames) Inference {
 		}
 	}
 
-	// Config-like extensions → conf/
+	// Config-like extensions → config/
 	switch ext {
 	case ".conf", ".config", ".toml", ".yaml", ".yml", ".ini", ".cfg", ".json":
 		return Inference{
@@ -153,7 +153,7 @@ func Adopt(src, destRel string, opts AdoptOptions) (*pipeline.ActResult, error) 
 // actionsFor returns pipeline actions for the node at destRel.
 // - shellrc/: source action (no symlink)
 // - bin/:     explicit link to binDir/<name>
-// - conf/ or other: explicit link back to src (original path)
+// - config/ or other: explicit link back to src (original path)
 func actionsFor(destRel, src string, opts AdoptOptions) []pipeline.Action {
 	parts := strings.SplitN(filepath.ToSlash(destRel), "/", 2)
 	first := parts[0]
@@ -166,7 +166,7 @@ func actionsFor(destRel, src string, opts AdoptOptions) []pipeline.Action {
 	case conv.Bin:
 		return []pipeline.Action{{Type: pipeline.ActionLink, Dest: filepath.Join(opts.BinDir, name)}}
 	default:
-		// conf/ and any --to path: symlink at original src location.
+		// config/ and any --to path: symlink at original src location.
 		return []pipeline.Action{{Type: pipeline.ActionLink, Dest: src}}
 	}
 }

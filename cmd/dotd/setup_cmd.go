@@ -117,7 +117,7 @@ func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 		if err := os.MkdirAll(filepath.Dir(envPath), fileutil.ModeDir); err != nil {
 			return fmt.Errorf("setup: mkdir %s: %w", filepath.Dir(envPath), err)
 		}
-		envContent := fmt.Sprintf("os: $(dotd get-os)\nhostname: $(%s get-hostname)\n", ecosystem.ToolD)
+		envContent := fmt.Sprintf("os: $(%[1]s get-os)\nhostname: $(%[1]s get-hostname)\n", ecosystem.ToolD)
 		if err := os.WriteFile(envPath, []byte(envContent), fileutil.ModeFile); err != nil {
 			return fmt.Errorf("setup: write %s: %w", ecosystem.EnvFileName, err)
 		}
