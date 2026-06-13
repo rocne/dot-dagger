@@ -20,9 +20,9 @@ func newTeardownCmd(cfg *config) *cobra.Command {
 		Short: fmt.Sprintf("Remove dot-dagger system config (config.yaml, %s, RC source line)", ecosystem.EnvFileName),
 		Long: fmt.Sprintf(`Remove dot-dagger system-level configuration from this machine.
 
-Removes:
-  - config.yaml from the platform config dir
-  - %s from the platform config dir
+Removes (at the resolved paths — honors --config, --env-file, DOTD_* vars):
+  - config.yaml
+  - %s
   - The dotd source line from the shell RC file (if detected)
 
 Does NOT remove symlinks or .dagger files.
@@ -58,17 +58,12 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 		ui.Warnf(errOut, ".dagger files present in dotfiles repo — these will not be removed")
 	}
 
-	// Determine paths via the ecosystem defaults directly — teardown removes
-	// the system-level files regardless of any --env-file / --files flag
-	// overrides. This is a deliberate exception to the canonical resolution rule.
-	configPath, err := ecosystem.DefaultConfigFile()
-	if err != nil {
-		return err
-	}
-	envPath, err := ecosystem.DefaultEnvFile()
-	if err != nil {
-		return err
-	}
+	// Teardown removes the files dotd is currently configured to use — the
+	// same resolved paths every other command consumes (flag → DOTD_* →
+	// default). The preview below shows the exact paths before anything is
+	// touched.
+	configPath := cfg.configPath
+	envPath := cfg.envFile
 
 	// Determine RC file path — requires env.yaml to know the shell.
 	// If resolveEnv fails (env.yaml absent etc.), RC stripping is skipped.

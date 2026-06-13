@@ -927,6 +927,75 @@ func TestTeardown_DryRunRemovesNothing(t *testing.T) {
 	}
 }
 
+// TestTeardown_HonorsPathOverrides: teardown removes the resolved
+// config/env paths — --config and --env-file overrides are honored
+// (2026-06-13 audit, teardown-scope decision).
+func TestTeardown_HonorsPathOverrides(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	defaultConfig := filepath.Join(configDir, "config.yaml")
+	if err := os.WriteFile(defaultConfig, []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	custom := t.TempDir()
+	customConfig := filepath.Join(custom, "config.yaml")
+	customEnv := filepath.Join(custom, "env.yaml")
+	if err := os.WriteFile(customConfig, []byte("dotfiles: /tmp/df\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(customEnv, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "teardown", "--yes",
+		"--files", emptyDotfiles(t),
+		"--config", customConfig,
+		"--env-file", customEnv,
+	)
+	if err != nil {
+		t.Fatalf("teardown error = %v", err)
+	}
+
+	if _, err := os.Stat(customConfig); !os.IsNotExist(err) {
+		t.Error("overridden config.yaml should be removed")
+	}
+	if _, err := os.Stat(customEnv); !os.IsNotExist(err) {
+		t.Error("overridden env.yaml should be removed")
+	}
+	if _, err := os.Stat(defaultConfig); err != nil {
+		t.Error("default-location config.yaml must survive when --config points elsewhere")
+	}
+}
+
+// --- dotd help --all ---
+
+// TestHelpAll_RevealsHiddenCommands: 'dotd help --all' lists internal
+// helpers; plain 'dotd help' does not. The flag is local to the help
+// command so it cannot collide with 'unapply --all' (2026-06-12 audit, P5).
+func TestHelpAll_RevealsHiddenCommands(t *testing.T) {
+	plain, err := run(t, "help")
+	if err != nil {
+		t.Fatalf("help error = %v", err)
+	}
+	if strings.Contains(plain, "get-os") {
+		t.Errorf("plain help should hide internal commands: %q", plain)
+	}
+
+	all, err := run(t, "help", "--all")
+	if err != nil {
+		t.Fatalf("help --all error = %v", err)
+	}
+	if !strings.Contains(all, "get-os") || !strings.Contains(all, "get-hostname") {
+		t.Errorf("help --all should list internal commands: %q", all)
+	}
+}
+
 // --- dotd unapply ---
 
 func TestUnapply_RemovesSymlink(t *testing.T) {

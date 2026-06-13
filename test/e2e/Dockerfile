@@ -4,7 +4,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY apply.sh /tests/apply.sh
 COPY context.sh /tests/context.sh
-COPY dag-order.sh /tests/dag-order.sh
+COPY init-order.sh /tests/init-order.sh
 COPY dry-run.sh /tests/dry-run.sh
 COPY idempotent.sh /tests/idempotent.sh
 COPY check.sh /tests/check.sh
@@ -26,7 +26,7 @@ COPY config-cmds.sh /tests/config-cmds.sh
 COPY env-cmds.sh /tests/env-cmds.sh
 COPY adopt.sh /tests/adopt.sh
 COPY bundle.sh /tests/bundle.sh
-COPY dag-check.sh /tests/dag-check.sh
+COPY dag-order.sh /tests/dag-order.sh
 COPY package-check.sh /tests/package-check.sh
 COPY annotate.sh /tests/annotate.sh
 COPY concepts.sh /tests/concepts.sh

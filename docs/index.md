@@ -39,7 +39,7 @@ dotd runs four stages in sequence:
 3. **Packages** — reads `@require` and `@request` annotations and installs packages using whichever manager is available.
 4. **Symlinks + init.sh** — creates symlinks for `config/` and `bin/` files; resolves `@after` dependencies and writes a single `init.sh` that sources only the active scripts in the right order.
 
-Most stages are also inspectable standalone: `dotd env show`, `dotd dag check`, `dotd package check`, `dotd compose check`.
+Most stages are also inspectable standalone: `dotd env show`, `dotd dag order`, `dotd package check`, `dotd compose check`.
 
 [Get started →](getting-started/index.md){ .md-button .md-button--primary }
 [Annotation reference →](reference/annotations.md){ .md-button }
