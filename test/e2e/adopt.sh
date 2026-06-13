@@ -5,7 +5,9 @@ cp -r /fixture /tmp/dotfiles
 
 printf '#!/bin/sh\necho hi\n' > /tmp/newscript.sh
 
-dotd adopt /tmp/newscript.sh \
+# --yes is required: stdin is not a TTY here and adopt refuses to
+# auto-accept a file move without it.
+dotd adopt --yes /tmp/newscript.sh \
   --files /tmp/dotfiles \
   --env-file /tmp/dotfiles/env.yaml \
   --to shellrc/

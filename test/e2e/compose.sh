@@ -41,7 +41,8 @@ dotd compose check \
 
 printf 'stale content\n' > /tmp/generated/extras.sh
 
-OUT=$(dotd compose check \
+# Stale target must be reported AND exit non-zero.
+if OUT=$(dotd compose check \
   --files /fixture \
   --env-file /fixture/env.yaml \
   --link-root /home/e2e \
@@ -49,7 +50,9 @@ OUT=$(dotd compose check \
   --init-file /tmp/init.sh \
   --generated-dir /tmp/generated \
   --env os=linux \
-  --env context=personal 2>&1)
+  --env context=personal 2>&1); then
+  printf 'FAIL: compose check should exit non-zero when stale\n'; exit 1
+fi
 printf '%s' "$OUT" | grep -q "stale" \
   || { printf 'FAIL: compose check should report stale\n'; exit 1; }
 
