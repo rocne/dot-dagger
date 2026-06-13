@@ -13,11 +13,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -26,7 +26,7 @@ jobs:
           echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
       - name: Release
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -43,7 +43,7 @@ jobs:
       matrix:
         distro: [ubuntu]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run e2e tests (${{ matrix.distro }})
         run: ./test/run-e2e-release.sh
