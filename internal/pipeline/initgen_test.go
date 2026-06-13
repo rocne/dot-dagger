@@ -22,10 +22,10 @@ func TestGenerate_BasicSourceOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(content)
-	if !strings.Contains(s, ". '/dots/a.sh'") {
+	if !strings.Contains(s, ". /dots/a.sh") {
 		t.Errorf("expected source line for a.sh, got:\n%s", s)
 	}
-	if !strings.Contains(s, ". '/dots/b.sh'") {
+	if !strings.Contains(s, ". /dots/b.sh") {
 		t.Errorf("expected source line for b.sh, got:\n%s", s)
 	}
 	aIdx := strings.Index(s, "a.sh")

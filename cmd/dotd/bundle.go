@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/spf13/cobra"
@@ -74,7 +75,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 	var sb strings.Builder
 
 	sb.WriteString(fileutil.POSIXShebang + "\n")
-	sb.WriteString("# Bundled by dotd — do not edit by hand.\n\n")
+	sb.WriteString(ecosystem.GeneratedFileHeader() + "\n\n")
 
 	if includeEnv {
 		resolved, resolveErr := resolveEnv(cfg)
@@ -82,7 +83,7 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 			return annotateKeyError(resolveErr)
 		}
 		for k, v := range resolved {
-			fmt.Fprintf(&sb, "export %s=%s\n", k, shellQuote(v))
+			fmt.Fprintf(&sb, "export %s=%s\n", k, fileutil.ShellQuote(v))
 		}
 		sb.WriteString("\n")
 	}
@@ -160,11 +161,4 @@ func collectDeps(ordered []pipeline.RawNode, targetIdx int) []pipeline.RawNode {
 		}
 	}
 	return result
-}
-
-func shellQuote(s string) string {
-	if !strings.ContainsAny(s, " \t\n\"'\\$`") {
-		return s
-	}
-	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }

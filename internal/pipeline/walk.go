@@ -186,6 +186,11 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 		if base == ecosystem.ConfigFile || base == ecosystem.LegacyConfigFile {
 			return nil
 		}
+		// packages.yaml at the repo root is dotd metadata, not a dotfile —
+		// without this it walks as an action-less node and shows up in list.
+		if path == filepath.Join(dotfilesRoot, ecosystem.PackagesFileName) {
+			return nil
+		}
 		// Files declared in a .dagger files: dict are handled below.
 		if filesWithDaggerEntry[path] {
 			return nil

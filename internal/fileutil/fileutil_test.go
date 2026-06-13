@@ -126,3 +126,37 @@ func TestSaveYAML_TempFileCleanupOnFailure(t *testing.T) {
 		}
 	}
 }
+
+// --- ShellQuote (moved from cmd/dotd bundle tests when the helper was unified) ---
+
+func TestShellQuote_PlainString(t *testing.T) {
+	if got := ShellQuote("hello"); got != "hello" {
+		t.Errorf("ShellQuote('hello') = %q, want unquoted", got)
+	}
+}
+
+func TestShellQuote_StringWithSpaces(t *testing.T) {
+	got := ShellQuote("hello world")
+	if got != "'hello world'" {
+		t.Errorf("ShellQuote = %q, want single-quoted", got)
+	}
+}
+
+func TestShellQuote_StringWithSingleQuote(t *testing.T) {
+	got := ShellQuote("it's a test")
+	if !strings.Contains(got, `'"'"'`) {
+		t.Errorf("ShellQuote did not escape the single quote, got %q", got)
+	}
+}
+
+func TestShellQuote_StringWithDollarSign(t *testing.T) {
+	if got := ShellQuote("$HOME"); got != "'$HOME'" {
+		t.Errorf("ShellQuote($HOME) = %q, want quoted to block expansion", got)
+	}
+}
+
+func TestShellQuote_Empty(t *testing.T) {
+	if got := ShellQuote(""); got != "''" {
+		t.Errorf("ShellQuote(\"\") = %q, want '' (a valid empty shell word)", got)
+	}
+}

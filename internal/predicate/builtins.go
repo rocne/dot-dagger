@@ -6,17 +6,6 @@ import (
 	"github.com/rocne/dot-dagger/internal/packages"
 )
 
-// emptyRegistry is an empty package registry used as a fallback when no
-// packages.yaml is loaded. It has non-nil maps so registry lookups are safe.
-// With an empty registry, installed(name) falls back to checking whether
-// `name` is directly on PATH; installable(name) returns false (no entry).
-var emptyRegistry = &packages.Registry{
-	PackageManagers: packages.ManagersSection{
-		Defs: map[string]packages.PackageManagerDef{},
-	},
-	Packages: map[string]packages.PackageEntry{},
-}
-
 // RegisterPackageRegistry re-registers installed() and installable() with the
 // given package registry, overriding the PATH-only defaults set by
 // NewEvaluator. Call this when a packages.yaml registry has been loaded and
@@ -35,7 +24,9 @@ func (e *Evaluator) RegisterPackageRegistry(reg *packages.Registry, lookPath fun
 // LookPath defaults to exec.LookPath when nil.
 func registerBuiltins(r *FuncRegistry, reg *packages.Registry, lookPath func(string) (string, error)) {
 	if reg == nil {
-		reg = emptyRegistry
+		// With an empty registry, installed(name) falls back to PATH lookup
+		// and installable(name) is always false (no entry).
+		reg = packages.EmptyRegistry()
 	}
 	if lookPath == nil {
 		lookPath = exec.LookPath

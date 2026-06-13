@@ -677,3 +677,24 @@ func TestWalk_FilesDict_ComposeFragment(t *testing.T) {
 		t.Errorf("ComposeTarget = %q, want .../gen.sh.d", n.ComposeTarget)
 	}
 }
+
+// TestWalk_SkipsRootPackagesYAML: packages.yaml at the repo root is dotd
+// metadata, not a dotfile node (2026-06-13 audit, C6).
+func TestWalk_SkipsRootPackagesYAML(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, ecosystem.PackagesFileName, "packages: {}\n")
+	writeTestFile(t, root, "sub/"+ecosystem.PackagesFileName, "not metadata here\n")
+
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range nodes {
+		if n.Path == filepath.Join(root, ecosystem.PackagesFileName) {
+			t.Error("root packages.yaml must not walk as a node")
+		}
+	}
+	if n := nodeByPath(nodes, ecosystem.PackagesFileName); n == nil {
+		t.Error("a nested packages.yaml is an ordinary file and must still walk")
+	}
+}

@@ -13,6 +13,8 @@
 // AND and OR are case-sensitive uppercase keywords.
 package predicate
 
+import "strings"
+
 // Expr is a node in the predicate AST.
 type Expr interface {
 	expr()
@@ -81,4 +83,17 @@ func collectKeys(exprs []Expr) []string {
 		}
 	}
 	return keys
+}
+
+// SyntaxHelp is the user-facing predicate syntax table — the single source
+// for the annotate wizard and `dotd concepts`, so the two cannot drift.
+const SyntaxHelp = `key=value             single condition       os=macos
+key=v1,v2             match any value        os=macos,linux
+expr AND expr         both must match        os=macos AND context=work
+expr OR expr          either matches         os=macos OR os=linux
+(expr)                grouping               (os=macos OR os=linux) AND context=work`
+
+// IndentSyntaxHelp returns SyntaxHelp with every line prefixed by prefix.
+func IndentSyntaxHelp(prefix string) string {
+	return prefix + strings.ReplaceAll(SyntaxHelp, "\n", "\n"+prefix)
 }
