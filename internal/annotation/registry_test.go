@@ -109,3 +109,21 @@ func assertEqual(t *testing.T, got, want string) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+// --- 2026-06-13 audit (B6): Validate delegates to the canonical parser ---
+
+func TestValidate_WhenAcceptsCallForm(t *testing.T) {
+	for _, expr := range []string{"exists(tmux)", "installed(fzf)", "os=macos AND exists(brew)"} {
+		if err := (WhenType{}).Validate(expr); err != nil {
+			t.Errorf("Validate(%q) = %v, want nil (valid predicate)", expr, err)
+		}
+	}
+}
+
+func TestValidate_WhenRejectsTrailingOperator(t *testing.T) {
+	for _, expr := range []string{"os=a AND", "os=a OR", "(os=a"} {
+		if err := (WhenType{}).Validate(expr); err == nil {
+			t.Errorf("Validate(%q) = nil, want parse error", expr)
+		}
+	}
+}

@@ -147,7 +147,13 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 			dirActions := append([]Action{{Type: ActionCompose}}, parseDaggerActions(cfg.Actions)...)
 
 			// Dir-level when: cascade when AND dir's own when.
-			effectiveWhen := combineWhen(state.when, cfg.When)
+			// Wrapped in parens like every other when source — AND binds
+			// tighter than OR, so an unwrapped "a=1 OR b=2" would regroup.
+			dirWhen := cfg.When
+			if dirWhen != "" {
+				dirWhen = "(" + dirWhen + ")"
+			}
+			effectiveWhen := combineWhen(state.when, dirWhen)
 
 			// Dir's own link_root overrides inherited.
 			linkRoot := state.linkRoot
@@ -310,6 +316,9 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 				Require:       fileNode.Require,
 				Request:       fileNode.Request,
 				LinkRoot:      state.linkRoot,
+				LinkRootDir:   state.linkRootDir,
+				IsCompose:     state.isCompose,
+				ComposeTarget: state.composeDir,
 			})
 		}
 	}

@@ -586,3 +586,94 @@ func TestWalk_ComposeTarget_EmitsDirectoryNode(t *testing.T) {
 		}
 	}
 }
+
+// --- 2026-06-13 audit regressions (B5, B8) ---
+
+// writeTestFile writes content to root/rel, creating parent dirs.
+func writeTestFile(t *testing.T, root, rel, content string) {
+	t.Helper()
+	path := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestWalk_ComposeDirWhen_ParenWrapped: the compose dir's own when: must be
+// paren-wrapped before AND-joining with the cascade when — AND binds tighter
+// than OR, so an unwrapped "a=1 OR b=2" would regroup as
+// (cascade AND a=1) OR b=2.
+func TestWalk_ComposeDirWhen_ParenWrapped(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, ".dagger", "defaults:\n  when: \"c=3\"\n")
+	writeTestFile(t, root, "target.d/.dagger",
+		"composition:\n  enabled: true\nwhen: \"a=1 OR b=2\"\nactions:\n  - source\n")
+	writeTestFile(t, root, "target.d/frag.sh", "x=1\n")
+
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := nodeByPath(nodes, "target.d")
+	if n == nil {
+		t.Fatal("compose-target node not found")
+	}
+	want := "(c=3) AND (a=1 OR b=2)"
+	if n.EffectiveWhen != want {
+		t.Errorf("EffectiveWhen = %q, want %q", n.EffectiveWhen, want)
+	}
+}
+
+// TestWalk_FilesDict_LinkRootDir: files:-dict nodes must carry LinkRootDir
+// alongside LinkRoot — deriveLinkDest returns "" without it, so an entry
+// relying on an inherited link_root silently produced no link.
+func TestWalk_FilesDict_LinkRootDir(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, ".dagger",
+		"link_root: \"~/cfg\"\nfiles:\n  blob.bin:\n    actions:\n      - link\n")
+	writeTestFile(t, root, "blob.bin", "\x00")
+
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := nodeByPath(nodes, "blob.bin")
+	if n == nil {
+		t.Fatal("blob.bin not found in nodes")
+	}
+	if n.LinkRoot != "~/cfg" {
+		t.Errorf("LinkRoot = %q, want %q", n.LinkRoot, "~/cfg")
+	}
+	if n.LinkRootDir != root {
+		t.Errorf("LinkRootDir = %q, want %q", n.LinkRootDir, root)
+	}
+	if got, want := deriveLinkDest(*n), filepath.Join("~/cfg", "blob.bin"); got != want {
+		t.Errorf("deriveLinkDest = %q, want %q", got, want)
+	}
+}
+
+// TestWalk_FilesDict_ComposeFragment: a files:-dict entry inside a compose
+// dir is a fragment, same as an annotatable file in that dir.
+func TestWalk_FilesDict_ComposeFragment(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "gen.sh.d/.dagger",
+		"composition:\n  enabled: true\nactions:\n  - source\nfiles:\n  data.bin:\n    name: data\n")
+	writeTestFile(t, root, "gen.sh.d/data.bin", "\x00")
+
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := nodeByPath(nodes, "data.bin")
+	if n == nil {
+		t.Fatal("data.bin not found in nodes")
+	}
+	if !n.IsCompose {
+		t.Error("files:-dict entry inside compose dir must have IsCompose=true")
+	}
+	if filepath.Base(n.ComposeTarget) != "gen.sh.d" {
+		t.Errorf("ComposeTarget = %q, want .../gen.sh.d", n.ComposeTarget)
+	}
+}

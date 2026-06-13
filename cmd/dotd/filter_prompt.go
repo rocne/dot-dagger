@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/spf13/cobra"
 	yaml "gopkg.in/yaml.v3"
@@ -16,10 +17,11 @@ import (
 // tty=false: identical to Filter + annotateKeyError (non-interactive path).
 // tty=true with missing keys: prompts for all missing keys via cmd's I/O,
 // then re-runs Filter with the augmented env.
-// Call site: filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()))
-func filterWithPrompt(cmd *cobra.Command, nodes []pipeline.RawNode, resolved map[string]string, tty bool) ([]pipeline.RawNode, error) {
+// reg backs installed()/installable() predicates — load via loadRegistry(cfg).
+// Call site: filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()), reg)
+func filterWithPrompt(cmd *cobra.Command, nodes []pipeline.RawNode, resolved map[string]string, tty bool, reg *packages.Registry) ([]pipeline.RawNode, error) {
 	if !tty {
-		active, err := pipeline.Filter(nodes, resolved)
+		active, err := pipeline.Filter(nodes, resolved, reg)
 		return active, annotateKeyError(err)
 	}
 
@@ -28,7 +30,7 @@ func filterWithPrompt(cmd *cobra.Command, nodes []pipeline.RawNode, resolved map
 		return nil, err
 	}
 	if len(missing) == 0 {
-		active, err := pipeline.Filter(nodes, resolved)
+		active, err := pipeline.Filter(nodes, resolved, reg)
 		return active, annotateKeyError(err)
 	}
 
@@ -44,7 +46,7 @@ func filterWithPrompt(cmd *cobra.Command, nodes []pipeline.RawNode, resolved map
 		augmented[k] = v
 	}
 
-	active, err := pipeline.Filter(nodes, augmented)
+	active, err := pipeline.Filter(nodes, augmented, reg)
 	return active, annotateKeyError(err)
 }
 

@@ -3,15 +3,25 @@ package pipeline
 import (
 	"fmt"
 
+	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/predicate"
 )
 
 // Filter returns nodes whose EffectiveWhen predicate matches env.
 // Nodes with an empty EffectiveWhen are always included.
-func Filter(nodes []RawNode, env map[string]string) ([]RawNode, error) {
+//
+// reg backs the installed()/installable() predicate functions (binary-alias
+// resolution and manager availability, per packages.yaml). Pass nil for
+// PATH-only semantics — installed(x) checks PATH directly and installable(x)
+// is always false.
+func Filter(nodes []RawNode, env map[string]string, reg *packages.Registry) ([]RawNode, error) {
+	ev := predicate.NewEvaluator(env)
+	if reg != nil {
+		ev.RegisterPackageRegistry(reg, nil)
+	}
 	var active []RawNode
 	for _, n := range nodes {
-		ok, err := evalWhen(n.EffectiveWhen, env)
+		ok, err := evalWhen(ev, n.EffectiveWhen)
 		if err != nil {
 			return nil, fmt.Errorf("filter: node %q: %w", n.LogicalName, err)
 		}
@@ -22,7 +32,7 @@ func Filter(nodes []RawNode, env map[string]string) ([]RawNode, error) {
 	return active, nil
 }
 
-func evalWhen(expr string, env map[string]string) (bool, error) {
+func evalWhen(ev *predicate.Evaluator, expr string) (bool, error) {
 	if expr == "" {
 		return true, nil
 	}
@@ -30,7 +40,6 @@ func evalWhen(expr string, env map[string]string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	ev := predicate.NewEvaluator(env)
 	return ev.Eval(parsed)
 }
 
