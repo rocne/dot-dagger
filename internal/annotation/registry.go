@@ -2,7 +2,8 @@ package annotation
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/rocne/dot-dagger/internal/predicate"
 )
 
 // Registry lists all annotation types the wizard presents, in menu order.
@@ -45,12 +46,15 @@ func (WhenType) Description() string {
 func (WhenType) Kind()        InputKind { return KindText }
 func (WhenType) Options()     []string  { return nil }
 func (WhenType) Format(s string) string { return "# @when(" + s + ")" }
+
+// Validate delegates to the canonical predicate parser so the wizard accepts
+// exactly what the filter stage accepts (including call forms like
+// exists(tmux)) and rejects what it rejects.
 func (WhenType) Validate(s string) error {
-	idx := strings.IndexByte(s, '=')
-	if idx < 1 || idx >= len(s)-1 {
+	if _, err := predicate.Parse(s); err != nil {
 		return fmt.Errorf(
-			"@when: expected format key=value or key=v1,v2 (got %q)\nhint: use AND/OR to join conditions; comma separates multiple values for one key (e.g. os=macos,linux)",
-			s,
+			"@when: %w\nhint: key=value conditions joined with AND/OR; comma separates multiple values for one key (e.g. os=macos,linux)",
+			err,
 		)
 	}
 	return nil

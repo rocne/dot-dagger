@@ -32,7 +32,7 @@ func TestFilterWithPrompt_NonTTY_MissingKey_ReturnsAnnotatedError(t *testing.T) 
 	nodes := []pipeline.RawNode{makeFilterNode("a", "context=work")}
 	resolved := map[string]string{} // context missing
 
-	_, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, false)
+	_, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, false, nil)
 	if err == nil {
 		t.Fatal("expected error for missing key, got nil")
 	}
@@ -49,7 +49,7 @@ func TestFilterWithPrompt_NonTTY_NoMissingKeys_ReturnsActiveNodes(t *testing.T) 
 	}
 	resolved := map[string]string{"context": "work"}
 
-	active, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, false)
+	active, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestFilterWithPrompt_TTY_NoMissingKeys_DoesNotPrompt(t *testing.T) {
 	nodes := []pipeline.RawNode{makeFilterNode("base", "")}
 	resolved := map[string]string{}
 
-	active, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, true)
+	active, err := filterWithPrompt(testCmd(strings.NewReader("")), nodes, resolved, true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestFilterWithPrompt_TTY_HappyPath(t *testing.T) {
 	// Input: "linux" for os, "work" for context.
 	stdin := strings.NewReader("linux\nwork\n")
 
-	active, err := filterWithPrompt(testCmd(stdin), nodes, resolved, true)
+	active, err := filterWithPrompt(testCmd(stdin), nodes, resolved, true, nil)
 	if err != nil {
 		t.Fatalf("filterWithPrompt error = %v", err)
 	}

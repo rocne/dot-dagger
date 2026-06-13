@@ -464,7 +464,14 @@ func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, er
 		return nil, err
 	}
 
-	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()))
+	// Registry backs installed()/installable() in @when predicates — the same
+	// packages.yaml the package subcommands consult (empty when absent).
+	reg, err := loadRegistry(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()), reg)
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +516,11 @@ func (cfg *appConfig) walkOrdered(cmd *cobra.Command) ([]pipeline.RawNode, error
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
-	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()))
+	reg, err := loadRegistry(cfg)
+	if err != nil {
+		return nil, err
+	}
+	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()), reg)
 	if err != nil {
 		return nil, err
 	}

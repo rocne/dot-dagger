@@ -1,6 +1,10 @@
 package pipeline
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/rocne/dot-dagger/internal/packages"
+)
 
 func makeNode(name, when string, actions ...Action) RawNode {
 	return RawNode{
@@ -13,7 +17,7 @@ func makeNode(name, when string, actions ...Action) RawNode {
 
 func TestFilter_EmptyWhen_AlwaysActive(t *testing.T) {
 	nodes := []RawNode{makeNode("base", "")}
-	got, err := Filter(nodes, map[string]string{"os": "linux"})
+	got, err := Filter(nodes, map[string]string{"os": "linux"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +28,7 @@ func TestFilter_EmptyWhen_AlwaysActive(t *testing.T) {
 
 func TestFilter_WhenMatch_Active(t *testing.T) {
 	nodes := []RawNode{makeNode("macos", "(os=macos)")}
-	got, err := Filter(nodes, map[string]string{"os": "macos"})
+	got, err := Filter(nodes, map[string]string{"os": "macos"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +39,7 @@ func TestFilter_WhenMatch_Active(t *testing.T) {
 
 func TestFilter_WhenMismatch_Inactive(t *testing.T) {
 	nodes := []RawNode{makeNode("macos", "(os=macos)")}
-	got, err := Filter(nodes, map[string]string{"os": "linux"})
+	got, err := Filter(nodes, map[string]string{"os": "linux"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +52,7 @@ func TestFilter_AndExpression(t *testing.T) {
 	nodes := []RawNode{makeNode("work-macos", "(context=work) AND (os=macos)")}
 
 	// Both match → active.
-	got, err := Filter(nodes, map[string]string{"context": "work", "os": "macos"})
+	got, err := Filter(nodes, map[string]string{"context": "work", "os": "macos"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +61,7 @@ func TestFilter_AndExpression(t *testing.T) {
 	}
 
 	// Only one matches → inactive.
-	got, err = Filter(nodes, map[string]string{"context": "personal", "os": "macos"})
+	got, err = Filter(nodes, map[string]string{"context": "personal", "os": "macos"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +76,7 @@ func TestFilter_MixedNodes(t *testing.T) {
 		makeNode("macos", "(os=macos)"),
 		makeNode("linux", "(os=linux)"),
 	}
-	got, err := Filter(nodes, map[string]string{"os": "linux"})
+	got, err := Filter(nodes, map[string]string{"os": "linux"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,5 +207,44 @@ func TestCollectMissingKeys_ORAllBranchesMissing(t *testing.T) {
 	}
 	if !keyset["os"] || !keyset["distro"] {
 		t.Errorf("OR all missing: got %v, expected both os and distro", got)
+	}
+}
+
+// --- 2026-06-13 audit (B7): registry-backed installed()/installable() ---
+
+// TestFilter_RegistryBackedPredicates: the same packages.yaml registry the
+// package subcommands consult must back @when predicates. With a registry,
+// installable(x) is true when a manager is on PATH ("sh" always is) and
+// installed(x) resolves binary aliases; with nil it falls back to PATH-only.
+func TestFilter_RegistryBackedPredicates(t *testing.T) {
+	reg := &packages.Registry{
+		PackageManagers: packages.ManagersSection{
+			Order: []string{"sh"},
+			Defs:  map[string]packages.PackageManagerDef{"sh": {Install: "x {package}"}},
+		},
+		Packages: map[string]packages.PackageEntry{
+			"mytool":  {Managers: map[string]packages.ManagerEntry{"sh": {}}},
+			"aliased": {Binary: "sh", Managers: map[string]packages.ManagerEntry{}},
+		},
+	}
+	nodes := []RawNode{
+		{LogicalName: "a", EffectiveWhen: "installable(mytool)"},
+		{LogicalName: "b", EffectiveWhen: "installed(aliased)"},
+	}
+
+	got, err := Filter(nodes, map[string]string{}, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Errorf("with registry: %d active nodes, want 2 (installable+aliased)", len(got))
+	}
+
+	got, err = Filter(nodes, map[string]string{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Errorf("nil registry: %d active nodes, want 0 (PATH-only fallback)", len(got))
 	}
 }
