@@ -9,6 +9,7 @@ import (
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/pipeline"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -62,7 +63,8 @@ func promptMissingKeys(cmd *cobra.Command, keys []string) (map[string]string, er
 }
 
 func printPersistHint(w io.Writer, filled map[string]string) {
-	fmt.Fprintf(w, "\nhint: to persist, add to %s:\n", ecosystem.EnvFileName)
+	fmt.Fprintln(w)
+	ui.Hintf(w, "to persist, add to %s:", ecosystem.EnvFileName)
 	out, err := yaml.Marshal(filled)
 	if err != nil {
 		// yaml.Marshal on map[string]string is infallible; this branch is unreachable in practice

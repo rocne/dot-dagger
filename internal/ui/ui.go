@@ -12,7 +12,7 @@ import (
 
 // Print helpers — write a labeled, colored line to w.
 //
-// Warnf/Errf/Tipf prefix the message with a colored label.
+// Warnf/Errf/Hintf prefix the message with a colored label.
 // OKf/Skipf color the entire message.
 // Headerf emits a blank line, then a bold header line (section start).
 
@@ -24,8 +24,10 @@ func Errf(w io.Writer, format string, a ...any) {
 	fmt.Fprintf(w, "%s %s\n", Conflict("error:"), fmt.Sprintf(format, a...))
 }
 
-func Tipf(w io.Writer, format string, a ...any) {
-	fmt.Fprintf(w, "%s %s\n", Arrow("tip:"), fmt.Sprintf(format, a...))
+// Hintf renders the "hint:" line that follows an error (see the Hinter
+// convention in cmd/dotd/errors.go) — the single owner of hint styling.
+func Hintf(w io.Writer, format string, a ...any) {
+	fmt.Fprintf(w, "%s %s\n", Arrow("hint:"), fmt.Sprintf(format, a...))
 }
 
 func OKf(w io.Writer, format string, a ...any) {

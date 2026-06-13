@@ -17,7 +17,7 @@ func TestStatusHelpers_WriteToWriter(t *testing.T) {
 		{"OKf", func(b *bytes.Buffer) { OKf(b, "all good %d", 1) }, "all good 1"},
 		{"Warnf", func(b *bytes.Buffer) { Warnf(b, "careful") }, "careful"},
 		{"Errf", func(b *bytes.Buffer) { Errf(b, "boom") }, "boom"},
-		{"Tipf", func(b *bytes.Buffer) { Tipf(b, "try x") }, "try x"},
+		{"Hintf", func(b *bytes.Buffer) { Hintf(b, "try x") }, "try x"},
 		{"Skipf", func(b *bytes.Buffer) { Skipf(b, "skipped") }, "skipped"},
 		{"Headerf", func(b *bytes.Buffer) { Headerf(b, "title") }, "title"},
 		{"Missingf", func(b *bytes.Buffer) { Missingf(b, "gone") }, "gone"},

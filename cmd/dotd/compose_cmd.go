@@ -145,7 +145,9 @@ Examples:
 				}
 			}
 			if !jsonOutput {
-				cfg.log.Infof("%s all compose targets up-to-date", ui.Header("compose:"))
+				// Whole report on one channel (stderr): per-file lines above
+				// and this summary — stdout stays clean for --json/pipes.
+				ui.OKf(errOut, "compose: all targets up-to-date")
 			}
 			return nil
 		},
