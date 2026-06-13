@@ -19,7 +19,7 @@
 | File | Responsibility | Change |
 |------|----------------|--------|
 | `internal/pipeline/act.go` | Token expansion (`expandDest`), `ActOptions` | Add `$config` branch + `ConfigDir`; rename `BinPrefix`→`$bin`; add `ConfigPrefix` |
-| `internal/pipeline/actions.go` | `CheckLinkConflicts` call into `resolveLink` | Thread `ConfigDir` |
+| `internal/pipeline/actions.go` | `CheckLinkConflicts` call; `validateNode` | Thread `ConfigDir`; add `validateAnchor` (reject unknown tokens) |
 | `internal/config/config.go` | config.yaml schema/get/set | Drop `LinkRoot`; add `ConfigDir` |
 | `internal/ecosystem/ecosystem.go` | path/home defaults | Add `Home()`; remove `DefaultLinkRoot` |
 | `cmd/dotd/main.go` | flags, `resolvePaths`, `buildActOptions`, cfg struct | Rename/drop/add flags; drop `linkRoot`, add `configDir`; `buildActOptions` returns error |
@@ -33,7 +33,7 @@
 
 ---
 
-## Task 1: Pipeline token expansion (`$bin`, `$config`, `~`)
+## Task 1: Pipeline token expansion + validation (`$bin`, `$config`, `~`)
 
 **Files:**
 - Modify: `internal/pipeline/act.go` (`ActOptions` ~14-24, `resolveLink` ~178-183, `expandDest` ~217-230, `Act` error msg ~51)
@@ -171,6 +171,93 @@ git add internal/pipeline/act.go internal/pipeline/actions.go internal/pipeline/
 git commit -m "feat(pipeline): add \$config anchor, move \$bin off ~bin token"
 ```
 
+- [ ] **Step 9: Write the failing validation test** — add to `internal/pipeline/actions_test.go` (create if absent, `package pipeline`):
+
+```go
+func TestValidateAnchor(t *testing.T) {
+	ok := []string{"", "~", "~/.zshrc", "$bin", "$bin/fmt", "$config", "$config/nvim", "/abs", "rel/path"}
+	for _, v := range ok {
+		if err := validateAnchor("link_root", v); err != nil {
+			t.Errorf("validateAnchor(%q) = %v, want nil", v, err)
+		}
+	}
+	bad := []string{"~bin", "~config", "$conifg", "$HOME", "$binary", "~root/x"}
+	for _, v := range bad {
+		if err := validateAnchor("link_root", v); err == nil {
+			t.Errorf("validateAnchor(%q) = nil, want error", v)
+		}
+	}
+}
+```
+
+- [ ] **Step 10: Run test to verify it fails**
+
+Run: `go test ./internal/pipeline/ -run TestValidateAnchor`
+Expected: FAIL — `validateAnchor` undefined.
+
+- [ ] **Step 11: Implement `validateAnchor` + wire into `validateNode`** in `internal/pipeline/actions.go`.
+
+Add the function (near `validateNode`):
+
+```go
+// validateAnchor rejects a link destination or link_root value that begins with
+// an anchor sigil ("~" or "$") but is not a recognized token. "~" expands to
+// $HOME (valid as "~" or "~/..."); "$bin"/"$config" map to the bin/config
+// routes (valid alone or as "$bin/..."/"$config/..."). Paths with no leading
+// sigil are always allowed. This catches typos like "$conifg" that would
+// otherwise be linked to a literal garbage path. field labels the error source.
+func validateAnchor(field, value string) error {
+	if value == "" {
+		return nil
+	}
+	switch value[0] {
+	case '~':
+		if value == "~" || strings.HasPrefix(value, "~/") {
+			return nil
+		}
+	case '$':
+		for _, tok := range []string{BinPrefix, ConfigPrefix} {
+			if value == tok || strings.HasPrefix(value, tok+"/") {
+				return nil
+			}
+		}
+	default:
+		return nil // absolute or relative path, left as-authored
+	}
+	return fmt.Errorf("unknown anchor token %q in %s — valid anchors are ~, %s, %s", value, field, BinPrefix, ConfigPrefix)
+}
+```
+
+In `validateNode`, after the `if n.IsCompose { return nil }` guard, validate the per-node link_root:
+
+```go
+	if err := validateAnchor("link_root", n.LinkRoot); err != nil {
+		return fmt.Errorf("node %s: %w", n.LogicalName, err)
+	}
+```
+
+And inside the `case ActionLink:` block (after the empty-dest check), validate the explicit dest:
+
+```go
+			if err := validateAnchor("link destination", a.Dest); err != nil {
+				return fmt.Errorf("node %s: %w", n.LogicalName, err)
+			}
+```
+
+(`strings` is already imported in `actions.go`.)
+
+- [ ] **Step 12: Run test to verify it passes**
+
+Run: `go test ./internal/pipeline/ -run 'TestValidateAnchor|TestExpandDest'`
+Expected: PASS. (Whole-package may still have `~bin` fixture failures — fixed in Task 10.)
+
+- [ ] **Step 13: Commit**
+
+```bash
+git add internal/pipeline/actions.go internal/pipeline/actions_test.go
+git commit -m "feat(pipeline): reject unknown anchor tokens in link_root/dest"
+```
+
 ---
 
 ## Task 2: config.yaml schema — drop `link_root`, add `config_dir`
@@ -246,6 +333,12 @@ In `Set`, replace the `case KeyLinkRoot: c.LinkRoot = value` with:
 	case KeyConfigDir:
 		c.ConfigDir = value
 ```
+
+**No special-case handling for the removed field.** Do NOT add any detection or
+custom message for a stray `link_root:`; the strict `KnownFields(true)` decode
+already rejects it as an unknown field, which is exactly the desired behavior
+(`link_root` is treated as if it never existed — no back-hinting). The
+`TestConfig_LinkRootRejected` test asserts this.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -704,24 +797,27 @@ git commit -m "test: convert fixtures to \$bin/\$config and tests to HOME env co
 
 ## Task 10: docs
 
-**Files:** `docs/reference/dotd.md`, concepts docs, `.claude/docs/spec/symlinks.md`, `.claude/docs/spec/cli.md`, `.claude/docs/spec/env.md`
+**Files:** `README.md`, `docs/reference/dotd.md`, `docs/reference/dagger.md`, `docs/reference/annotations.md`, `docs/reference/env-yaml.md`, concepts docs, `.claude/docs/spec/symlinks.md`, `.claude/docs/spec/cli.md`, `.claude/docs/spec/env.md`
 
-- [ ] **Step 1: Find doc references**
+- [ ] **Step 1: Find doc references** (include README; exclude the spec/plan we authored)
 
 ```bash
-grep -rn 'link_root\|link-root\|~bin\|--config \|--env-file\|~/\.config' docs/ .claude/docs/spec/
+grep -rn 'link_root\|link-root\|~bin\|--config\b\|--env-file\|~/\.config' \
+  README.md docs/ .claude/docs/spec/ | grep -v 'superpowers/'
 ```
 
-- [ ] **Step 2: Update each hit** to the new model:
+- [ ] **Step 2: Update each hit** to the new model. Triage like Task 9: a per-node `.dagger` `link_root:` example with value `~` or an abs path stays; `~bin`→`$bin`; the *config-route* default `~/.config` → `$config` (e.g. `dagger.md:205` "link_root defaults to ~/.config" → "defaults to $config"). Apply:
   - tokens: `~` (=$HOME), `$bin`, `$config`
-  - flags: `--dotd-config`, `--dotd-env`, `--config-dir`; remove `--link-root`
-  - config keys: `config_dir` replaces `link_root`
-  - Explain `~`=$HOME always (never configurable); `$config` default `$XDG_CONFIG_HOME`.
+  - flags: `--dotd-config`, `--dotd-env`, `--config-dir`; remove `--link-root` (e.g. `docs/reference/dotd.md:16`)
+  - config keys: `config_dir` replaces `link_root` (e.g. `docs/reference/dotd.md:135`)
+  - `dotd.md:93` teardown text: `--config`/`--env-file` → `--dotd-config`/`--dotd-env`
+  - `env-yaml.md:12,15`: `--env-file` → `--dotd-env`
+  - Explain `~`=$HOME always (never configurable); `$config` default `$XDG_CONFIG_HOME`; note the unknown-anchor-token error.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/ .claude/docs/spec/
+git add README.md docs/ .claude/docs/spec/
 git commit -m "docs: roots model — tokens, --dotd-* flags, config_dir"
 ```
 
@@ -757,6 +853,6 @@ gh pr create --title "feat: roots model — kill global link_root, add \$config 
 
 ## Self-Review notes
 
-- **Spec coverage:** three-anchor model (T1), `config_dir` knob + resolution (T2,T4), flag namespace `--dotd-*`/`--config-dir` (T4), `ecosystem.Home()` no-tracking (T3,T5,T6,T7), expansion semantics (T1), `$HOME` consumers all switched (T4,T5,T6,T7), migration: drop field strict-decode (T2), rename flags no alias (T4), tests→env (T9), scaffold `$config` (T6). Out-of-scope items (per-node key, `bin_dir` behavior, `generated_dir`) untouched. ✓
+- **Spec coverage:** three-anchor model (T1), anchor-token validation/C1 (T1 steps 9-13), `config_dir` knob + resolution (T2,T4), flag namespace `--dotd-*`/`--config-dir` (T4), `ecosystem.Home()` no-tracking (T3,T5,T6,T7), expansion semantics (T1), `$HOME` consumers all switched (T4,T5,T6,T7), migration: drop field strict-decode no back-hint/C4 (T2), rename flags no alias (T4), tests→env (T9), scaffold `$config` (T6), docs incl. README/C3 (T10). Out-of-scope items (per-node key, `bin_dir` behavior, `generated_dir`, config-value tilde/C2) untouched. ✓
 - **Type consistency:** `ActOptions.ConfigDir`, `ConfigPrefix="$config"`, `BinPrefix="$bin"`, `KeyConfigDir="config_dir"`, `Config.ConfigDir`, `AdoptOptions.HomeDir`/`.ConfigDir`, `ecosystem.Home()`, `buildActOptions(...) (ActOptions, error)` used consistently across tasks. ✓
 - **No placeholders:** every code step shows real code; test-update steps point at the grep output as the authoritative site list (the one place exhaustive enumeration must happen at execution time, by design — fixtures/tests can drift).

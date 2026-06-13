@@ -102,6 +102,33 @@ Notes:
   config/env for testing or running isolated setups side by side. Legitimate but
   rare — hence demoted, not deleted.
 
+### Anchor token validation
+
+Unrecognized anchor tokens must fail **loudly**. `expandDest` returns any
+unmatched path unchanged, so without validation a value like `$conifg` (typo) or
+any string beginning with an anchor sigil that is not a known token would be
+treated as a **literal path** and silently linked to a garbage location (e.g. a
+directory literally named `$conifg` under the cwd). This is a real footgun
+independent of any migration.
+
+`validateNode` (in `internal/pipeline/actions.go`, already called by
+`ValidateNodes`) gains a pure-syntax check applied to **both** the per-node
+`link_root:` value and every explicit link `dest`:
+
+- A value beginning with `~` is valid only if it is exactly `~` or starts with
+  `~/`.
+- A value beginning with `$` is valid only if it is `$bin`/`$config` or starts
+  with `$bin/` / `$config/`.
+- A value with no leading sigil (absolute or relative path) is always allowed,
+  left as-authored.
+- Anything else (e.g. `~bin`, `$conifg`, `$HOME`) is a hard error.
+
+The error names the offending value and lists the valid anchors:
+`unknown anchor token "$conifg" — valid anchors are ~, $bin, $config`. It is
+framed purely as a typo/validity check against the current token set — it does
+**not** reference any prior syntax, renames, or migration. `$bin`/`$config`/`~`
+are presented as the only tokens that have ever existed.
+
 ### Config-route resolution
 
 `config_dir` is a full knob resolved once in `resolvePaths()` via the standard
@@ -113,6 +140,20 @@ chain, stored as `cfg.configDir`, injected into `ActOptions`:
 
 `ecosystem.XdgConfigHome()` already exists and is the default source. The
 pipeline never looks it up — it receives the resolved anchor.
+
+**Tilde in config values (known, consistent limitation):** `ResolvePath` does
+not expand `~`. A `config_dir: ~/.config` value *hand-edited* into config.yaml
+resolves to a literal-`~` path. This is pre-existing, identical behavior for
+`bin_dir`/`generated_dir`; CLI args are shell-expanded before dotd sees them, and
+the `setup` prompt expands typed input — so real exposure is hand-edited
+config.yaml only. Out of scope to fix (fixing only `config_dir` would be
+inconsistent); documented as a limitation.
+
+**Default asymmetry is intentional:** `$bin` defaults to the *tool-namespaced*
+`~/.local/bin/dot-dagger`, while `$config` defaults to the *shared*
+`$XDG_CONFIG_HOME` (`~/.config`). This is correct, not an oversight — apps read
+their config from `~/.config/<app>`, so config links cannot be namespaced under a
+dot-dagger subdir. Do not "fix" this to match `$bin`.
 
 ### `~` / `$HOME`: no tracking at all
 
@@ -158,10 +199,11 @@ preserve no remnants.
 
 **(a) Remove `link_root` from config.yaml.** Delete the `LinkRoot` struct field,
 its `KeyLinkRoot` entry, and its get/set cases. Keep `dec.KnownFields(true)`
-strict — a stale `link_root:` in any existing config.yaml (including the author's
-own) will then fail to load with a clean "unknown field" error, prompting the
-user to delete the dead line. No hidden field, no warn-once, no compatibility
-shim.
+strict — a stale `link_root:` in any existing config.yaml then fails to load with
+the standard "unknown field" decode error. **No special-case handling, no
+back-hinting:** `link_root` is treated exactly like any other unknown field, as
+if it had never existed. We do not detect it, name it, or explain its removal. No
+hidden field, no warn-once, no compatibility shim.
 
 **(b) Rename flags in place, no aliases.** `--config` → `--dotd-config`,
 `--env-file` → `--dotd-env`; add `--config-dir`. Targeted edits at the flag
@@ -196,7 +238,7 @@ Existing `.dagger` files using the old `~bin` token must be updated to `$bin`
   accessor; `XdgConfigHome` already present for the config-dir default.
 - `internal/pipeline/act.go` (+ `actions.go`) — `expandDest` third branch;
   rename `BinPrefix` const `~bin` → `$bin`; add `ConfigPrefix` = `$config`;
-  `ActOptions.ConfigDir`.
+  `ActOptions.ConfigDir`; `validateNode` anchor-token validation.
 - `cmd/dotd/main.go` — flag renames (`--dotd-config`, `--dotd-env`), new
   `--config-dir`, drop `--link-root`; `pathFlagOwners` updates; `resolvePaths`
   (drop linkRoot resolve, add configDir resolve); `buildActOptions`/
@@ -205,7 +247,11 @@ Existing `.dagger` files using the old `~bin` token must be updated to `$bin`
 - `cmd/dotd/init_cmd.go` — scaffold `~config`; use `ecosystem.Home()`.
 - `cmd/dotd/teardown_cmd.go`, `cmd/dotd/adopt.go` — use `ecosystem.Home()`.
 - `cmd/dotd/config_cmd.go` — help examples (`link_root` → `config_dir`).
-- Docs: `docs/reference/dotd.md`, concepts, spec `symlinks.md`/`cli.md`/`env.md`.
+- Docs: `README.md`, `docs/reference/dotd.md`, `docs/reference/dagger.md`,
+  `docs/reference/annotations.md`, `docs/reference/env-yaml.md`, concepts, spec
+  `symlinks.md`/`cli.md`/`env.md`. (CI `.github/` `--config` refs are
+  GoReleaser's own flag — not dotd's — and need no change. No committed shell
+  completions exist.)
 - Tests + fixtures: e2e scripts + `integration_test.go` + `main_test.go`
   (link-root → env config); testdata `.dagger` fixtures using `~bin` →
   `$bin` (`internal/pipeline/testdata`, `cmd/dotd/testdata`, `test/e2e/fixture`).
