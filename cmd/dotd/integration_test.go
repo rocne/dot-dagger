@@ -539,7 +539,10 @@ func TestComposeCheck_Stale(t *testing.T) {
 		t.Fatalf("write stale file: %v", err)
 	}
 
-	out := e.run(t, "compose", "check", "--env", "os=linux", "--env", "context=personal")
+	out, err := e.runMayFail(t, "compose", "check", "--env", "os=linux", "--env", "context=personal")
+	if err == nil {
+		t.Errorf("compose check: expected non-zero exit for stale target\noutput: %s", out)
+	}
 	if !strings.Contains(out, "stale") {
 		t.Errorf("compose check: expected stale report\noutput: %s", out)
 	}
@@ -778,7 +781,7 @@ func TestAdoptShellScript_Integration(t *testing.T) {
 		t.Fatalf("write srcPath: %v", err)
 	}
 
-	e.run(t, "adopt", srcPath, "--to", "shellrc/")
+	e.run(t, "adopt", "--yes", srcPath, "--to", "shellrc/")
 
 	assertNoPath(t, srcPath)
 

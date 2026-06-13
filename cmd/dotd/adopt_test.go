@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -200,5 +201,41 @@ func TestAdopt_DryRun_DoesNotMoveFile(t *testing.T) {
 	// Output should describe the planned action.
 	if !strings.Contains(out, "adopt") {
 		t.Errorf("expected 'adopt' in dry-run output: %q", out)
+	}
+}
+
+// --- adopt: non-TTY stdin without --yes is refused (2026-06-13 audit, B2) ---
+
+func TestAdopt_NonTTYWithoutYesRefuses(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("DOTD_LINK_ROOT", "")
+
+	dotfiles := adoptDotfiles(t)
+	src := makeShellScript(t, home, "keepme.sh")
+
+	// Piped stdin (strings.Reader) is not a TTY; without --yes adopt must
+	// refuse rather than silently move the file.
+	out, err := runWithStdin(t, strings.NewReader("y\n"), "adopt",
+		"--files", dotfiles,
+		"--env-file", emptyEnvFile(t),
+		src,
+	)
+	if err == nil {
+		t.Fatalf("expected refusal on non-TTY stdin without --yes\noutput: %s", out)
+	}
+	if !strings.Contains(err.Error(), "confirmation required") {
+		t.Errorf("error = %q, want confirmation-required message", err)
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "--yes") {
+		t.Errorf("expected --yes hint, got %v", err)
+	}
+	// Nothing moved.
+	if _, statErr := os.Stat(src); statErr != nil {
+		t.Errorf("src must be untouched on refusal: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(dotfiles, "shellrc", "keepme.sh")); !os.IsNotExist(statErr) {
+		t.Error("file must not be adopted on refusal")
 	}
 }

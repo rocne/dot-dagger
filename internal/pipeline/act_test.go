@@ -293,9 +293,8 @@ func TestAct_Compose_DryRun(t *testing.T) {
 	genDir := t.TempDir()
 	home := t.TempDir()
 
-	// In DryRun mode, os.ReadFile is skipped so fragment content will be nil/empty.
 	frags := []fragment{
-		{"base.conf", "irrelevant\n"},
+		{"base.conf", "base-content\n"},
 	}
 	compDir, targetNode := composeDir(t, root, "dot-tmux.conf.d", frags, nil)
 	frag := composeFragNode(t, compDir, "base.conf")
@@ -312,9 +311,10 @@ func TestAct_Compose_DryRun(t *testing.T) {
 	if _, err := os.Lstat(genPath); !os.IsNotExist(err) {
 		t.Error("dry run should not write the generated file")
 	}
-	// Content must be empty — dry-run skips ReadFile entirely.
-	if len(res.Generated[0].Content) != 0 {
-		t.Error("dry run should not populate Content")
+	// Content must match the real plan — dry-run skips writes, not reads
+	// (compose check depends on this to detect staleness).
+	if string(res.Generated[0].Content) != "base-content\n" {
+		t.Errorf("dry-run Content = %q, want assembled fragment content", res.Generated[0].Content)
 	}
 }
 

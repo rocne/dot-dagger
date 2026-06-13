@@ -125,20 +125,26 @@ Examples:
 			if jsonOutput {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
-			}
-
-			for _, e := range entries {
-				switch e.Status {
-				case "missing":
-					ui.Missingf(errOut, "%s", filepath.Base(e.Path))
-				case "stale":
-					ui.Wrongf(errOut, "%s", filepath.Base(e.Path))
+				if err := enc.Encode(entries); err != nil {
+					return err
+				}
+			} else {
+				for _, e := range entries {
+					switch e.Status {
+					case "missing":
+						ui.Missingf(errOut, "%s", filepath.Base(e.Path))
+					case "stale":
+						ui.Wrongf(errOut, "%s", filepath.Base(e.Path))
+					}
 				}
 			}
 			if hasStale {
-				cfg.log.Warn("compose: stale generated files found; run 'dotd apply' to update")
-			} else {
+				return &hintError{
+					err:  errors.New("compose check: generated files stale or missing"),
+					hint: "run 'dotd apply' to update",
+				}
+			}
+			if !jsonOutput {
 				cfg.log.Infof("%s all compose targets up-to-date", ui.Header("compose:"))
 			}
 			return nil
