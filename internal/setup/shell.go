@@ -14,6 +14,11 @@ import (
 	"github.com/rocne/dot-dagger/internal/fileutil"
 )
 
+// sourceLineHeader is the comment line written above the RC source line.
+// AppendSourceLine writes it; RemoveSourceLine matches it — one constant so
+// the two can never drift.
+const sourceLineHeader = "# dotd — generated shell init"
+
 // ShellConfig holds the shell name and its RC file path.
 type ShellConfig struct {
 	Shell  string
@@ -93,7 +98,7 @@ func AppendSourceLine(rcFile, initPath, home string) error {
 		return fmt.Errorf("setup: open %s: %w", rcFile, err)
 	}
 	defer func() { _ = f.Close() }()
-	_, err = fmt.Fprintf(f, "\n# dotd — generated shell init\n%s\n", line)
+	_, err = fmt.Fprintf(f, "\n%s\n%s\n", sourceLineHeader, line)
 	return err
 }
 
@@ -111,12 +116,11 @@ func RemoveSourceLine(rcFile, initFile string) error {
 
 	lines := strings.Split(string(data), "\n")
 	needle := filepath.Base(initFile)
-	const header = "# dotd \xe2\x80\x94 generated shell init"
 
 	out := make([]string, 0, len(lines))
 	i := 0
 	for i < len(lines) {
-		if lines[i] == header {
+		if lines[i] == sourceLineHeader {
 			i++ // skip header
 			// skip the following source line if it references our init file
 			if i < len(lines) && strings.Contains(lines[i], "source") && strings.Contains(lines[i], needle) {

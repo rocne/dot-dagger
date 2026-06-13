@@ -196,43 +196,6 @@ func TestResolve_DoesNotMutateInputs(t *testing.T) {
 	}
 }
 
-func TestParseFlags_Valid(t *testing.T) {
-	m, err := parseFlags("context=work,os=linux")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["context"] != "work" || m["os"] != "linux" {
-		t.Errorf("got %v", m)
-	}
-}
-
-func TestParseFlags_Empty(t *testing.T) {
-	m, err := parseFlags("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(m) != 0 {
-		t.Errorf("want empty map, got %v", m)
-	}
-}
-
-func TestParseFlags_Invalid(t *testing.T) {
-	_, err := parseFlags("noequalssign")
-	if err == nil {
-		t.Error("want error for missing =, got nil")
-	}
-}
-
-func TestParseFlags_ValueWithEquals(t *testing.T) {
-	m, err := parseFlags("expr=a=b")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["expr"] != "a=b" {
-		t.Errorf("got %q", m["expr"])
-	}
-}
-
 func TestShellVars_ExtractsDOTD(t *testing.T) {
 	environ := []string{
 		"DOTD_CONTEXT=work",

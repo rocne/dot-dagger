@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/rocne/dot-dagger/internal/predicate"
 	"github.com/spf13/cobra"
 )
 
-const conceptsText = `dotd — concepts reference
+var conceptsText = strings.ReplaceAll(`dotd — concepts reference
 ═════════════════════════
 
 PIPELINE
@@ -24,11 +26,7 @@ PIPELINE
 PREDICATES (@when)
   @when controls whether a node is active. Syntax:
 
-    key=value              single condition       os=macos
-    key=v1,v2             match any value        os=macos,linux
-    expr AND expr         both must match        os=macos AND context=work
-    expr OR expr          either matches         os=macos OR os=linux
-    (expr)                grouping               (os=macos OR os=linux) AND context=work
+__PREDICATE_SYNTAX__
 
   Comma separates multiple values for ONE key.
   Use AND/OR to join two separate conditions.
@@ -70,7 +68,7 @@ DIRECTORY NAMING
     dot-bashrc      links/names as .bashrc  (leading dot added)
     nosync-work/    strips "nosync-"        (avoids sync-tool ignore rules)
     shellrc.d/      compose target          (contents assembled into shellrc)
-`
+`, "__PREDICATE_SYNTAX__", predicate.IndentSyntaxHelp("    ")+"\n")
 
 func newConceptsCmd() *cobra.Command {
 	return &cobra.Command{

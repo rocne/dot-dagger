@@ -104,23 +104,6 @@ func Resolve(cliFlags, shellVars, expanded map[string]string) map[string]string 
 	return out
 }
 
-// parseFlags parses "key=val,key2=val2" into a map.
-// Empty string returns an empty map. Returns error if any entry lacks =.
-func parseFlags(s string) (map[string]string, error) {
-	if s == "" {
-		return map[string]string{}, nil
-	}
-	out := make(map[string]string)
-	for _, pair := range strings.Split(s, ",") {
-		idx := strings.IndexByte(pair, '=')
-		if idx < 0 {
-			return nil, fmt.Errorf("env: invalid key=value %q", pair)
-		}
-		out[pair[:idx]] = pair[idx+1:]
-	}
-	return out, nil
-}
-
 // ShellVars extracts DOTD_* vars from environ, lowercasing the suffix as the key.
 // DOTD_CONTEXT=work → context=work. Entries with empty suffix are ignored.
 func ShellVars(environ []string) map[string]string {

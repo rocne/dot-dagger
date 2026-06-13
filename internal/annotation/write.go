@@ -5,6 +5,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/rocne/dot-dagger/internal/fileutil"
 )
 
 var annotationLineRE = regexp.MustCompile(`^(#|//)\s*@\w+`)
@@ -101,13 +103,8 @@ func Write(path string, preserved []string, lines []string) error {
 	result = append(result, body...)
 
 	content := strings.Join(result, "\n") + "\n"
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(content), stat.Mode()); err != nil {
-		return fmt.Errorf("annotation: write: write tmp: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("annotation: write: rename: %w", err)
+	if err := fileutil.WriteAtomic(path, []byte(content), stat.Mode()); err != nil {
+		return fmt.Errorf("annotation: write: %w", err)
 	}
 	return nil
 }

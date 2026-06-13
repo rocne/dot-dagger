@@ -118,10 +118,9 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			if gen.Path == "" {
 				continue
 			}
-			if err := os.MkdirAll(filepath.Dir(gen.Path), fileutil.ModeDir); err != nil {
-				return nil, fmt.Errorf("act: mkdir for generated %s: %w", gen.Path, err)
-			}
-			if err := os.WriteFile(gen.Path, gen.Content, fileutil.ModeFile); err != nil {
+			// Atomic like every other generated output — a sourced file must
+			// never be observable half-written.
+			if err := fileutil.WriteAtomic(gen.Path, gen.Content, fileutil.ModeFile); err != nil {
 				return nil, fmt.Errorf("act: write generated %s: %w", gen.Path, err)
 			}
 		}

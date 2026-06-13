@@ -36,11 +36,7 @@ func (WhenType) Key()         string { return KeyWhen }
 func (WhenType) Label()       string { return "When" }
 func (WhenType) Description() string {
 	return "Condition for when this file is active.\n\n" +
-		"  key=value              single condition       os=macos\n" +
-		"  key=v1,v2             match any value        os=macos,linux\n" +
-		"  expr AND expr         both must match        os=macos AND context=work\n" +
-		"  expr OR expr          either matches         os=macos OR os=linux\n" +
-		"  (expr)                grouping               (os=macos OR os=linux) AND context=work\n\n" +
+		predicate.IndentSyntaxHelp("  ") + "\n\n" +
 		"Comma separates multiple values for ONE key. Use AND/OR to join two conditions."
 }
 func (WhenType) Kind()        InputKind { return KindText }
