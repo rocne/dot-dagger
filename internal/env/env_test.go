@@ -3,7 +3,6 @@ package env
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -231,15 +230,5 @@ func TestSave_RoundTrip(t *testing.T) {
 	}
 	if got["os"] != "$(dotd get-os)" || got["context"] != "work" {
 		t.Errorf("round-trip failed: got %v", got)
-	}
-}
-
-func TestDefaultPath(t *testing.T) {
-	path, err := DefaultPath()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasSuffix(path, "dot-dagger/env.yaml") {
-		t.Errorf("unexpected default path: %q", path)
 	}
 }

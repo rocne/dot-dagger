@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	dotcfg "github.com/rocne/dot-dagger/internal/config"
 )
 
 // writeConfigYAML writes a config.yaml with the given content and returns its path.
@@ -251,7 +253,7 @@ func TestEnvEdit_InvokesEditor(t *testing.T) {
 // --- loadConfig ---
 
 func TestLoadConfig_ReturnsZeroOnMissing(t *testing.T) {
-	cfg, err := loadConfig(filepath.Join(t.TempDir(), "nonexistent.yaml"))
+	cfg, err := dotcfg.Load(filepath.Join(t.TempDir(), "nonexistent.yaml"))
 	if err != nil {
 		t.Fatalf("loadConfig nonexistent = %v, want nil error", err)
 	}
@@ -263,7 +265,7 @@ func TestLoadConfig_ReturnsZeroOnMissing(t *testing.T) {
 func TestLoadConfig_ReadsFields(t *testing.T) {
 	configPath := writeConfigYAML(t, "dotfiles: /df\nbin_dir: /bin\n")
 
-	cfg, err := loadConfig(configPath)
+	cfg, err := dotcfg.Load(configPath)
 	if err != nil {
 		t.Fatalf("loadConfig error = %v", err)
 	}

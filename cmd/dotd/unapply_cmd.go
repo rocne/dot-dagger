@@ -110,9 +110,9 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 
 	// Preview.
 	if initShExists {
-		ui.Headerf(out, "Will remove %d symlink(s) and init.sh:", len(toRemove))
+		ui.Headerf(out, "Will remove %s and init.sh:", plural(len(toRemove), "symlink"))
 	} else {
-		ui.Headerf(out, "Will remove %d symlink(s):", len(toRemove))
+		ui.Headerf(out, "Will remove %s:", plural(len(toRemove), "symlink"))
 	}
 	for _, dest := range toRemove {
 		fmt.Fprintf(out, "  %s\n", dest)

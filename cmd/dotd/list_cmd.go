@@ -31,7 +31,7 @@ Examples:
 		},
 	}
 	cmd.Flags().BoolVar(&showInactive, "inactive", false, "show nodes filtered out by predicates")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	addJSONFlag(cmd, &jsonOutput)
 	return cmd
 }
 

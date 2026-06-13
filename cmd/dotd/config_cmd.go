@@ -28,29 +28,10 @@ which directory ~ expands to in link destinations.`,
 	return cmd
 }
 
-func loadConfig(configPath string) (*dotcfg.Config, error) {
-	return dotcfg.Load(configPath)
-}
-
-// configKeyArgs accepts exactly nArgs arguments. On error, the returned
-// hintError lists the valid config keys.
+// configKeyArgs accepts exactly nArgs arguments. On error, the hint lists
+// the valid config keys.
 func configKeyArgs(nArgs int, usage string) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if len(args) == nArgs {
-			return nil
-		}
-		return &usageError{err: &hintError{
-			err:  fmt.Errorf("expected %s, got %d", plural(nArgs, "argument"), len(args)),
-			hint: usage + " — valid keys: " + strings.Join(dotcfg.Keys, ", "),
-		}}
-	}
-}
-
-func plural(n int, word string) string {
-	if n == 1 {
-		return fmt.Sprintf("%d %s", n, word)
-	}
-	return fmt.Sprintf("%d %ss", n, word)
+	return keyArgs(nArgs, usage, "valid keys: "+strings.Join(dotcfg.Keys, ", "))
 }
 
 // configKeyError wraps an unknown-key error from dotcfg.Get/Set with a hint
@@ -79,7 +60,7 @@ Examples:
   dotd config show --json | jq '.[] | select(.key=="dotfiles")'
   dotd config show | grep dotfiles`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			toolCfg, err := loadConfig(cfg.configPath)
+			toolCfg, err := dotcfg.Load(cfg.configPath)
 			if err != nil {
 				return err
 			}
@@ -100,7 +81,7 @@ Examples:
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON array")
+	addJSONFlag(cmd, &jsonOutput)
 	return cmd
 }
 
@@ -115,7 +96,7 @@ Examples:
   dotd config get link_root`,
 		Args: configKeyArgs(1, "usage: dotd config get <key>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			toolCfg, err := loadConfig(cfg.configPath)
+			toolCfg, err := dotcfg.Load(cfg.configPath)
 			if err != nil {
 				return err
 			}
@@ -140,7 +121,7 @@ Examples:
   dotd config set link_root /home/me`,
 		Args: configKeyArgs(2, "usage: dotd config set <key> <value>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			toolCfg, err := loadConfig(cfg.configPath)
+			toolCfg, err := dotcfg.Load(cfg.configPath)
 			if err != nil {
 				return err
 			}
@@ -166,4 +147,3 @@ Examples:
 		},
 	}
 }
-

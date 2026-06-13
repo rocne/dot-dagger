@@ -64,16 +64,16 @@ func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 	isUpdate := existing.Dotfiles != "" || existing.BinDir != "" || existing.GeneratedDir != "" || existing.LinkRoot != ""
 	switch {
 	case nonInteractive && isUpdate:
-		fmt.Fprintf(out, "%s — update machine configuration (non-interactive)\n", ui.Header("dotd setup"))
+		bannerf(out, cmd, "update machine configuration (non-interactive)")
 		fmt.Fprintln(out, "Keeping current values.")
 	case nonInteractive:
-		fmt.Fprintf(out, "%s — configure this machine (non-interactive)\n", ui.Header("dotd setup"))
+		bannerf(out, cmd, "configure this machine (non-interactive)")
 		fmt.Fprintln(out, "Accepting shown defaults.")
 	case isUpdate:
-		fmt.Fprintf(out, "%s — update machine configuration\n", ui.Header("dotd setup"))
+		bannerf(out, cmd, "update machine configuration")
 		fmt.Fprintln(out, "Press Enter to keep the current value.")
 	default:
-		fmt.Fprintf(out, "%s — configure this machine\n", ui.Header("dotd setup"))
+		bannerf(out, cmd, "configure this machine")
 		fmt.Fprintln(out, "Press Enter to accept the shown default.")
 	}
 
@@ -156,4 +156,3 @@ func promptPath(out io.Writer, reader *bufio.Reader, label, desc, existingVal, r
 	}
 	return abs, nil
 }
-

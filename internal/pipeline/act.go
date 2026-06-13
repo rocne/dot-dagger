@@ -19,6 +19,10 @@ type ActOptions struct {
 	Force        bool   // overwrite non-symlink files on link conflicts
 }
 
+// BinPrefix is the destination prefix that expands to ActOptions.BinDir
+// in link destinations ("~bin" / "~bin/<name>").
+const BinPrefix = "~bin"
+
 // Link represents a symlink to create.
 type Link struct {
 	Src  string // file to link to (absolute path of the dotfile)
@@ -215,11 +219,11 @@ func expandDest(path, homeDir, binDir string) string {
 		return fileutil.ExpandHome(path, homeDir)
 	}
 	if binDir != "" {
-		if path == "~bin" {
+		if path == BinPrefix {
 			return binDir
 		}
-		if strings.HasPrefix(path, "~bin/") {
-			return filepath.Join(binDir, path[5:])
+		if strings.HasPrefix(path, BinPrefix+"/") {
+			return filepath.Join(binDir, path[len(BinPrefix)+1:])
 		}
 	}
 	return path
