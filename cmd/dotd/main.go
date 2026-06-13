@@ -98,13 +98,13 @@ func hideIrrelevantInheritedFlags(cmd *cobra.Command) func() {
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		if errors.Is(err, errUserAborted) {
-			fmt.Fprintln(os.Stderr, "cancelled")
+			ui.Skipf(os.Stderr, "cancelled")
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		ui.Errf(os.Stderr, "%s", err)
 		var h Hinter
 		if errors.As(err, &h) {
-			fmt.Fprintf(os.Stderr, "hint:  %s\n", h.Hint())
+			ui.Hintf(os.Stderr, "%s", h.Hint())
 		}
 		var ue *usageError
 		if errors.As(err, &ue) {
@@ -634,14 +634,18 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		return nil
 	}
 
-	cfg.log.Infof("%s %s applied", ui.Header("links:"), plural(len(run.result.Links), "symlink"))
+	// Mutation results are user-facing output, not log diagnostics — they go
+	// to stdout and are not suppressed by --quiet (channel policy, 2026-06-13
+	// audit O1). Stage detail stays on cfg.log above.
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "%s %s applied\n", ui.Header("links:"), plural(len(run.result.Links), "symlink"))
 
 	if err := pipeline.Generate(cfg.initFile, run.result.Sourced, pipeline.GenerateOptions{
 		BinDir: cfg.binDir,
 	}); err != nil {
 		return fmt.Errorf("generate init.sh: %w", err)
 	}
-	cfg.log.Infof("%s wrote %s (%s)", ui.Header("init.sh:"), cfg.initFile, plural(len(run.result.Sourced), "node"))
+	fmt.Fprintf(out, "%s wrote %s (%s)\n", ui.Header("init.sh:"), cfg.initFile, plural(len(run.result.Sourced), "node"))
 	return nil
 }
 

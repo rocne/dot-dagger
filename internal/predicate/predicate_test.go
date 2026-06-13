@@ -227,7 +227,7 @@ func TestEvalCustomFunc(t *testing.T) {
 	expr, _ := Parse("installable(nvim)")
 
 	t.Run("registered function called", func(t *testing.T) {
-		reg := NewFuncRegistry(Strict)
+		reg := NewFuncRegistry()
 		reg.Register("installable", func(arg string) (bool, error) { return true, nil })
 		ev := &Evaluator{Env: map[string]string{}, Funcs: reg}
 		got, err := ev.Eval(expr)
@@ -236,26 +236,12 @@ func TestEvalCustomFunc(t *testing.T) {
 		}
 	})
 
-	t.Run("strict mode: unknown function returns error", func(t *testing.T) {
-		reg := NewFuncRegistry(Strict)
+	t.Run("unknown function returns error", func(t *testing.T) {
+		reg := NewFuncRegistry()
 		ev := &Evaluator{Env: map[string]string{}, Funcs: reg}
 		_, err := ev.Eval(expr)
 		if err == nil {
-			t.Error("expected error for unknown function in strict mode")
-		}
-	})
-
-	t.Run("warn mode: unknown function returns false with warning", func(t *testing.T) {
-		reg := NewFuncRegistry(Warn)
-		var buf strings.Builder
-		reg.SetWarnOutput(&buf)
-		ev := &Evaluator{Env: map[string]string{}, Funcs: reg}
-		got, err := ev.Eval(expr)
-		if err != nil || got {
-			t.Errorf("warn mode: got=%v err=%v, want false nil", got, err)
-		}
-		if !strings.Contains(buf.String(), "installable") {
-			t.Errorf("warning %q does not mention function name", buf.String())
+			t.Error("expected error for unknown function")
 		}
 	})
 }
@@ -575,7 +561,7 @@ func exprEqual(a, b Expr) bool {
 // TestFuncRegistry_RegisterPanicsOnDuplicate verifies that Register panics if
 // the same name is registered twice. Override is the documented escape hatch.
 func TestFuncRegistry_RegisterPanicsOnDuplicate(t *testing.T) {
-	reg := NewFuncRegistry(Strict)
+	reg := NewFuncRegistry()
 	reg.Register("foo", func(arg string) (bool, error) { return true, nil })
 
 	defer func() {

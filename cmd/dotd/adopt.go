@@ -111,7 +111,7 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 			return fmt.Errorf("adopt: %w", err)
 		}
 		if !confirmed {
-			cfg.log.Info("adopt cancelled")
+			ui.Skipf(cmd.OutOrStdout(), "cancelled")
 			return nil
 		}
 	}
@@ -131,12 +131,15 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 
 	destAbs := filepath.Join(cfg.files, destRel)
 
+	// Mutation result → stdout, never suppressed by --quiet (channel policy,
+	// 2026-06-13 audit O1).
+	out := cmd.OutOrStdout()
 	if len(res.Links) > 0 {
-		cfg.log.Infof("%s  %s %s %s",
+		fmt.Fprintf(out, "%s  %s %s %s\n",
 			ui.OK("adopted"), res.Links[0].Dest, ui.Arrow("→"), destAbs)
 	} else {
-		cfg.log.Infof("%s  %s → %s", ui.OK("adopted"), srcAbs, destAbs)
-		cfg.log.Infof("added to shellrc/ — run %s to regenerate init.sh", ui.Header("dotd apply"))
+		fmt.Fprintf(out, "%s  %s → %s\n", ui.OK("adopted"), srcAbs, destAbs)
+		fmt.Fprintf(out, "added to shellrc/ — run %s to regenerate init.sh\n", ui.Header("dotd apply"))
 	}
 	return nil
 }

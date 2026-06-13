@@ -2,11 +2,7 @@ package predicate
 
 import (
 	"fmt"
-	"io"
-	"os"
 	"os/exec"
-
-	"github.com/rocne/dot-dagger/internal/ui"
 )
 
 // MissingKeyError is returned when a predicate references an env key that is not set.
@@ -18,41 +14,20 @@ func (e *MissingKeyError) Error() string {
 	return fmt.Sprintf("predicate: env key %q not set", e.Key)
 }
 
-// Mode controls how unknown predicate function calls are handled.
-type Mode int
-
-const (
-	// Strict causes an unknown function call to return an error. This is the default.
-	Strict Mode = iota
-	// Warn causes an unknown function call to log a warning and return false.
-	Warn
-)
-
 // Func is a predicate function registered with a FuncRegistry.
 // It receives the argument string from the call expression and returns
 // whether the predicate holds.
 type Func func(arg string) (bool, error)
 
-// FuncRegistry holds registered predicate functions and controls behaviour
-// for unknown calls. The zero value is not usable; use NewFuncRegistry.
+// FuncRegistry holds registered predicate functions. Unknown calls are
+// errors. The zero value is not usable; use NewFuncRegistry.
 type FuncRegistry struct {
-	mode    Mode
-	funcs   map[string]Func
-	warnOut io.Writer
+	funcs map[string]Func
 }
 
-// NewFuncRegistry returns a FuncRegistry with the given mode.
-func NewFuncRegistry(mode Mode) *FuncRegistry {
-	return &FuncRegistry{
-		mode:    mode,
-		funcs:   make(map[string]Func),
-		warnOut: os.Stderr,
-	}
-}
-
-// SetWarnOutput sets the writer used for Warn mode messages.
-func (r *FuncRegistry) SetWarnOutput(w io.Writer) {
-	r.warnOut = w
+// NewFuncRegistry returns an empty FuncRegistry.
+func NewFuncRegistry() *FuncRegistry {
+	return &FuncRegistry{funcs: make(map[string]Func)}
 }
 
 // Register registers f under the given name.
@@ -72,24 +47,16 @@ func (r *FuncRegistry) Override(name string, f Func) {
 }
 
 // Call invokes the function registered under name with arg.
-// If name is not registered, behaviour depends on Mode:
-//   - Strict: returns an error
-//   - Warn: writes a warning and returns false
+// An unregistered name is an error.
 func (r *FuncRegistry) Call(name, arg string) (bool, error) {
 	f, ok := r.funcs[name]
 	if !ok {
-		switch r.mode {
-		case Strict:
-			return false, fmt.Errorf("predicate: unknown function %q", name)
-		case Warn:
-			ui.Warnf(r.warnOut, "unknown predicate function %q", name)
-			return false, nil
-		}
+		return false, fmt.Errorf("predicate: unknown function %q", name)
 	}
 	return f(arg)
 }
 
-// NewEvaluator returns an Evaluator with env set and a Strict FuncRegistry
+// NewEvaluator returns an Evaluator with env set and a FuncRegistry
 // pre-populated with the default built-in functions. Use this constructor
 // rather than an inline struct literal so that both filter and manifest
 // evaluation share identical capabilities.
@@ -101,7 +68,7 @@ func (r *FuncRegistry) Call(name, arg string) (bool, error) {
 // Both functions operate without a packages.Registry; pass a registry via
 // RegisterPackageRegistry if package-level binary aliases are needed.
 func NewEvaluator(env map[string]string) *Evaluator {
-	funcs := NewFuncRegistry(Strict)
+	funcs := NewFuncRegistry()
 	registerBuiltins(funcs, nil, nil)
 	return &Evaluator{
 		Env:   env,
