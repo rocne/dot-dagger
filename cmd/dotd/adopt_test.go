@@ -56,7 +56,6 @@ func adoptDotfiles(t *testing.T) string {
 func TestAdopt_ShellScript_InfersShellrc(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("DOTD_LINK_ROOT", "")
 
 	dotfiles := adoptDotfiles(t)
 	src := makeShellScript(t, home, "myscript.sh")
@@ -117,7 +116,6 @@ func TestAdopt_Executable_InfersBin(t *testing.T) {
 func TestAdopt_ToFlag_OverridesInference(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("DOTD_LINK_ROOT", "")
 
 	dotfiles := adoptDotfiles(t)
 	src := makeConfigFile(t, home, "app.conf")
@@ -145,7 +143,6 @@ func TestAdopt_ToFlag_OverridesInference(t *testing.T) {
 func TestAdopt_UnknownType_ErrorWithoutTo(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("DOTD_LINK_ROOT", "")
 
 	dotfiles := adoptDotfiles(t)
 
@@ -173,7 +170,6 @@ func TestAdopt_UnknownType_ErrorWithoutTo(t *testing.T) {
 func TestAdopt_DryRun_DoesNotMoveFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("DOTD_LINK_ROOT", "")
 
 	dotfiles := adoptDotfiles(t)
 	src := makeShellScript(t, home, "dry.sh")
@@ -207,7 +203,6 @@ func TestAdopt_DryRun_DoesNotMoveFile(t *testing.T) {
 func TestAdopt_NonTTYWithoutYesRefuses(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("DOTD_LINK_ROOT", "")
 
 	dotfiles := adoptDotfiles(t)
 	src := makeShellScript(t, home, "keepme.sh")

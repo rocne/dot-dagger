@@ -15,9 +15,8 @@ func newConfigCmd(cfg *config) *cobra.Command {
 		Short: "Inspect and modify tool configuration",
 		Long: `Read and write entries in config.yaml.
 
-Stored values are path defaults for dot-dagger itself: where the dotfiles
-repo lives, where bin scripts are linked, where generated files go, and
-which directory ~ expands to in link destinations.`,
+The only stored preference is the dotfiles repo location (` + "`dotfiles`" + `). All
+other paths resolve from the environment (XDG); run ` + "`dotd paths`" + ` to see them.`,
 	}
 	cmd.AddCommand(
 		newConfigShowCmd(cfg),
