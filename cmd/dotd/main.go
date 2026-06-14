@@ -22,10 +22,15 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// version is the build version reported by `dotd --version`. It defaults to
-// "dev" for local builds and is overridden at release time via the goreleaser
-// ldflag -X main.version=<tag> (see .goreleaser/dotd.yaml).
-var version = "dev"
+// version, commit, and date are the build metadata reported by `dotd --version`.
+// They default to dev-build placeholders and are overridden at release time via
+// goreleaser ldflags -X main.version / -X main.commit / -X main.date (see
+// .goreleaser/dotd.yaml).
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 // pathFlagOwners restricts which subcommands advertise each persistent
 // path/mutation flag in --help. The flag stays registered on the root
@@ -135,7 +140,7 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           ecosystem.ToolD,
 		Short:         "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
-		Version:       version,
+		Version:       fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
