@@ -105,6 +105,12 @@ When a PR already exists for the current branch, update it rather than opening a
 
 Claude reference docs live in `.claude/docs/`. These are works-in-progress intended as context for Claude, not general project documentation.
 
+## Handoffs and Plan Execution
+
+**Reading a handoff is never permission to start executing.** When asked to read a handoff (or any doc that points at a plan), summarize the state and the next steps, then **stop and wait for confirmation or an explicit instruction to begin.** Do not start implementing a plan, writing code, or running execution steps just because the handoff describes them as "next."
+
+**One caveat:** if the handoff itself explicitly says to begin the plan without confirmation, honoring that is fine. Absent such an explicit go-ahead, always wait for the user to say start.
+
 ## TODO / Deferred Tasks
 
 `.claude/TODO.md` tracks known deferred items. Keep it up to date as tasks are completed or new ones come up.
