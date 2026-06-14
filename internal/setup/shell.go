@@ -99,7 +99,8 @@ func AppendSourceLine(rcFile, initPath, home string) error {
 }
 
 // RemoveSourceLine removes the dotd source line and its comment header from rcFile.
-// The comment written by AppendSourceLine is "# dotd — generated shell init".
+// The header it matches is the shared sourceLineHeader const (so it can never
+// drift from what AppendSourceLine writes).
 // No-op if rcFile does not exist or the lines are not present.
 func RemoveSourceLine(rcFile, initFile string) error {
 	data, err := os.ReadFile(rcFile)
