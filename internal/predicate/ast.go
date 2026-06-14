@@ -68,7 +68,7 @@ func (CallExpr) Keys() []string {
 // TrueExpr always evaluates to true. Used as the identity element for And.
 type TrueExpr struct{}
 
-func (TrueExpr) expr() {}
+func (TrueExpr) expr()          {}
 func (TrueExpr) Keys() []string { return nil }
 
 func collectKeys(exprs []Expr) []string {

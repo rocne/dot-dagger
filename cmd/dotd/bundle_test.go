@@ -82,4 +82,3 @@ func TestCollectDeps_FirstNode(t *testing.T) {
 		t.Errorf("expected nil deps for first node, got %v", deps)
 	}
 }
-

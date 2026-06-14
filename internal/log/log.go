@@ -4,10 +4,10 @@
 //
 // Levels: debug < info < warn < error
 //
-//   debug — per-item detail and internals (path resolution, predicate eval)
-//   info  — stage summaries; default level
-//   warn  — recoverable issues
-//   error — failures
+//	debug — per-item detail and internals (path resolution, predicate eval)
+//	info  — stage summaries; default level
+//	warn  — recoverable issues
+//	error — failures
 //
 // Info messages have no level prefix so normal output looks unchanged.
 // Debug/warn/error messages are prefixed (DEBU/WARN/ERRO).
@@ -16,8 +16,8 @@ package log
 import (
 	"io"
 
-	chlog "github.com/charmbracelet/log"
 	"github.com/charmbracelet/lipgloss"
+	chlog "github.com/charmbracelet/log"
 )
 
 // New returns a logger writing to w at the given level name.

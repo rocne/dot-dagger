@@ -193,7 +193,7 @@ func TestBinaryNameUnknownPackage(t *testing.T) {
 
 // --- Installed ---
 
-func lookPathFound(bin string) (string, error) { return "/usr/bin/" + bin, nil }
+func lookPathFound(bin string) (string, error)  { return "/usr/bin/" + bin, nil }
 func lookPathNotFound(_ string) (string, error) { return "", fmt.Errorf("not found") }
 
 func TestInstalledTrue(t *testing.T) {
@@ -542,4 +542,3 @@ func TestReservedKeySet(t *testing.T) {
 		t.Errorf("expected 4 reserved keys, got %d", len(want))
 	}
 }
-

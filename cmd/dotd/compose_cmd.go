@@ -155,4 +155,3 @@ Examples:
 	addJSONFlag(cmd, &jsonOutput)
 	return cmd
 }
-

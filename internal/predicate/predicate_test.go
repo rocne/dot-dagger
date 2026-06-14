@@ -387,7 +387,7 @@ func TestNewEvaluator_BuiltinsRegistered(t *testing.T) {
 func TestEvalCall_NilRegistry(t *testing.T) {
 	// Funcs deliberately left nil — struct literal, not NewEvaluator.
 	ev := &Evaluator{
-		Env:  map[string]string{},
+		Env: map[string]string{},
 		// Funcs: nil  (zero value)
 	}
 

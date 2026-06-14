@@ -12,11 +12,11 @@ const (
 // AnnotationType describes a single annotation key supported by the wizard.
 // Implementations live in registry.go. All methods are pure — no I/O.
 type AnnotationType interface {
-	Key()            string    // e.g. "when"
-	Label()          string    // e.g. "When"  (shown in menu)
-	Description()    string    // one-line explanation shown before prompting
-	Kind()           InputKind
-	Options()        []string  // non-nil only for KindChoice
-	Validate(string) error     // called on non-empty user input; nil = accept
-	Format(string)   string    // returns formatted comment line, e.g. "# @when(os=macos)"
+	Key() string         // e.g. "when"
+	Label() string       // e.g. "When"  (shown in menu)
+	Description() string // one-line explanation shown before prompting
+	Kind() InputKind
+	Options() []string     // non-nil only for KindChoice
+	Validate(string) error // called on non-empty user input; nil = accept
+	Format(string) string  // returns formatted comment line, e.g. "# @when(os=macos)"
 }

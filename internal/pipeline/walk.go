@@ -24,7 +24,6 @@ const (
 	ActionLink     = "link"
 )
 
-
 // Action is a single action declared for a node.
 type Action struct {
 	Type string // ActionLink, ActionSource, ActionNoSource, ActionCompose
