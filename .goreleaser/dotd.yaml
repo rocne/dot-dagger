@@ -48,6 +48,18 @@ brews:
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Tag }}_checksums.txt"
 
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+
 changelog:
   sort: asc
   filters:
