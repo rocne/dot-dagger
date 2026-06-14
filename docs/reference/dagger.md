@@ -174,8 +174,8 @@ The `dotd compose list` and `dotd compose check` commands inspect compose target
 The `conventions` key (valid only in the root `.dagger`) renames the three convention directories. By default:
 
 - `shellrc` — shell scripts sourced into `init.sh`
-- `bin` — executables symlinked onto `$PATH`
-- `config` — config files symlinked into `~/.config`
+- `bin` — executables symlinked into `$bin` (default `~/.local/bin/dot-dagger`, on `$PATH`)
+- `config` — config files symlinked under `$config` (default `~/.config`)
 
 Override any or all of them:
 

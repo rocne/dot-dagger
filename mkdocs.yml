@@ -5,6 +5,11 @@ repo_url: https://github.com/rocne/dot-dagger
 repo_name: rocne/dot-dagger
 edit_uri: edit/main/docs/
 
+# Internal design docs (specs/plans) live under docs/superpowers/ for convenience
+# but are not part of the published site.
+exclude_docs: |
+  superpowers/
+
 theme:
   name: material
   palette:

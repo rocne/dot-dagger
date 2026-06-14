@@ -11,7 +11,7 @@ Detects your OS and architecture, downloads the latest release, and installs `do
 **Install a specific version:**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
+curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.6.0
 ```
 
 **Install to a custom directory:**
@@ -40,15 +40,19 @@ If you already have a dotfiles repo, point dotd at it and run:
 # Apply everything — symlinks, packages, init.sh
 dotd apply -f ~/dotfiles
 
-# Wire init.sh into your shell
-echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.zshrc   # zsh
-echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.bashrc  # bash
-
 # See what would change without touching anything
 dotd apply -f ~/dotfiles --dry-run
 
 # Check current state across all stages
 dotd check -f ~/dotfiles
+```
+
+`dotd setup` and `dotd init` wire `init.sh` into your shell for you. If you ran a
+bare `dotd apply` without them, add the source line once yourself:
+
+```sh
+echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.zshrc   # zsh
+echo 'source ~/.local/share/dot-dagger/init.sh' >> ~/.bashrc  # bash
 ```
 
 If you're starting from scratch, use `dotd setup` to scaffold the repo structure and wire up your shell automatically:
@@ -66,8 +70,8 @@ See [Your first machine](first-machine.md) for a step-by-step walkthrough.
 ```
 dotfiles/
   shellrc/          ← shell scripts sourced into init.sh, in dependency order
-  config/           ← config files symlinked into ~/.config
-  bin/              ← executables symlinked onto $PATH
+  config/           ← config files symlinked under $config (default ~/.config)
+  bin/              ← executables symlinked into $bin (default ~/.local/bin/dot-dagger, on $PATH)
   env.yaml          ← your environment context (os, shell, context, etc.)
   packages.yaml     ← package registry
   .dagger           ← per-directory config for files that can't carry annotations

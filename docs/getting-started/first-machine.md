@@ -10,12 +10,11 @@ Run `dotd setup` to write the config files:
 dotd setup
 ```
 
-It will ask for:
+It asks for one thing:
 
 - **Dotfiles directory** — where your dotfiles git repo lives (default: `~/dotfiles`)
-- **Bin directory** — where executable scripts from the repo are linked (default: `~/.local/bin/dot-dagger`)
-- **Generated files directory** — where compose-assembled shell fragments are written (default: `~/.local/share/dot-dagger/generated`)
-- **Link root** — home directory used for `~` expansion in link destinations (default: `$HOME`)
+
+That's the only stored setting. Every other path — `$bin`, `$config`, the generated-files and `init.sh` locations — resolves automatically from your environment (XDG). Run `dotd paths` to see exactly where they land on this machine.
 
 Writes config.yaml and (if absent) env.yaml. Then run `dotd init` to scaffold the convention directories (`shellrc/`, `config/`, `bin/`) in your dotfiles repo and wire the init.sh source line into your shell:
 
@@ -105,7 +104,8 @@ dotd apply -f ~/dotfiles --dry-run
 
 ## 6. Wire up your shell
 
-If `dotd init` didn't append the source line automatically, add it yourself:
+`dotd init` (step 1) already appended the `init.sh` source line to your shell RC
+file. If you skipped `init`, add it once yourself:
 
 ```sh
 # zsh
