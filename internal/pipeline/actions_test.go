@@ -283,6 +283,25 @@ func TestValidateNodes(t *testing.T) {
 			wantErr: true,
 			errMsg:  "conflicting link destinations",
 		},
+		// anchor validation through ValidateNodes
+		{
+			name: "node link_root with invalid anchor is an error",
+			nodes: []RawNode{{
+				Path:        "/dotfiles/conf/dot-gitconfig",
+				LogicalName: "conf.dot-gitconfig",
+				LinkRoot:    "~bin",
+				LinkRootDir: "/dotfiles/conf",
+				Actions:     []Action{{Type: ActionLink, Dest: ""}},
+			}},
+			wantErr: true,
+			errMsg:  "unknown anchor token",
+		},
+		{
+			name:    "link destination with invalid anchor is an error",
+			nodes:   []RawNode{fileNode("foo.sh", []Action{{Type: ActionLink, Dest: "$typo"}})},
+			wantErr: true,
+			errMsg:  "unknown anchor token",
+		},
 		// --- valid cases ---
 		{
 			name:    "empty nodes slice is valid",

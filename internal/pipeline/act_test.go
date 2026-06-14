@@ -661,6 +661,72 @@ func TestAct_BinDirExpansion(t *testing.T) {
 	}
 }
 
+// TestAct_ConfigDirExpansion covers "$config" and "$config/<rel>" link
+// destination expansion against ActOptions.ConfigDir. Mirrors
+// TestAct_BinDirExpansion. All sub-cases use DryRun so no filesystem writes
+// occur; only the resolved Dest value is asserted.
+func TestAct_ConfigDirExpansion(t *testing.T) {
+	cases := []struct {
+		name      string
+		dest      string
+		configDir string
+		wantDest  string // exact expected Dest after expansion
+	}{
+		{
+			name:      "$config expands to ConfigDir",
+			dest:      "$config",
+			configDir: "/some/conf",
+			wantDest:  "/some/conf",
+		},
+		{
+			name:      "$config/nvim expands under ConfigDir",
+			dest:      "$config/nvim",
+			configDir: "/some/conf",
+			wantDest:  "/some/conf/nvim",
+		},
+		{
+			name:      "$config with empty ConfigDir is not expanded",
+			dest:      "$config",
+			configDir: "",
+			wantDest:  "$config",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srcDir := t.TempDir()
+
+			// Build a real source file so Act doesn't error on a missing path.
+			srcPath := filepath.Join(srcDir, "init.lua")
+			if err := os.WriteFile(srcPath, []byte("-- config\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			n := RawNode{
+				Path:        srcPath,
+				LogicalName: "init.lua",
+				Actions:     []Action{{Type: ActionLink, Dest: c.dest}},
+			}
+
+			home := t.TempDir()
+			res, err := Act([]RawNode{n}, ActOptions{
+				HomeDir:   home,
+				ConfigDir: c.configDir,
+				DryRun:    true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Links) != 1 {
+				t.Fatalf("expected 1 link, got %d: %v", len(res.Links), res.Links)
+			}
+			if res.Links[0].Dest != c.wantDest {
+				t.Errorf("link.Dest = %q, want %q", res.Links[0].Dest, c.wantDest)
+			}
+		})
+	}
+}
+
 func TestExpandDest_Anchors(t *testing.T) {
 	const home, bin, conf = "/home/u", "/home/u/.local/bin/dot-dagger", "/home/u/.config"
 	cases := []struct{ in, want string }{
