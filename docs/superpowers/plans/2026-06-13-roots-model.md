@@ -1,59 +1,51 @@
-# Roots Model Implementation Plan
+# Roots Model (pure-XDG) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Kill the global `link_root` knob so `~` always means `$HOME`, and add a configurable `config_dir` route via the `$config` token; rename the tool's own state-file flags to `--dotd-config`/`--dotd-env`.
+**Goal:** Replace the global `link_root` knob with three knob-less anchor tokens (`~`, `$bin`, `$config`) resolved purely from the environment (XDG), remove every path-route/output knob, add anchor-token validation and a `dotd paths` view, and rename the tool's own state-file flags to `--dotd-config`/`--dotd-env`.
 
-**Architecture:** Three anchor tokens in `.dagger` `link_root:` values — `~` (real `$HOME`, never configurable), `$bin` (bin dir), `$config` (config dir, new). The pipeline stays a pure function: all three anchors are resolved at the cmd layer and injected into `ActOptions`. Home is read on demand via a new `ecosystem.Home()` accessor (no flag/env/config tier, no `cfg.home` field). No backward compatibility — the `LinkRoot` config field and old flag names are removed cleanly.
+**Architecture:** `.dagger` `link_root:`/dest values use anchor tokens; the pipeline stays a pure function receiving resolved `HomeDir`/`BinDir`/`ConfigDir`/`GeneratedDir` in `ActOptions`. All anchors + tool outputs are resolved once in `resolvePaths()` from `ecosystem` accessors (no flag/env/config-field tiers) into `cfg` fields. config.yaml shrinks to a single `dotfiles` field. No backward compatibility — tests configure `HOME`/`XDG_*`.
 
-**Tech Stack:** Go 1.26, cobra/pflag, yaml.v3 (strict `KnownFields`), testify-free table tests.
+**Tech Stack:** Go 1.26, cobra/pflag, yaml.v3 (strict `KnownFields`).
 
 **Spec:** `docs/superpowers/specs/2026-06-13-roots-model-design.md`
 
-**Ordering note:** Do tasks in order. Task 1 changes the `BinPrefix` const value (`~bin` → `$bin`), which fixtures (Task 9) depend on; the full suite only goes green after Task 9. Between tasks, expect *targeted* test breakage in not-yet-updated areas — that is fine; each task lists exactly what it must make pass.
+**Ordering note:** Do tasks in order. Task 1 flips `BinPrefix` (`~bin`→`$bin`), which fixtures (Task 9) depend on; the full suite only goes green after Task 9. Between tasks, expect targeted breakage in not-yet-updated areas — each task states exactly what it must make pass.
 
 ---
 
 ## File Structure
 
-| File | Responsibility | Change |
-|------|----------------|--------|
-| `internal/pipeline/act.go` | Token expansion (`expandDest`), `ActOptions` | Add `$config` branch + `ConfigDir`; rename `BinPrefix`→`$bin`; add `ConfigPrefix` |
-| `internal/pipeline/actions.go` | `CheckLinkConflicts` call; `validateNode` | Thread `ConfigDir`; add `validateAnchor` (reject unknown tokens) |
-| `internal/config/config.go` | config.yaml schema/get/set | Drop `LinkRoot`; add `ConfigDir` |
-| `internal/ecosystem/ecosystem.go` | path/home defaults | Add `Home()`; remove `DefaultLinkRoot` |
-| `cmd/dotd/main.go` | flags, `resolvePaths`, `buildActOptions`, cfg struct | Rename/drop/add flags; drop `linkRoot`, add `configDir`; `buildActOptions` returns error |
-| `cmd/dotd/setup_cmd.go` | setup wizard | Drop "Link root" prompt; add "Config directory" prompt |
-| `cmd/dotd/init_cmd.go` | scaffold + source-line | `$config`/`$bin` scaffold; `ecosystem.Home()` |
-| `cmd/dotd/teardown_cmd.go` | teardown | `ecosystem.Home()` |
-| `cmd/dotd/adopt.go` + `internal/adopter/adopter.go` | adopt | `ecosystem.Home()`; rename `AdoptOptions.LinkRoot`→`HomeDir`, add `ConfigDir` |
-| `cmd/dotd/config_cmd.go` | config subcommand help | Examples `link_root`→`config_dir` |
-| testdata/e2e fixtures + tests | encode behavior | `~bin`→`$bin`; `--link-root`→env config |
-| docs | user-facing | reference/concepts/spec sections |
+| File | Change |
+|------|--------|
+| `internal/pipeline/act.go` | `$bin`/`$config`/`~` `expandDest`; `BinPrefix="$bin"`, `ConfigPrefix="$config"`; `ActOptions.ConfigDir` |
+| `internal/pipeline/actions.go` | thread `ConfigDir`; add `validateAnchor` + wire into `validateNode` |
+| `internal/ecosystem/ecosystem.go` | `Home()`, `XdgBinHome()`, `BinDir()`, `ConfigDir()`; rename `DefaultGeneratedDir`→`GeneratedDir`, `DefaultInitFile`→`InitFile`; remove `DefaultLinkRoot`, `DefaultBinDir` |
+| `internal/config/config.go` | strip to `Dotfiles` only |
+| `cmd/dotd/main.go` | cfg fields (`home`,`configDir`; drop `linkRoot`); drop path flags; rename `--dotd-config`/`--dotd-env`; `resolvePaths` from accessors; `pathFlagOwners`; `buildActOptions`; `ValidateNodes` call |
+| `cmd/dotd/setup_cmd.go` | strip to `dotfiles` prompt; `Home()` |
+| `cmd/dotd/init_cmd.go` | scaffold `$bin`/`$config`; `cfg.home` |
+| `cmd/dotd/teardown_cmd.go`, `adopt.go`, `internal/adopter/adopter.go` | `cfg.home`; adopt `ConfigDir` |
+| `cmd/dotd/config_cmd.go` | help examples → `dotfiles` |
+| `cmd/dotd/paths_cmd.go` (new) | `dotd paths` resolved-view |
+| testdata/e2e/docs | `~bin`→`$bin`; `--link-root`→env; flag/key doc updates |
 
 ---
 
-## Task 1: Pipeline token expansion + validation (`$bin`, `$config`, `~`)
+## Task 1: Pipeline token expansion + validation
 
-**Files:**
-- Modify: `internal/pipeline/act.go` (`ActOptions` ~14-24, `resolveLink` ~178-183, `expandDest` ~217-230, `Act` error msg ~51)
-- Modify: `internal/pipeline/actions.go:69` (resolveLink call)
-- Test: `internal/pipeline/act_test.go`
+**Files:** Modify `internal/pipeline/act.go`, `internal/pipeline/actions.go`; Test `internal/pipeline/act_test.go`, `internal/pipeline/actions_test.go`
 
-- [ ] **Step 1: Write the failing test** — add to `internal/pipeline/act_test.go`:
+- [ ] **Step 1: Write the failing expansion test** — add to `internal/pipeline/act_test.go`:
 
 ```go
 func TestExpandDest_Anchors(t *testing.T) {
 	const home, bin, conf = "/home/u", "/home/u/.local/bin/dot-dagger", "/home/u/.config"
 	cases := []struct{ in, want string }{
-		{"~", home},
-		{"~/.zshrc", home + "/.zshrc"},
-		{"$bin", bin},
-		{"$bin/fmt", bin + "/fmt"},
-		{"$config", conf},
-		{"$config/nvim/init.lua", conf + "/nvim/init.lua"},
-		{"/abs/path", "/abs/path"},
-		{"relative/path", "relative/path"},
+		{"~", home}, {"~/.zshrc", home + "/.zshrc"},
+		{"$bin", bin}, {"$bin/fmt", bin + "/fmt"},
+		{"$config", conf}, {"$config/nvim/init.lua", conf + "/nvim/init.lua"},
+		{"/abs/path", "/abs/path"}, {"relative/path", "relative/path"},
 	}
 	for _, c := range cases {
 		if got := expandDest(c.in, home, bin, conf); got != c.want {
@@ -66,11 +58,9 @@ func TestExpandDest_Anchors(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `go test ./internal/pipeline/ -run TestExpandDest_Anchors`
-Expected: FAIL — `expandDest` currently takes 3 args (`path, homeDir, binDir`), so this is a compile error ("too many arguments").
+Expected: FAIL — `expandDest` currently takes 3 args (compile error).
 
-- [ ] **Step 3: Update the token constants and `ActOptions`** in `internal/pipeline/act.go`:
-
-Replace lines 14-24 (the `ActOptions` struct and `BinPrefix` const) with:
+- [ ] **Step 3: Update `ActOptions` + token consts** in `internal/pipeline/act.go`. Replace the `ActOptions` struct and `BinPrefix` const (around lines 14-24):
 
 ```go
 // ActOptions configures Act behaviour.
@@ -79,27 +69,26 @@ type ActOptions struct {
 	BinDir       string // replaces "$bin" in link destinations
 	ConfigDir    string // replaces "$config" in link destinations
 	GeneratedDir string // directory for compose-generated files
-	DryRun        bool  // validate without writing to filesystem
-	Force         bool  // overwrite non-symlink files on link conflicts
+	DryRun       bool   // validate without writing to filesystem
+	Force        bool   // overwrite non-symlink files on link conflicts
 }
 
 // BinPrefix and ConfigPrefix are the destination tokens that expand to
 // ActOptions.BinDir / ActOptions.ConfigDir ("$bin", "$config", optionally
-// followed by "/<rel>"). "~" expands to HomeDir (the real $HOME) and is never
-// configurable.
+// "/<rel>"). "~" expands to HomeDir (the real $HOME) and is never configurable.
 const (
 	BinPrefix    = "$bin"
 	ConfigPrefix = "$config"
 )
 ```
 
-- [ ] **Step 4: Rewrite `expandDest`** in `internal/pipeline/act.go` (replace the function at ~217-230):
+- [ ] **Step 4: Rewrite `expandDest`** in `internal/pipeline/act.go` (replace the existing function):
 
 ```go
 // expandDest expands the "~", "$bin", and "$config" anchor tokens in a link
-// destination. "~" / "~/x" go through fileutil.ExpandHome (real $HOME);
-// "$bin" / "$config" (optionally "/<rel>") map to binDir / configDir.
-// Absolute and relative paths are returned unchanged.
+// destination. "~" / "~/x" use the real $HOME; "$bin" / "$config" (optionally
+// "/<rel>") map to binDir / configDir. Absolute and relative paths are returned
+// unchanged.
 func expandDest(path, homeDir, binDir, configDir string) string {
 	if path == "~" || (len(path) >= 2 && path[0] == '~' && path[1] == '/') {
 		return fileutil.ExpandHome(path, homeDir)
@@ -114,8 +103,8 @@ func expandDest(path, homeDir, binDir, configDir string) string {
 }
 
 // expandToken returns base (optionally joined with the "/<rel>" suffix) when
-// path is exactly token or token+"/...". Returns "" when path does not match
-// the token or base is empty (token unconfigured).
+// path is exactly token or token+"/...". Returns "" when path does not match or
+// base is empty.
 func expandToken(path, token, base string) string {
 	if base == "" {
 		return ""
@@ -130,7 +119,7 @@ func expandToken(path, token, base string) string {
 }
 ```
 
-- [ ] **Step 5: Thread `configDir` through `resolveLink`** in `internal/pipeline/act.go` (~178-183):
+- [ ] **Step 5: Thread `configDir` through `resolveLink`** in `act.go`:
 
 ```go
 func resolveLink(dest string, n RawNode, homeDir, binDir, configDir string) string {
@@ -141,37 +130,34 @@ func resolveLink(dest string, n RawNode, homeDir, binDir, configDir string) stri
 }
 ```
 
-And update its caller at `act.go:168`:
-
+Update its caller in `act.go` (the `ActionLink` case in `emitNodeActions`):
 ```go
 			dest := resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir, opts.ConfigDir)
 ```
 
-And the caller in `internal/pipeline/actions.go:69`:
-
+And the caller in `actions.go` (`CheckLinkConflicts`):
 ```go
 				dest = resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir, opts.ConfigDir)
 ```
 
-- [ ] **Step 6: Fix the `Act` error message** in `act.go:51` (remove the dead `cfg.linkRoot` reference):
-
+- [ ] **Step 6: Fix the `Act` HomeDir error message** in `act.go` (remove the dead `cfg.linkRoot` reference):
 ```go
 		return nil, fmt.Errorf("act: HomeDir is required — set it to the resolved $HOME")
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 7: Run the expansion test**
 
-Run: `go test ./internal/pipeline/`
-Expected: PASS for `TestExpandDest_Anchors`. NOTE: other pipeline tests that hardcode `~bin` in expected data will FAIL — that is expected; they are fixed in Task 9. If any failure is *not* about `~bin`/`$bin`, stop and investigate.
+Run: `go test ./internal/pipeline/ -run TestExpandDest_Anchors`
+Expected: PASS. (Whole-package tests with `~bin` fixtures still fail — fixed in Task 9.)
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add internal/pipeline/act.go internal/pipeline/actions.go internal/pipeline/act_test.go
-git commit -m "feat(pipeline): add \$config anchor, move \$bin off ~bin token"
+git commit -m "feat(pipeline): \$bin/\$config/~ anchor expansion"
 ```
 
-- [ ] **Step 9: Write the failing validation test** — add to `internal/pipeline/actions_test.go` (create if absent, `package pipeline`):
+- [ ] **Step 9: Write the failing validation test** — add to `internal/pipeline/actions_test.go` (create with `package pipeline` if absent):
 
 ```go
 func TestValidateAnchor(t *testing.T) {
@@ -197,15 +183,12 @@ Expected: FAIL — `validateAnchor` undefined.
 
 - [ ] **Step 11: Implement `validateAnchor` + wire into `validateNode`** in `internal/pipeline/actions.go`.
 
-Add the function (near `validateNode`):
-
+Add (near `validateNode`):
 ```go
 // validateAnchor rejects a link destination or link_root value that begins with
-// an anchor sigil ("~" or "$") but is not a recognized token. "~" expands to
-// $HOME (valid as "~" or "~/..."); "$bin"/"$config" map to the bin/config
-// routes (valid alone or as "$bin/..."/"$config/..."). Paths with no leading
-// sigil are always allowed. This catches typos like "$conifg" that would
-// otherwise be linked to a literal garbage path. field labels the error source.
+// an anchor sigil ("~" or "$") but is not a recognized token. Catches typos like
+// "$conifg" that expandDest would otherwise treat as a literal path. Paths with
+// no leading sigil are always allowed. field labels the error source.
 func validateAnchor(field, value string) error {
 	if value == "" {
 		return nil
@@ -222,67 +205,147 @@ func validateAnchor(field, value string) error {
 			}
 		}
 	default:
-		return nil // absolute or relative path, left as-authored
+		return nil
 	}
 	return fmt.Errorf("unknown anchor token %q in %s — valid anchors are ~, %s, %s", value, field, BinPrefix, ConfigPrefix)
 }
 ```
 
-In `validateNode`, after the `if n.IsCompose { return nil }` guard, validate the per-node link_root:
-
+In `validateNode`, after the `if n.IsCompose { return nil }` guard:
 ```go
 	if err := validateAnchor("link_root", n.LinkRoot); err != nil {
 		return fmt.Errorf("node %s: %w", n.LogicalName, err)
 	}
 ```
 
-And inside the `case ActionLink:` block (after the empty-dest check), validate the explicit dest:
-
+Inside the `case ActionLink:` block (after the empty-dest check):
 ```go
 			if err := validateAnchor("link destination", a.Dest); err != nil {
 				return fmt.Errorf("node %s: %w", n.LogicalName, err)
 			}
 ```
 
-(`strings` is already imported in `actions.go`.)
+(`strings` and `fmt` are already imported in `actions.go`.)
 
-- [ ] **Step 12: Run test to verify it passes**
+- [ ] **Step 12: Run the validation test**
 
 Run: `go test ./internal/pipeline/ -run 'TestValidateAnchor|TestExpandDest'`
-Expected: PASS. (Whole-package may still have `~bin` fixture failures — fixed in Task 10.)
+Expected: PASS.
 
 - [ ] **Step 13: Commit**
 
 ```bash
 git add internal/pipeline/actions.go internal/pipeline/actions_test.go
-git commit -m "feat(pipeline): reject unknown anchor tokens in link_root/dest"
+git commit -m "feat(pipeline): reject unknown anchor tokens"
 ```
 
 ---
 
-## Task 2: config.yaml schema — drop `link_root`, add `config_dir`
+## Task 2: ecosystem accessors
 
-**Files:**
-- Modify: `internal/config/config.go`
-- Test: `internal/config/config_test.go`
+**Files:** Modify `internal/ecosystem/ecosystem.go`; Test `internal/ecosystem/ecosystem_test.go`
+
+- [ ] **Step 1: Write the failing tests** — add to `internal/ecosystem/ecosystem_test.go`:
+
+```go
+func TestHome_RespectsHOME(t *testing.T) {
+	t.Setenv("HOME", "/home/respected")
+	if got, err := Home(); err != nil || got != "/home/respected" {
+		t.Fatalf("Home() = %q, %v; want /home/respected", got, err)
+	}
+}
+
+func TestBinDir_NamespacedHonorsXDG(t *testing.T) {
+	t.Setenv("HOME", "/home/u")
+	t.Setenv("XDG_BIN_HOME", "")
+	if got, _ := BinDir(); got != "/home/u/.local/bin/"+Name {
+		t.Fatalf("BinDir() default = %q", got)
+	}
+	t.Setenv("XDG_BIN_HOME", "/custom/bin")
+	if got, _ := BinDir(); got != "/custom/bin/"+Name {
+		t.Fatalf("BinDir() with XDG_BIN_HOME = %q", got)
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/ecosystem/ -run 'TestHome_RespectsHOME|TestBinDir_NamespacedHonorsXDG'`
+Expected: FAIL — `Home`, `BinDir` undefined.
+
+- [ ] **Step 3: Replace `DefaultLinkRoot` and `DefaultBinDir`** in `internal/ecosystem/ecosystem.go`. Remove both functions; add:
+
+```go
+// Home returns the user's home directory ($HOME on linux/darwin) — the single
+// canonical accessor for "~". Not a configurable knob: $HOME is authoritative
+// (universal convention, like $EDITOR).
+func Home() (string, error) {
+	return userHome()
+}
+
+// XdgBinHome returns $XDG_BIN_HOME if set to an absolute path, else ~/.local/bin.
+// $XDG_BIN_HOME is not part of the XDG base spec but is the de-facto convention
+// for user binaries; honoring it lets users relocate the bin root the standard
+// (system-wide) way.
+func XdgBinHome() (string, error) {
+	if d := os.Getenv("XDG_BIN_HOME"); d != "" && filepath.IsAbs(d) {
+		return d, nil
+	}
+	home, err := userHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".local", "bin"), nil
+}
+
+// BinDir returns the dot-dagger-namespaced bin route: <XdgBinHome>/dot-dagger.
+// Namespacing is free because PATH is a search list; init.sh adds this dir to PATH.
+func BinDir() (string, error) {
+	base, err := XdgBinHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, Name), nil
+}
+
+// ConfigDir returns the config route: $XDG_CONFIG_HOME (≈ ~/.config). Configs
+// link directly here (apps read ~/.config/<app>), never namespaced.
+func ConfigDir() (string, error) {
+	return xdgConfigHome()
+}
+```
+
+- [ ] **Step 4: Rename `DefaultGeneratedDir`→`GeneratedDir` and `DefaultInitFile`→`InitFile`** (the path-output resolvers — keep their bodies, drop the "Default" prefix and adjust the doc comment to drop "default"). Leave `DefaultConfigFile`, `DefaultEnvFile`, `DefaultDotfiles` untouched (still used by the surviving configurable paths).
+
+- [ ] **Step 5: Run the tests**
+
+Run: `go test ./internal/ecosystem/ -run 'TestHome|TestBinDir'`
+Expected: PASS. (Package compiles; cmd refs to the removed/renamed functions are fixed in Task 4.)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/ecosystem/ecosystem.go internal/ecosystem/ecosystem_test.go
+git commit -m "feat(ecosystem): Home/XdgBinHome/BinDir/ConfigDir accessors"
+```
+
+---
+
+## Task 3: config.yaml schema — `dotfiles` only
+
+**Files:** Modify `internal/config/config.go`; Test `internal/config/config_test.go`
 
 - [ ] **Step 1: Write the failing test** — add to `internal/config/config_test.go`:
 
 ```go
-func TestConfig_ConfigDir_GetSet(t *testing.T) {
-	c := &Config{}
-	if err := c.Set(KeyConfigDir, "/x/.config"); err != nil {
-		t.Fatal(err)
+func TestConfig_OnlyDotfiles(t *testing.T) {
+	if len(Keys) != 1 || Keys[0] != KeyDotfiles {
+		t.Fatalf("Keys = %v, want [dotfiles]", Keys)
 	}
-	got, err := c.Get(KeyConfigDir)
-	if err != nil || got != "/x/.config" {
-		t.Fatalf("Get(config_dir) = %q, %v", got, err)
+	if _, err := loadFrom(strings.NewReader("bin_dir: /x\n")); err == nil {
+		t.Fatal("expected strict-decode error for removed bin_dir field")
 	}
-}
-
-func TestConfig_LinkRootRejected(t *testing.T) {
-	_, err := loadFrom(strings.NewReader("link_root: ~/.config\n"))
-	if err == nil {
+	if _, err := loadFrom(strings.NewReader("link_root: ~/.config\n")); err == nil {
 		t.Fatal("expected strict-decode error for removed link_root field")
 	}
 }
@@ -292,390 +355,290 @@ Ensure `strings` is imported in the test file.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./internal/config/ -run 'TestConfig_ConfigDir_GetSet|TestConfig_LinkRootRejected'`
-Expected: FAIL — `KeyConfigDir` undefined (compile error).
+Run: `go test ./internal/config/ -run TestConfig_OnlyDotfiles`
+Expected: FAIL — `bin_dir`/`link_root` currently decode fine; `Keys` has 4 entries.
 
-- [ ] **Step 3: Edit `internal/config/config.go`** — replace the const block (16-21), `Keys` (24), struct (27-32), and the `Get`/`Set` `KeyLinkRoot` cases:
+- [ ] **Step 3: Strip `internal/config/config.go`** to a single field. Replace the const block, `Keys`, struct, and the `Get`/`Set` switch bodies:
 
-Const block:
 ```go
-const (
-	KeyDotfiles     = "dotfiles"
-	KeyBinDir       = "bin_dir"
-	KeyGeneratedDir = "generated_dir"
-	KeyConfigDir    = "config_dir"
-)
+const KeyDotfiles = "dotfiles"
+
+// Keys is the ordered list of all valid config keys.
+var Keys = []string{KeyDotfiles}
 ```
 
-Keys:
-```go
-var Keys = []string{KeyDotfiles, KeyBinDir, KeyGeneratedDir, KeyConfigDir}
-```
-
-Struct:
 ```go
 type Config struct {
-	Dotfiles     string `yaml:"dotfiles"`
-	BinDir       string `yaml:"bin_dir"`
-	GeneratedDir string `yaml:"generated_dir"`
-	ConfigDir    string `yaml:"config_dir"`
+	Dotfiles string `yaml:"dotfiles"`
 }
 ```
 
-In `Get`, replace the `case KeyLinkRoot: return c.LinkRoot, nil` with:
 ```go
-	case KeyConfigDir:
-		return c.ConfigDir, nil
+func (c *Config) Get(key string) (string, error) {
+	switch key {
+	case KeyDotfiles:
+		return c.Dotfiles, nil
+	default:
+		return "", fmt.Errorf("config: unknown key %q", key)
+	}
+}
+
+func (c *Config) Set(key, value string) error {
+	switch key {
+	case KeyDotfiles:
+		c.Dotfiles = value
+	default:
+		return fmt.Errorf("config: unknown key %q", key)
+	}
+	return nil
+}
 ```
 
-In `Set`, replace the `case KeyLinkRoot: c.LinkRoot = value` with:
-```go
-	case KeyConfigDir:
-		c.ConfigDir = value
-```
+**No special-case handling** for removed fields — strict `KnownFields(true)` rejecting them as unknown is exactly the desired behavior.
 
-**No special-case handling for the removed field.** Do NOT add any detection or
-custom message for a stray `link_root:`; the strict `KnownFields(true)` decode
-already rejects it as an unknown field, which is exactly the desired behavior
-(`link_root` is treated as if it never existed — no back-hinting). The
-`TestConfig_LinkRootRejected` test asserts this.
-
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run tests**
 
 Run: `go test ./internal/config/`
-Expected: PASS (all of them — config tests are self-contained).
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add internal/config/config.go internal/config/config_test.go
-git commit -m "feat(config): replace link_root field with config_dir"
+git commit -m "feat(config): shrink config.yaml to dotfiles only"
 ```
 
 ---
 
-## Task 3: `ecosystem.Home()` accessor; remove `DefaultLinkRoot`
+## Task 4: cmd wiring — flags, resolvePaths, ActOptions
 
-**Files:**
-- Modify: `internal/ecosystem/ecosystem.go` (~94-98)
-- Test: `internal/ecosystem/ecosystem_test.go`
-
-- [ ] **Step 1: Write the failing test** — add to `internal/ecosystem/ecosystem_test.go`:
-
-```go
-func TestHome_RespectsHOME(t *testing.T) {
-	t.Setenv("HOME", "/home/respected")
-	got, err := Home()
-	if err != nil || got != "/home/respected" {
-		t.Fatalf("Home() = %q, %v; want /home/respected", got, err)
-	}
-}
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `go test ./internal/ecosystem/ -run TestHome_RespectsHOME`
-Expected: FAIL — `Home` undefined.
-
-- [ ] **Step 3: Replace `DefaultLinkRoot`** in `internal/ecosystem/ecosystem.go` (lines 94-98) with:
-
-```go
-// Home returns the user's home directory ($HOME on linux/darwin), the single
-// canonical accessor for "~". It is NOT a resolvable knob — there is no flag,
-// env, or config tier; $HOME is authoritative (the universal convention, like
-// $EDITOR). Callers use this everywhere instead of os.UserHomeDir directly so
-// the error message is uniform.
-func Home() (string, error) {
-	return userHome()
-}
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `go test ./internal/ecosystem/ -run TestHome_RespectsHOME`
-Expected: PASS. (The package won't fully build until callers of `DefaultLinkRoot` are removed in Task 4 — but this package's own tests compile. If `DefaultLinkRoot` still has in-package references, there are none; cmd refs are handled next.)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add internal/ecosystem/ecosystem.go internal/ecosystem/ecosystem_test.go
-git commit -m "feat(ecosystem): add Home() accessor, remove DefaultLinkRoot"
-```
-
----
-
-## Task 4: cmd wiring — flags, `resolvePaths`, `buildActOptions`
-
-**Files:**
-- Modify: `cmd/dotd/main.go` (cfg struct 117-139, flags 155-168, pathFlagOwners 36-60, resolvePaths 388 + add configDir, buildActOptions 433-441, ValidateNodes call 489)
-- Modify callers: `cmd/dotd/unapply_cmd.go:60`, `cmd/dotd/compose_cmd.go:98`, `cmd/dotd/main.go:518`
-- Test: `cmd/dotd/main_test.go` (a focused resolve test)
+**Files:** Modify `cmd/dotd/main.go`; callers `unapply_cmd.go`, `compose_cmd.go`; Test `cmd/dotd/main_test.go`
 
 - [ ] **Step 1: Write the failing test** — add to `cmd/dotd/main_test.go`:
 
 ```go
-func TestResolvePaths_ConfigDirDefaultsXDG(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+func TestResolvePaths_AnchorsFromEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", "/xdg/conf")
+	t.Setenv("XDG_BIN_HOME", "/xdg/bin")
 	t.Setenv("DOTD_CONFIG_FILE", filepath.Join(t.TempDir(), "nope.yaml"))
 	cfg := &config{}
 	if err := resolvePaths(cfg); err != nil {
 		t.Fatal(err)
 	}
+	if cfg.home != home {
+		t.Errorf("home = %q, want %q", cfg.home, home)
+	}
 	if cfg.configDir != "/xdg/conf" {
-		t.Fatalf("configDir = %q, want /xdg/conf", cfg.configDir)
+		t.Errorf("configDir = %q", cfg.configDir)
+	}
+	if cfg.binDir != "/xdg/bin/dot-dagger" {
+		t.Errorf("binDir = %q", cfg.binDir)
 	}
 }
 ```
 
-Ensure `path/filepath` is imported in the test file.
+Ensure `path/filepath` is imported.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/dotd/ -run TestResolvePaths_ConfigDirDefaultsXDG`
-Expected: FAIL — `cfg.configDir` undefined (compile error).
+Run: `go test ./cmd/dotd/ -run TestResolvePaths_AnchorsFromEnv`
+Expected: FAIL — `cfg.home`/`cfg.configDir` undefined.
 
-- [ ] **Step 3: Edit the cfg struct** in `cmd/dotd/main.go` (~117-130): replace the `linkRoot string` field with `configDir string`:
+- [ ] **Step 3: Edit the cfg struct** in `cmd/dotd/main.go` (the `appConfig` struct). Replace `linkRoot string` with `home string` and add `configDir string`; keep `binDir`, `generatedDir`, `initFile`, `envFile`, `configPath`, `files`:
 
 ```go
+	files        string
+	configPath   string
+	envFile      string
+	env          []string
 	initFile     string
+	home         string
 	configDir    string
 	binDir       string
 	generatedDir string
 ```
 
-- [ ] **Step 4: Edit the flag registrations** in `cmd/dotd/main.go` (155-163). Replace lines 157, 158, and 161 so:
-  - `--config` → `--dotd-config` (rename), `--env-file` → `--dotd-env` (rename),
-  - remove the `--link-root` line,
-  - add `--config-dir`:
+- [ ] **Step 4: Edit flag registrations** in `newRootCmd`. Rename `--config`/`--env-file`, and **delete** the `--init-file`, `--link-root`, `--bin-dir`, `--generated-dir` lines:
 
 ```go
 	pf.StringVar(&cfg.configPath, "dotd-config", "", "path to dot-dagger's own config.yaml (default: $DOTD_CONFIG_FILE → ~/.config/dot-dagger/config.yaml)")
 	pf.StringVar(&cfg.envFile, "dotd-env", "", fmt.Sprintf("path to dot-dagger's own %s (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/%s)", ecosystem.EnvFileName, ecosystem.EnvFileName))
 ```
 
-and replace the old `--link-root` line (161) with:
+(Leave `--files`, `--env`, `--dry-run`, `--force`, log flags as-is.)
+
+- [ ] **Step 5: Edit `pathFlagOwners`** — remove the `init-file`, `link-root`, `bin-dir`, `generated-dir` entries entirely (those flags no longer exist). Keep only `dry-run` and `force`:
 
 ```go
-	pf.StringVar(&cfg.configDir, "config-dir", "", "config route: where $config link destinations resolve (default: config.yaml config_dir → $XDG_CONFIG_HOME)")
-```
-
-- [ ] **Step 5: Edit `pathFlagOwners`** in `cmd/dotd/main.go` (36-60): replace the entire `"link-root"` entry with a `"config-dir"` entry (same owner set, minus `dotd setup` which keeps it, plus the route consumers):
-
-```go
-	"config-dir": {
-		"dotd apply": true, "dotd check": true, "dotd adopt": true,
-		"dotd init": true, "dotd setup": true,
-		"dotd teardown": true, "dotd unapply": true,
+var pathFlagOwners = map[string]map[string]bool{
+	"dry-run": {
+		"dotd apply": true, "dotd adopt": true,
+		"dotd unapply": true, "dotd teardown": true,
 	},
+	"force": {
+		"dotd apply": true, "dotd adopt": true,
+	},
+}
 ```
 
-- [ ] **Step 6: Edit `resolvePaths`** in `cmd/dotd/main.go`: replace the `cfg.linkRoot` resolution block (388-391) with a `configDir` resolution block:
+- [ ] **Step 6: Edit `resolvePaths`** in `cmd/dotd/main.go`. Replace the `cfg.initFile`, `cfg.linkRoot`, `cfg.binDir`, `cfg.generatedDir` `ResolvePath` blocks with direct accessor calls (no flag/env/config tiers), and add `home`/`configDir`:
 
 ```go
-	cfg.configDir, err = ecosystem.ResolvePath(cfg.configDir, "DOTD_CONFIG_DIR", toolCfg.ConfigDir, ecosystem.XdgConfigHome)
-	if err != nil {
+	if cfg.home, err = ecosystem.Home(); err != nil {
+		return err
+	}
+	if cfg.binDir, err = ecosystem.BinDir(); err != nil {
+		return err
+	}
+	if cfg.configDir, err = ecosystem.ConfigDir(); err != nil {
+		return err
+	}
+	if cfg.generatedDir, err = ecosystem.GeneratedDir(); err != nil {
+		return err
+	}
+	if cfg.initFile, err = ecosystem.InitFile(); err != nil {
 		return err
 	}
 ```
 
-- [ ] **Step 7: Rewrite `buildActOptions`** in `cmd/dotd/main.go` (430-441) to read `$HOME` via the accessor and return an error:
+Leave the `cfg.envFile` (`DOTD_ENV_FILE`), `cfg.configPath` (`DOTD_CONFIG_FILE`), and `cfg.files` resolutions intact. The `toolCfg` now only carries `Dotfiles`; update the `filesFromCwd` line and the `cfg.files` ResolvePath which reference `toolCfg.Dotfiles` — those are unchanged (still valid).
+
+- [ ] **Step 7: Update `buildActOptions`** in `cmd/dotd/main.go` (no error return needed — fields are pre-resolved):
 
 ```go
-// buildActOptions constructs pipeline.ActOptions from cfg.
-// dryRun forces dry-run mode regardless of cfg.dryRun. HomeDir is the real
-// $HOME (via ecosystem.Home); it is never configurable.
-func buildActOptions(cfg *config, dryRun bool) (pipeline.ActOptions, error) {
-	home, err := ecosystem.Home()
-	if err != nil {
-		return pipeline.ActOptions{}, err
-	}
+func buildActOptions(cfg *config, dryRun bool) pipeline.ActOptions {
 	return pipeline.ActOptions{
-		HomeDir:      home,
+		HomeDir:      cfg.home,
 		BinDir:       cfg.binDir,
 		ConfigDir:    cfg.configDir,
 		GeneratedDir: cfg.generatedDir,
 		DryRun:       dryRun || cfg.dryRun,
 		Force:        cfg.force,
-	}, nil
+	}
 }
 ```
 
-- [ ] **Step 8: Update the three `buildActOptions` callers** to handle the error:
-
-`cmd/dotd/main.go:518`:
-```go
-	actOpts, err := buildActOptions(cfg, dryRun)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-```
-(Confirm the surrounding function returns `(..., error)` with that arity — it is the same `pipelineRun` builder that already returns `(nil, 0, 0, err)`.)
-
-`cmd/dotd/unapply_cmd.go:60`:
-```go
-		actOpts, err := buildActOptions(cfg, true)
-		if err != nil {
-			return err
-		}
-```
-
-`cmd/dotd/compose_cmd.go:98`:
-```go
-			actOpts, err := buildActOptions(cfg, true)
-			if err != nil {
-				return err
-			}
-```
-(Adjust the `return` to match each function's signature — check the few lines around each call site.)
-
-- [ ] **Step 9: Update the `ValidateNodes` call** at `cmd/dotd/main.go:489` to use the resolved anchors. Since `buildActOptions` now returns the full option set (DryRun is irrelevant to validation), reuse it:
+- [ ] **Step 8: Update the `ValidateNodes` call** in `cmd/dotd/main.go`:
 
 ```go
-	valOpts, err := buildActOptions(cfg, true)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	if err := pipeline.ValidateNodes(nodes, valOpts); err != nil {
+	if err := pipeline.ValidateNodes(nodes, pipeline.ActOptions{HomeDir: cfg.home, BinDir: cfg.binDir, ConfigDir: cfg.configDir}); err != nil {
 		return nil, 0, 0, err
 	}
 ```
 
-- [ ] **Step 10: Run the resolve test + vet**
+- [ ] **Step 9: Build the package + run the resolve test**
 
-Run: `go test ./cmd/dotd/ -run TestResolvePaths_ConfigDirDefaultsXDG && go vet ./cmd/dotd/`
-Expected: PASS + vet clean for the package's compilation. Other cmd tests using `--link-root` will FAIL — fixed in Task 9.
+Run: `go build ./cmd/dotd/ && go test ./cmd/dotd/ -run TestResolvePaths_AnchorsFromEnv`
+Expected: build OK (any leftover `cfg.linkRoot` reference is a compile error — fix it to `cfg.home` in `init_cmd.go`/`teardown_cmd.go`/`adopt.go` per Tasks 6-7; for THIS task just ensure main.go compiles — those files are touched next, so it's acceptable to do their `cfg.linkRoot`→`cfg.home` rename now if the build blocks). PASS on the resolve test.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add cmd/dotd/main.go cmd/dotd/unapply_cmd.go cmd/dotd/compose_cmd.go cmd/dotd/main_test.go
-git commit -m "feat(cmd): wire config_dir route, rename flags to --dotd-*, drop --link-root"
+git add cmd/dotd/main.go cmd/dotd/main_test.go
+git commit -m "feat(cmd): resolve anchors from env, drop path knobs, rename --dotd-* flags"
 ```
 
 ---
 
-## Task 5: setup wizard — drop "Link root", add "Config directory"
+## Task 5: setup wizard — dotfiles only
 
-**Files:**
-- Modify: `cmd/dotd/setup_cmd.go` (home accessor 52, isUpdate 64, prompts 80-95, toolCfg 103-108)
+**Files:** Modify `cmd/dotd/setup_cmd.go`
 
-- [ ] **Step 1: Switch the home read** at `setup_cmd.go:52` from `os.UserHomeDir()` to the accessor:
-
+- [ ] **Step 1: Switch the home read** (top of `runSetup`) from `os.UserHomeDir()` to `ecosystem.Home()`:
 ```go
-	// home is used only to expand "~" in user-typed paths, not for config resolution.
 	home, err := ecosystem.Home()
 	if err != nil {
 		return err
 	}
 ```
 
-- [ ] **Step 2: Update `isUpdate`** at `setup_cmd.go:64` — replace `existing.LinkRoot != ""` with `existing.ConfigDir != ""`.
-
-- [ ] **Step 3: Replace the "Link root" prompt** (lines 95-98) with a "Config directory" prompt:
-
+- [ ] **Step 2: Simplify `isUpdate`** — only `Dotfiles` remains:
 ```go
-	configDir, err := promptPath(out, reader, "Config directory", "Where $config link destinations resolve — your XDG config home (default: $XDG_CONFIG_HOME).", existing.ConfigDir, cfg.configDir, home, nonInteractive)
-	if err != nil {
-		return err
-	}
+	isUpdate := existing.Dotfiles != ""
 ```
 
-- [ ] **Step 4: Update the written `toolCfg`** (103-108) — replace `LinkRoot: linkRoot` with `ConfigDir: configDir`:
+- [ ] **Step 3: Delete the `binDir`, `generatedDir`, `linkRoot` prompts** (the three `promptPath` blocks for "Bin directory", "Generated files directory", "Link root"). Keep only the `dotfilesPath` prompt.
 
+- [ ] **Step 4: Simplify the written `toolCfg`**:
 ```go
-	toolCfg := &dotcfg.Config{
-		Dotfiles:     dotfilesPath,
-		BinDir:       binDir,
-		GeneratedDir: generatedDir,
-		ConfigDir:    configDir,
-	}
+	toolCfg := &dotcfg.Config{Dotfiles: dotfilesPath}
 ```
 
 - [ ] **Step 5: Build + run setup tests**
 
-Run: `go test ./cmd/dotd/ -run 'Setup'`
-Expected: setup tests that pipe prompt lines may need a line added/removed (the "Link root" prompt became "Config directory" — net zero prompt count, just a label/semantics change). Update any test that asserts the prompt label or the written `link_root:`/`config_dir:` value. If a setup test feeds N input lines, it still needs N (one prompt swapped, not added).
+Run: `go test ./cmd/dotd/ -run Setup`
+Expected: setup tests that fed bin/generated/link-root prompt lines must drop those input lines and stop asserting those config keys. Update + PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add cmd/dotd/setup_cmd.go cmd/dotd/*_test.go
-git commit -m "feat(setup): replace Link root prompt with Config directory"
+git commit -m "feat(setup): wizard prompts for dotfiles repo only"
 ```
 
 ---
 
 ## Task 6: init — scaffold tokens + source-line home
 
-**Files:**
-- Modify: `cmd/dotd/init_cmd.go` (conventionRoles 145-164, DetectShellConfig 102, AppendSourceLine 131)
+**Files:** Modify `cmd/dotd/init_cmd.go`
 
-- [ ] **Step 1: Update the source-line home reads.** In `maybeAddSourceLine`, compute the real home once and pass it instead of `cfg.linkRoot`. After line 101 (`shell == ""` guard) add:
-
+- [ ] **Step 1: Source-line home.** In `maybeAddSourceLine`, after the `shell == ""` guard, resolve home and use it instead of `cfg.linkRoot`:
 ```go
 	home, err := ecosystem.Home()
 	if err != nil {
 		return fmt.Errorf("init: %w", err)
 	}
 ```
+Change the `DetectShellConfig(shell, resolved["os"], cfg.linkRoot)` call to `…, home)` and `AppendSourceLine(sc.RCFile, cfg.initFile, cfg.linkRoot)` to `…, home)`. (Use `=`/scoping so the existing `err` isn't redeclared incorrectly.)
 
-Then change line 102 `cfg.linkRoot` → `home`, and line 131 `cfg.linkRoot` → `home`. (Rename the existing `err` handling if a redeclaration conflict arises — the function already uses `err` for `resolveEnv`; reuse the variable with `=` not `:=` if needed, or scope the home read before the first `err` use.)
-
-- [ ] **Step 2: Update the config-dir scaffold role** (`conventionRoles`, the "Config files" entry, 152-157):
-
+- [ ] **Step 2: Update scaffold tokens** in `conventionRoles`. The "Config files" entry:
 ```go
 	{
 		label:   "Config files",
-		desc:    "Files here are symlinked into your config dir by default (e.g. config/nvim/init.lua → $config/nvim/init.lua, i.e. $XDG_CONFIG_HOME).",
+		desc:    "Files here are symlinked into your config dir (e.g. config/nvim/init.lua → $config/nvim/init.lua, i.e. $XDG_CONFIG_HOME).",
 		defDir:  adopter.DirConfig,
 		content: "link_root: \"" + pipeline.ConfigPrefix + "\"\ndefaults:\n  actions:\n    - link\n",
 	},
 ```
+The "Bin scripts" entry already uses `pipeline.BinPrefix` (now `$bin`) — verify it renders `link_root: "$bin"`; no edit needed.
 
-(The "Bin scripts" entry already uses `pipeline.BinPrefix`, whose value is now `$bin` — no edit needed there, but verify it renders `link_root: "$bin"`.)
-
-- [ ] **Step 3: Build + run init tests**
+- [ ] **Step 3: Build + run init/scaffold tests**
 
 Run: `go test ./cmd/dotd/ -run 'Init|Scaffold'`
-Expected: tests asserting scaffolded `.dagger` content must expect `link_root: "$config"` / `link_root: "$bin"`. Update those assertions. Should PASS after.
+Expected: scaffold-content assertions must expect `link_root: "$config"` / `"$bin"`. Update + PASS.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add cmd/dotd/init_cmd.go cmd/dotd/*_test.go
-git commit -m "feat(init): scaffold \$config/\$bin tokens, use ecosystem.Home for source line"
+git commit -m "feat(init): scaffold \$bin/\$config, source line uses Home()"
 ```
 
 ---
 
-## Task 7: teardown + adopt home reads
+## Task 7: teardown + adopt
 
-**Files:**
-- Modify: `cmd/dotd/teardown_cmd.go:74`
-- Modify: `cmd/dotd/adopt.go:119-125`
-- Modify: `internal/adopter/adopter.go` (`AdoptOptions` 47-48, ActOptions build 120-125)
+**Files:** Modify `cmd/dotd/teardown_cmd.go`, `cmd/dotd/adopt.go`, `internal/adopter/adopter.go`
 
-- [ ] **Step 1: teardown** — in `teardown_cmd.go`, before the loop that uses `cfg.linkRoot` (line 74), compute home and use it:
-
+- [ ] **Step 1: teardown** — before the `DetectShellConfig(shell, osName, cfg.linkRoot)` call, resolve home and pass it:
 ```go
 	home, err := ecosystem.Home()
 	if err != nil {
 		return err
 	}
 ```
-Then change line 74 `cfg.linkRoot` → `home`. (Place the home read where `err` is already in scope or declare appropriately; confirm the enclosing function returns `error`.)
+Change that call's last arg to `home`. (Confirm the enclosing function returns `error`.)
 
-- [ ] **Step 2: adopter struct** — in `internal/adopter/adopter.go`, rename the `LinkRoot` field to `HomeDir` and add `ConfigDir` (47-48):
-
+- [ ] **Step 2: adopter struct** — in `internal/adopter/adopter.go`, rename `LinkRoot` → `HomeDir` and add `ConfigDir`:
 ```go
-	HomeDir      string // resolved real $HOME (for "~" expansion)
-	ConfigDir    string // resolved config route (for "$config" expansion)
-	BinDir       string // resolved managed bin dir
+	HomeDir   string // resolved real $HOME (for "~" expansion)
+	ConfigDir string // resolved config route (for "$config" expansion)
+	BinDir    string // resolved bin route
 ```
 
-- [ ] **Step 3: adopter ActOptions** — update the build at `adopter.go:120-125`:
-
+- [ ] **Step 3: adopter ActOptions** — update the build:
 ```go
 	actOpts := pipeline.ActOptions{
 		HomeDir:   opts.HomeDir,
@@ -686,8 +649,7 @@ Then change line 74 `cfg.linkRoot` → `home`. (Place the home read where `err` 
 	}
 ```
 
-- [ ] **Step 4: adopt cmd** — in `cmd/dotd/adopt.go`, compute home and populate the renamed/new fields (119-125):
-
+- [ ] **Step 4: adopt cmd** — in `cmd/dotd/adopt.go`, resolve home and populate the renamed/new fields:
 ```go
 	home, err := ecosystem.Home()
 	if err != nil {
@@ -702,150 +664,239 @@ Then change line 74 `cfg.linkRoot` → `home`. (Place the home read where `err` 
 		Force:        cfg.force,
 	}
 ```
-(If `err` is already declared earlier in `runAdopt`, use `=`; verify the surrounding code.)
+(If `err` is already declared in `runAdopt`, use `=`.)
 
-- [ ] **Step 5: Build + run adopter/teardown tests**
+- [ ] **Step 5: Build + run tests**
 
 Run: `go test ./internal/adopter/ ./cmd/dotd/ -run 'Adopt|Teardown'`
-Expected: adopter tests that set `LinkRoot:` in `AdoptOptions` must be renamed to `HomeDir:`. Update + PASS.
+Expected: adopter tests setting `LinkRoot:` → `HomeDir:`. Update + PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add cmd/dotd/teardown_cmd.go cmd/dotd/adopt.go internal/adopter/adopter.go internal/adopter/*_test.go
-git commit -m "feat(adopt,teardown): use ecosystem.Home, add ConfigDir to adopt"
+git commit -m "feat(adopt,teardown): use Home(), adopt resolves \$config"
 ```
 
 ---
 
-## Task 8: config subcommand help examples
+## Task 8: `dotd paths` view + config_cmd help
 
-**Files:**
-- Modify: `cmd/dotd/config_cmd.go:96,121`
+**Files:** Create `cmd/dotd/paths_cmd.go`; Modify `cmd/dotd/config_cmd.go`, `cmd/dotd/main.go` (register command); Test `cmd/dotd/paths_cmd_test.go`
 
-- [ ] **Step 1: Update the help examples** — replace `link_root` with `config_dir`:
-  - Line 96: `dotd config get link_root` → `dotd config get config_dir`
-  - Line 121: `dotd config set link_root /home/me` → `dotd config set config_dir ~/.config`
-
-- [ ] **Step 2: Build**
-
-Run: `go build ./cmd/dotd/`
-Expected: success.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add cmd/dotd/config_cmd.go
-git commit -m "docs(config): update help examples link_root -> config_dir"
-```
-
----
-
-## Task 9: fixtures + tests — `~bin`→`$bin`, `--link-root`→env config
-
-**Files:** testdata `.dagger` fixtures + Go tests + e2e scripts. **This is the task that makes the full suite green.**
-
-- [ ] **Step 1: Enumerate the blast radius first (audit lesson).** Run and read the output before editing:
-
-```bash
-grep -rn '~bin\|~/\.config\|--link-root\|link-root\|LinkRoot\|DOTD_LINK_ROOT\|link_root' \
-  internal/ cmd/ test/ --include='*.go' --include='*.dagger' --include='*.sh' --include='*.yaml'
-```
-Expected: a finite list. Triage each hit:
-  - **per-node `link_root:` in a `.dagger`** with value `~` or an abs path → leave (that key stays).
-  - value `~bin` → change to `$bin`.
-  - value `~/.config` in a *test fixture that exercises the config route* → change to `$config`; leave literal `~/.config` only where the test specifically asserts `$HOME/.config` semantics.
-  - `--link-root <dir>` in a Go test → delete the flag arg, add `t.Setenv("HOME", <dir>)` to that test.
-  - `--link-root <dir>` in an e2e `.sh` → delete the flag arg, add `export HOME=<dir>` near the top of the script; where the test exercises config linking add `export DOTD_CONFIG_DIR=<dir>/.config` (or pass `--config-dir`).
-  - `DOTD_LINK_ROOT` / `config.LinkRoot` references → remove.
-
-- [ ] **Step 2: Update `.dagger` fixtures** using `$bin`:
-  - `internal/pipeline/testdata/dotfiles/conf/.dagger` (`link_root: "~"` → leave; it's `~`)
-  - `test/e2e/fixture/bin/.dagger` (`~bin` → `$bin`)
-  - `cmd/dotd/testdata/dotfiles/bin/.dagger` (`~bin` → `$bin`)
-  - `cmd/dotd/testdata/dotfiles/config/.dagger` (`~/.config` → `$config`)
-  Use exact edits per the grep output (there may be more — trust the grep, not this list).
-
-- [ ] **Step 3: Convert Go tests** from `--link-root` to `t.Setenv("HOME", ...)`. For each hit in `*_test.go`, remove the flag from the args slice and add the env set. Example transform:
+- [ ] **Step 1: Write the failing test** — `cmd/dotd/paths_cmd_test.go`:
 
 ```go
-// before: args := []string{"apply", "--link-root", tmp, ...}
-// after:
-t.Setenv("HOME", tmp)
-args := []string{"apply", ...}
+package main
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
+
+func TestPathsCmd_ShowsResolvedAnchors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfg := &config{home: home, binDir: home + "/.local/bin/dot-dagger", configDir: home + "/.config", generatedDir: home + "/gen", initFile: home + "/init.sh", files: home + "/dotfiles"}
+	var out bytes.Buffer
+	cmd := newPathsCmd(cfg)
+	cmd.SetOut(&out)
+	if err := cmd.RunE(cmd, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"$bin", "$config", "home", "init.sh", "dotfiles", home} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("paths output missing %q:\n%s", want, out.String())
+		}
+	}
+}
 ```
 
-- [ ] **Step 4: Convert e2e scripts.** For each `test/e2e/*.sh` hit, replace `--link-root "$X"` usages with `export HOME="$X"` (set once, near where the fake home is established), plus `export DOTD_CONFIG_DIR` where a config-route assertion exists.
+- [ ] **Step 2: Run test to verify it fails**
 
-- [ ] **Step 5: Run the full Go suite**
+Run: `go test ./cmd/dotd/ -run TestPathsCmd_ShowsResolvedAnchors`
+Expected: FAIL — `newPathsCmd` undefined.
+
+- [ ] **Step 3: Create `cmd/dotd/paths_cmd.go`**:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
+
+func newPathsCmd(cfg *config) *cobra.Command {
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "paths",
+		Short: "Show where anchors and tool paths resolve on this machine",
+		Long: `Print the resolved locations of every anchor token and tool-managed path.
+
+Examples:
+  dotd paths
+  dotd paths --json | jq '.[] | select(.name=="$config")'`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			rows := []struct{ Name, Path string }{
+				{"home", cfg.home},
+				{"$bin", cfg.binDir},
+				{"$config", cfg.configDir},
+				{"generated", cfg.generatedDir},
+				{"init.sh", cfg.initFile},
+				{"dotfiles", cfg.files},
+			}
+			if jsonOutput {
+				return writePathsJSON(cmd.OutOrStdout(), rows)
+			}
+			for _, r := range rows {
+				fmt.Fprintf(cmd.OutOrStdout(), "%-10s %s\n", r.Name, r.Path)
+			}
+			return nil
+		},
+	}
+	addJSONFlag(cmd, &jsonOutput)
+	return cmd
+}
+```
+
+Add the JSON helper in the same file (mirrors `config show`'s JSON shape):
+```go
+import "encoding/json" // add to the import block
+
+func writePathsJSON(w io.Writer, rows []struct{ Name, Path string }) error {
+	type entry struct {
+		Name string `json:"name"`
+		Path string `json:"path"`
+	}
+	out := make([]entry, len(rows))
+	for i, r := range rows {
+		out[i] = entry{Name: r.Name, Path: r.Path}
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+```
+(Add `"io"` to imports. Verify `addJSONFlag` exists — it is used by `config show` in `config_cmd.go`; reuse it.)
+
+- [ ] **Step 4: Register the command** in `cmd/dotd/main.go` where other subcommands are added (alongside `newConfigCmd(cfg)` etc.):
+```go
+	root.AddCommand(newPathsCmd(cfg))
+```
+Assign it the `config` group if commands set `GroupID` there (match the surrounding registration pattern).
+
+- [ ] **Step 5: Update `config_cmd.go` help examples** — replace `link_root` references with `dotfiles`:
+  - `dotd config get link_root` → `dotd config get dotfiles`
+  - `dotd config set link_root /home/me` → `dotd config set dotfiles ~/dotfiles`
+
+- [ ] **Step 6: Run the test + build**
+
+Run: `go test ./cmd/dotd/ -run TestPathsCmd_ShowsResolvedAnchors && go build ./cmd/dotd/`
+Expected: PASS + build OK.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add cmd/dotd/paths_cmd.go cmd/dotd/paths_cmd_test.go cmd/dotd/main.go cmd/dotd/config_cmd.go
+git commit -m "feat(cmd): add 'dotd paths' resolved-view"
+```
+
+---
+
+## Task 9: fixtures + tests — `~bin`→`$bin`, flags→env. Makes the suite green.
+
+**Files:** testdata `.dagger` fixtures + Go tests + e2e scripts
+
+- [ ] **Step 1: Enumerate the blast radius first.** Run and read before editing:
+
+```bash
+grep -rn '~bin\|~/\.config\|--link-root\|link-root\|LinkRoot\|DOTD_LINK_ROOT\|link_root\|--bin-dir\|bin-dir\|--init-file\|init-file\|--generated-dir\|generated-dir\|DOTD_BIN_DIR\|DOTD_INIT_FILE\|DOTD_GENERATED_DIR' \
+  internal/ cmd/ test/ --include='*.go' --include='*.dagger' --include='*.sh' --include='*.yaml'
+```
+Triage each hit:
+  - per-node `.dagger` `link_root:` value `~` or abs path → leave.
+  - value `~bin` → `$bin`; config-route `~/.config` in a fixture exercising config linking → `$config` (leave literal `~/.config` only where a test asserts `$HOME/.config` semantics).
+  - `--link-root <d>`/`--bin-dir <d>`/`--init-file <f>`/`--generated-dir <d>` in a Go test → remove the flag arg; add `t.Setenv("HOME", d)` and/or `t.Setenv("XDG_BIN_HOME"/"XDG_DATA_HOME"/"XDG_CONFIG_HOME", …)` as the test requires.
+  - same flags in e2e `.sh` → remove; `export HOME=…` (+ `XDG_*`) near the top.
+  - `DOTD_LINK_ROOT`/`DOTD_BIN_DIR`/etc. and `config.LinkRoot`/`.BinDir`/`.GeneratedDir` refs → remove.
+
+- [ ] **Step 2: Update `.dagger` fixtures** per the grep (at least: `test/e2e/fixture/bin/.dagger`, `cmd/dotd/testdata/dotfiles/bin/.dagger` → `$bin`; `cmd/dotd/testdata/dotfiles/config/.dagger` `~/.config` → `$config`; leave `…/conf/.dagger` `link_root: "~"`).
+
+- [ ] **Step 3: Convert Go tests** — for each hit, remove the flag from the args slice, add the `t.Setenv(...)`. Example:
+```go
+// before: args := []string{"apply", "--link-root", tmp}
+t.Setenv("HOME", tmp)
+args := []string{"apply"}
+```
+
+- [ ] **Step 4: Convert e2e scripts** — replace `--link-root "$X"` (and bin/init/generated flags) with `export HOME="$X"` (+ `export XDG_*` where a route is asserted) near the fake-home setup.
+
+- [ ] **Step 5: Run the full suite**
 
 Run: `go test ./... && go vet ./...`
-Expected: PASS, vet clean. Iterate on any remaining `~bin`/`link-root` stragglers until green.
+Expected: PASS, vet clean. Iterate on stragglers until green.
 
-- [ ] **Step 6: Run gofmt**
+- [ ] **Step 6: gofmt**
 
-Run: `gofmt -l internal/ cmd/` (expect no output) — if any file is listed, `gofmt -w` it.
+Run: `gofmt -l internal/ cmd/` (expect no output; `gofmt -w` any listed file).
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add -A
-git commit -m "test: convert fixtures to \$bin/\$config and tests to HOME env config"
+git commit -m "test: fixtures to \$bin/\$config, tests to HOME/XDG env config"
 ```
 
 ---
 
 ## Task 10: docs
 
-**Files:** `README.md`, `docs/reference/dotd.md`, `docs/reference/dagger.md`, `docs/reference/annotations.md`, `docs/reference/env-yaml.md`, concepts docs, `.claude/docs/spec/symlinks.md`, `.claude/docs/spec/cli.md`, `.claude/docs/spec/env.md`
+**Files:** `README.md`, `docs/reference/dotd.md`/`dagger.md`/`annotations.md`/`env-yaml.md`, concepts, `.claude/docs/spec/{symlinks,cli,env}.md`
 
-- [ ] **Step 1: Find doc references** (include README; exclude the spec/plan we authored)
-
+- [ ] **Step 1: Find references**
 ```bash
-grep -rn 'link_root\|link-root\|~bin\|--config\b\|--env-file\|~/\.config' \
+grep -rn 'link_root\|link-root\|~bin\|--config\b\|--env-file\|--bin-dir\|--init-file\|--generated-dir\|bin_dir\|generated_dir\|~/\.config' \
   README.md docs/ .claude/docs/spec/ | grep -v 'superpowers/'
 ```
 
-- [ ] **Step 2: Update each hit** to the new model. Triage like Task 9: a per-node `.dagger` `link_root:` example with value `~` or an abs path stays; `~bin`→`$bin`; the *config-route* default `~/.config` → `$config` (e.g. `dagger.md:205` "link_root defaults to ~/.config" → "defaults to $config"). Apply:
-  - tokens: `~` (=$HOME), `$bin`, `$config`
-  - flags: `--dotd-config`, `--dotd-env`, `--config-dir`; remove `--link-root` (e.g. `docs/reference/dotd.md:16`)
-  - config keys: `config_dir` replaces `link_root` (e.g. `docs/reference/dotd.md:135`)
-  - `dotd.md:93` teardown text: `--config`/`--env-file` → `--dotd-config`/`--dotd-env`
-  - `env-yaml.md:12,15`: `--env-file` → `--dotd-env`
-  - Explain `~`=$HOME always (never configurable); `$config` default `$XDG_CONFIG_HOME`; note the unknown-anchor-token error.
+- [ ] **Step 2: Update each hit:**
+  - tokens `~`/`$bin`/`$config`; `~bin`→`$bin`; config-route default `~/.config`→`$config`/`$XDG_CONFIG_HOME`.
+  - flags: `--config`→`--dotd-config`, `--env-file`→`--dotd-env`; remove `--link-root`/`--bin-dir`/`--init-file`/`--generated-dir` rows.
+  - config keys: only `dotfiles` remains; drop `link_root`/`bin_dir`/`generated_dir` rows.
+  - document: `~`=$HOME always; `$bin`=`($XDG_BIN_HOME ?: ~/.local/bin)/dot-dagger` on PATH; `$config`=$XDG_CONFIG_HOME; the unknown-anchor-token error; the new `dotd paths` command.
 
 - [ ] **Step 3: Commit**
-
 ```bash
 git add README.md docs/ .claude/docs/spec/
-git commit -m "docs: roots model — tokens, --dotd-* flags, config_dir"
+git commit -m "docs: pure-XDG roots model, dotd paths, --dotd-* flags"
 ```
 
 ---
 
-## Task 11: final validation + tracker cleanup
+## Task 11: final validation + tracker + PR
 
 - [ ] **Step 1: Full verification**
-
 ```bash
 go test ./... && go vet ./... && gofmt -l internal/ cmd/
 ```
 Expected: all pass, no gofmt output.
 
 - [ ] **Step 2: Smoke-test the CLI**
-
 ```bash
-go run ./cmd/dotd help | grep -E 'dotd-config|config-dir' && \
-go run ./cmd/dotd --help 2>&1 | grep -v 'link-root'
+go run ./cmd/dotd paths && \
+go run ./cmd/dotd --help 2>&1 | grep -E 'dotd-config|dotd-env' && \
+go run ./cmd/dotd --help 2>&1 | grep -vqE 'link-root|bin-dir|init-file|generated-dir' && echo "flags clean"
 ```
-Expected: new flags present, no `link-root`.
+Expected: `dotd paths` prints the resolved table; new flags present; old flags gone.
 
-- [ ] **Step 3: Update `.claude/TODO.md`** — mark the 🔴 TOP PRIORITY section DONE (move to a completed note), and update the memory file `project_link_root_overhaul.md` to "shipped".
+- [ ] **Step 3: Update trackers** — mark `.claude/TODO.md` 🔴 section DONE; update memory `project_link_root_overhaul.md` to "shipped".
 
-- [ ] **Step 4: Open the PR** (per CLAUDE.md, confirm branch not merged first):
-
+- [ ] **Step 4: Open the PR** (confirm branch not merged first):
 ```bash
-gh pr create --title "feat: roots model — kill global link_root, add \$config route" \
+gh pr create --title "feat: pure-XDG roots model — \$bin/\$config tokens, zero path knobs" \
   --body "Implements docs/superpowers/specs/2026-06-13-roots-model-design.md"
 ```
 
@@ -853,6 +904,6 @@ gh pr create --title "feat: roots model — kill global link_root, add \$config 
 
 ## Self-Review notes
 
-- **Spec coverage:** three-anchor model (T1), anchor-token validation/C1 (T1 steps 9-13), `config_dir` knob + resolution (T2,T4), flag namespace `--dotd-*`/`--config-dir` (T4), `ecosystem.Home()` no-tracking (T3,T5,T6,T7), expansion semantics (T1), `$HOME` consumers all switched (T4,T5,T6,T7), migration: drop field strict-decode no back-hint/C4 (T2), rename flags no alias (T4), tests→env (T9), scaffold `$config` (T6), docs incl. README/C3 (T10). Out-of-scope items (per-node key, `bin_dir` behavior, `generated_dir`, config-value tilde/C2) untouched. ✓
-- **Type consistency:** `ActOptions.ConfigDir`, `ConfigPrefix="$config"`, `BinPrefix="$bin"`, `KeyConfigDir="config_dir"`, `Config.ConfigDir`, `AdoptOptions.HomeDir`/`.ConfigDir`, `ecosystem.Home()`, `buildActOptions(...) (ActOptions, error)` used consistently across tasks. ✓
-- **No placeholders:** every code step shows real code; test-update steps point at the grep output as the authoritative site list (the one place exhaustive enumeration must happen at execution time, by design — fixtures/tests can drift).
+- **Spec coverage:** anchor tokens + expansion (T1); validation/C1 (T1 s9-13); knob-less env resolution via accessors (T2,T4); config.yaml→dotfiles (T3); flag drop + `--dotd-*` rename (T4); `pathFlagOwners` cleanup (T4); setup shrink (T5); scaffold `$bin`/`$config` (T6); `$HOME` consumers → `cfg.home` (T4,T6,T7); adopt `$config` (T7); `dotd paths` view (T8); namespaced `$bin` honoring `$XDG_BIN_HOME` (T2); generated/init.sh XDG_DATA (T2 via GeneratedDir/InitFile, resolved T4); tests→env (T9); docs incl. README (T10). Out-of-scope (per-node key, config.yaml removal, tilde-in-value, per-tool relocation) untouched. ✓
+- **Type consistency:** `ActOptions.ConfigDir`, `BinPrefix="$bin"`, `ConfigPrefix="$config"`, `ecosystem.Home/XdgBinHome/BinDir/ConfigDir/GeneratedDir/InitFile`, `cfg.home/configDir/binDir/generatedDir/initFile`, `AdoptOptions.HomeDir/ConfigDir`, `newPathsCmd`, `KeyDotfiles` used consistently. `buildActOptions` returns plain `ActOptions` (no error — fields pre-resolved in `resolvePaths`). ✓
+- **No placeholders:** every code step shows real code; the test/fixture sweep (T9) and doc sweep (T10) point at authoritative greps — the one place exhaustive enumeration must happen at execution time, by design.
