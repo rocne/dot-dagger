@@ -3,9 +3,13 @@ name: Auto patch release
 # Triggers on every push to main (i.e. after every PR merge).
 # Bumps the patch version of dotd when cmd/dotd/** or internal/** changes.
 #
-# Tags are created by GoReleaser as part of publishing the release.
-# That does NOT trigger the manual release workflow (push.tags trigger
-# only fires on direct git pushes, not API-created tags).
+# The version-decision logic (change detection, patch math, race guard) lives
+# here because it is auto-specific. The actual release + e2e is delegated to the
+# reusable _release.yml, shared with the manual release.yml path.
+#
+# Tags are created by GoReleaser as part of publishing the release. That does
+# NOT trigger the manual release workflow (push.tags fires only on direct git
+# pushes, not API-created tags).
 
 on:
   push:
@@ -16,27 +20,18 @@ concurrency:
   group: auto-release
   cancel-in-progress: false
 
-permissions:
-  contents: write
-
 jobs:
-  release:
+  compute:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.decide.outputs.release }}
+      version: ${{ steps.decide.outputs.version }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          install-only: true
 
       - name: Detect changes
         id: detect
@@ -57,15 +52,16 @@ jobs:
           CMD=$(echo "$CHANGED" | grep -c "^cmd/dotd/" || true)
 
           if [ "$INTERNAL" -gt 0 ] || [ "$CMD" -gt 0 ]; then
-            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "dotd code changed — will release"
           else
-            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No dotd code changed — skipping release"
           fi
 
-      - name: Release dotd
-        if: steps.detect.outputs.release == 'true'
+      - name: Decide version
+        id: decide
+        if: steps.detect.outputs.changed == 'true'
         run: |
           LATEST=$(git tag --list "v*" | sort -V | tail -1)
           if [ -z "$LATEST" ]; then
@@ -80,17 +76,24 @@ jobs:
 
           echo "==> dotd: $LATEST → $NEW_TAG"
 
-          # Skip if this release was already created (e.g. manual tag race)
+          # Skip if this release already exists (e.g. manual tag race).
           if gh release view "$NEW_TAG" &>/dev/null; then
             echo "Release $NEW_TAG already exists — skipping"
-            exit 0
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$NEW_TAG" >> "$GITHUB_OUTPUT"
           fi
-
-          GORELEASER_CURRENT_TAG="$NEW_TAG" VERSION="$NEW_TAG" goreleaser release \
-            --config ".goreleaser/dotd.yaml" \
-            --clean \
-            --skip=validate
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    needs: compute
+    if: needs.compute.outputs.release == 'true'
+    permissions:
+      contents: write
+      issues: write
+    uses: ./.github/workflows/_release.yml
+    with:
+      version: ${{ needs.compute.outputs.version }}
+    secrets: inherit

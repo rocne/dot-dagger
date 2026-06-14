@@ -1,60 +1,23 @@
 name: Release dotd
 
+# Manual release path: push a tag (e.g. `git push origin v0.5.0`) to cut a
+# controlled minor/major release. The auto-release workflow only ever bumps the
+# patch version, so this is how non-patch versions get released.
+#
+# Delegates the actual release + e2e to the reusable _release.yml so the manual
+# and auto paths can never drift.
+
 on:
   push:
     tags:
       - "v*"
 
-permissions:
-  contents: write
-  issues: write
-
 jobs:
   release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Set version
-        run: |
-          echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
-
-      - name: Release
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --config .goreleaser/dotd.yaml --clean --skip=validate
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ env.VERSION }}
-
-  e2e:
-    needs: release
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        distro: [ubuntu]
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Run e2e tests (${{ matrix.distro }})
-        run: ./test/run-e2e-release.sh
-        env:
-          DOTD_VERSION: ${{ github.ref_name }}
-
-      - name: Open issue on failure
-        if: failure()
-        run: |
-          gh issue create \
-            --title "e2e failure: ${{ github.ref_name }} (${{ matrix.distro }})" \
-            --body "E2e tests failed for release [${{ github.ref_name }}](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}) on \`${{ matrix.distro }}\`.\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+      issues: write
+    uses: ./.github/workflows/_release.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
