@@ -661,6 +661,21 @@ func TestAct_BinDirExpansion(t *testing.T) {
 	}
 }
 
+func TestExpandDest_Anchors(t *testing.T) {
+	const home, bin, conf = "/home/u", "/home/u/.local/bin/dot-dagger", "/home/u/.config"
+	cases := []struct{ in, want string }{
+		{"~", home}, {"~/.zshrc", home + "/.zshrc"},
+		{"$bin", bin}, {"$bin/fmt", bin + "/fmt"},
+		{"$config", conf}, {"$config/nvim/init.lua", conf + "/nvim/init.lua"},
+		{"/abs/path", "/abs/path"}, {"relative/path", "relative/path"},
+	}
+	for _, c := range cases {
+		if got := expandDest(c.in, home, bin, conf); got != c.want {
+			t.Errorf("expandDest(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 // TestComposeFileName_Variants covers the naming rules for ComposeFileName.
 func TestComposeFileName_Variants(t *testing.T) {
 	cases := []struct {

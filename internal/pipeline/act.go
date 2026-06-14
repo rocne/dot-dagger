@@ -12,16 +12,21 @@ import (
 
 // ActOptions configures Act behaviour.
 type ActOptions struct {
-	HomeDir      string // replaces "~" in link destinations; set to cfg.linkRoot ($HOME)
-	BinDir       string // replaces "~bin" in link destinations
+	HomeDir      string // replaces "~" in link destinations; the real $HOME
+	BinDir       string // replaces "$bin" in link destinations
+	ConfigDir    string // replaces "$config" in link destinations
 	GeneratedDir string // directory for compose-generated files
 	DryRun       bool   // validate without writing to filesystem
 	Force        bool   // overwrite non-symlink files on link conflicts
 }
 
-// BinPrefix is the destination prefix that expands to ActOptions.BinDir
-// in link destinations ("~bin" / "~bin/<name>").
-const BinPrefix = "~bin"
+// BinPrefix and ConfigPrefix are the destination tokens that expand to
+// ActOptions.BinDir / ActOptions.ConfigDir ("$bin", "$config", optionally
+// "/<rel>"). "~" expands to HomeDir (the real $HOME) and is never configurable.
+const (
+	BinPrefix    = "$bin"
+	ConfigPrefix = "$config"
+)
 
 // Link represents a symlink to create.
 type Link struct {
@@ -48,7 +53,7 @@ type ActResult struct {
 func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 	home := opts.HomeDir
 	if home == "" {
-		return nil, fmt.Errorf("act: HomeDir is required — set it via cfg.linkRoot")
+		return nil, fmt.Errorf("act: HomeDir is required — set it to the resolved $HOME")
 	}
 
 	// Check for cross-node link conflicts up front (same normalization as Act).
@@ -165,7 +170,7 @@ func emitNodeActions(n RawNode, srcPath string, opts ActOptions, res *ActResult)
 				}
 			}
 		case ActionLink:
-			dest := resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir)
+			dest := resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir, opts.ConfigDir)
 			if srcPath != "" {
 				res.Links = append(res.Links, Link{Src: srcPath, Dest: dest})
 			}
@@ -175,11 +180,11 @@ func emitNodeActions(n RawNode, srcPath string, opts ActOptions, res *ActResult)
 
 // resolveLink computes the final link destination for a node.
 // If dest is empty, it is derived from the node's link_root and filename.
-func resolveLink(dest string, n RawNode, homeDir, binDir string) string {
+func resolveLink(dest string, n RawNode, homeDir, binDir, configDir string) string {
 	if dest == "" {
 		dest = deriveLinkDest(n)
 	}
-	return expandDest(dest, homeDir, binDir)
+	return expandDest(dest, homeDir, binDir, configDir)
 }
 
 // ComposeFileName derives the generated filename from a compose target dir path.
@@ -211,22 +216,37 @@ func deriveLinkDest(n RawNode) string {
 	return filepath.Join(root, filepath.Join(parts...))
 }
 
-// expandDest expands "~/" and "~bin/" prefixes in a link destination.
-// "~" / "~/x" go through fileutil.ExpandHome (shared with cmd-level prompts);
-// "~bin" / "~bin/x" are act-specific and stay here.
-func expandDest(path, homeDir, binDir string) string {
+// expandDest expands the "~", "$bin", and "$config" anchor tokens in a link
+// destination. "~" / "~/x" use the real $HOME; "$bin" / "$config" (optionally
+// "/<rel>") map to binDir / configDir. Absolute and relative paths are returned
+// unchanged.
+func expandDest(path, homeDir, binDir, configDir string) string {
 	if path == "~" || (len(path) >= 2 && path[0] == '~' && path[1] == '/') {
 		return fileutil.ExpandHome(path, homeDir)
 	}
-	if binDir != "" {
-		if path == BinPrefix {
-			return binDir
-		}
-		if strings.HasPrefix(path, BinPrefix+"/") {
-			return filepath.Join(binDir, path[len(BinPrefix)+1:])
-		}
+	if v := expandToken(path, BinPrefix, binDir); v != "" {
+		return v
+	}
+	if v := expandToken(path, ConfigPrefix, configDir); v != "" {
+		return v
 	}
 	return path
+}
+
+// expandToken returns base (optionally joined with the "/<rel>" suffix) when
+// path is exactly token or token+"/...". Returns "" when path does not match or
+// base is empty.
+func expandToken(path, token, base string) string {
+	if base == "" {
+		return ""
+	}
+	if path == token {
+		return base
+	}
+	if strings.HasPrefix(path, token+"/") {
+		return filepath.Join(base, path[len(token)+1:])
+	}
+	return ""
 }
 
 func createSymlink(src, dest string, force bool) error {

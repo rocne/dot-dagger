@@ -66,7 +66,7 @@ func CheckLinkConflicts(nodes []RawNode, opts ActOptions) error {
 			}
 			dest := a.Dest
 			if opts.HomeDir != "" {
-				dest = resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir)
+				dest = resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir, opts.ConfigDir)
 			} else if dest == "" {
 				// Can't resolve without HomeDir; skip empty dests.
 				continue
