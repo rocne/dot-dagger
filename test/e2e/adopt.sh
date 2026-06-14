@@ -9,7 +9,7 @@ printf '#!/bin/sh\necho hi\n' > /tmp/newscript.sh
 # auto-accept a file move without it.
 dotd adopt --yes /tmp/newscript.sh \
   --files /tmp/dotfiles \
-  --env-file /tmp/dotfiles/env.yaml \
+  --dotd-env /tmp/dotfiles/env.yaml \
   --to shellrc/
 
 test -f /tmp/dotfiles/shellrc/newscript.sh \

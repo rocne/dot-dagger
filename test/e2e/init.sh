@@ -7,7 +7,7 @@ printf 'dotfiles: /tmp/testdotfiles\n' > /tmp/xdg/dot-dagger/config.yaml
 mkdir -p /tmp/testdotfiles
 
 # 3 × (y = create dir, \n = accept default name), trailing EOF skips source-line prompt
-printf 'y\n\ny\n\ny\n\n' | dotd init --config /tmp/xdg/dot-dagger/config.yaml
+printf 'y\n\ny\n\ny\n\n' | dotd init --dotd-config /tmp/xdg/dot-dagger/config.yaml
 
 test -f /tmp/testdotfiles/shellrc/.dagger \
   || { printf 'FAIL: shellrc/.dagger not scaffolded\n'; exit 1; }

@@ -10,7 +10,7 @@ TARGET=/tmp/dotfiles/shellrc/aliases.sh
 # Accessible-mode: select When (1), enter value, Done (8), confirm Yes (y).
 printf '1\nos=linux\n8\ny\n' | dotd annotate \
   --files /tmp/dotfiles \
-  --env-file /tmp/dotfiles/env.yaml \
+  --dotd-env /tmp/dotfiles/env.yaml \
   "$TARGET"
 
 grep -q '@when(os=linux)' "$TARGET" \
@@ -25,7 +25,7 @@ printf 'PASS: annotate add @when\n'
 # Select Action (5), select source (1), Done (8), Yes (y).
 printf '5\n1\n8\ny\n' | dotd annotate \
   --files /tmp/dotfiles \
-  --env-file /tmp/dotfiles/env.yaml \
+  --dotd-env /tmp/dotfiles/env.yaml \
   "$TARGET"
 
 grep -q '@action(source)' "$TARGET" \
@@ -39,7 +39,7 @@ cp "$TARGET" /tmp/aliases_before.sh
 # Done immediately (8), No at confirm (n).
 printf '8\nn\n' | dotd annotate \
   --files /tmp/dotfiles \
-  --env-file /tmp/dotfiles/env.yaml \
+  --dotd-env /tmp/dotfiles/env.yaml \
   "$TARGET"
 
 diff -q "$TARGET" /tmp/aliases_before.sh \

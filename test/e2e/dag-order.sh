@@ -3,7 +3,7 @@ set -e
 
 OUT=$(dotd dag order \
   --files /fixture \
-  --env-file /fixture/env.yaml \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal)
 
@@ -19,7 +19,7 @@ PATH_LINE=$(printf '%s' "$OUT" | grep -n "shellrc.path" | head -1 | cut -d: -f1)
 # Pre-rename alias must keep working for existing scripts.
 ALIAS_OUT=$(dotd dag check \
   --files /fixture \
-  --env-file /fixture/env.yaml \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal)
 [ "$ALIAS_OUT" = "$OUT" ] || { printf 'FAIL: dag check alias output differs from dag order\n'; exit 1; }

@@ -12,14 +12,14 @@ printf '%s' "$OUT" | grep -q 'ENV.YAML' \
 printf 'PASS: concepts output\n'
 
 # --debug flag runs without error and produces debug log output
-mkdir -p /home/e2e/bin /tmp/generated
+export HOME=/home/e2e
+export XDG_BIN_HOME=/home/e2e/bin
+export XDG_DATA_HOME=/tmp/xdgdata
+mkdir -p /home/e2e/bin /tmp/xdgdata
+
 dotd --debug list \
   --files /fixture \
-  --env-file /fixture/env.yaml \
-  --link-root /home/e2e \
-  --bin-dir /home/e2e/bin \
-  --init-file /tmp/init.sh \
-  --generated-dir /tmp/generated \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal \
   >/dev/null 2>&1 \

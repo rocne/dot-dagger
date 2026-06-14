@@ -1,21 +1,21 @@
 #!/bin/sh
 set -e
 
-mkdir -p /home/e2e/bin /tmp/generated
+export HOME=/home/e2e
+export XDG_BIN_HOME=/home/e2e/bin
+export XDG_DATA_HOME=/tmp/xdgdata
+mkdir -p /home/e2e/bin /tmp/xdgdata
+
 dotd apply \
   --files /fixture \
-  --env-file /fixture/env.yaml \
-  --link-root /home/e2e \
-  --bin-dir /home/e2e/bin \
-  --init-file /tmp/init.sh \
-  --generated-dir /tmp/generated \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal
 
-pos_base=$(grep -n "base.sh"    /tmp/init.sh | head -1 | cut -d: -f1)
-pos_path=$(grep -n "path.sh"    /tmp/init.sh | head -1 | cut -d: -f1)
-pos_aliases=$(grep -n "aliases.sh" /tmp/init.sh | head -1 | cut -d: -f1)
-pos_linux=$(grep -n "linux.sh"  /tmp/init.sh | head -1 | cut -d: -f1)
+pos_base=$(grep -n "base.sh"    /tmp/xdgdata/dot-dagger/init.sh | head -1 | cut -d: -f1)
+pos_path=$(grep -n "path.sh"    /tmp/xdgdata/dot-dagger/init.sh | head -1 | cut -d: -f1)
+pos_aliases=$(grep -n "aliases.sh" /tmp/xdgdata/dot-dagger/init.sh | head -1 | cut -d: -f1)
+pos_linux=$(grep -n "linux.sh"  /tmp/xdgdata/dot-dagger/init.sh | head -1 | cut -d: -f1)
 
 [ -n "$pos_base" ]    || { printf 'FAIL: base.sh not in init.sh\n';    exit 1; }
 [ -n "$pos_path" ]    || { printf 'FAIL: path.sh not in init.sh\n';    exit 1; }
