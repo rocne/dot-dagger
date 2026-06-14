@@ -9,7 +9,6 @@ func makeOrderNode(name string) RawNode {
 	return RawNode{Path: "/dots/" + name, LogicalName: name}
 }
 
-
 func namesOf(nodes []RawNode) []string {
 	names := make([]string, len(nodes))
 	for i, n := range nodes {

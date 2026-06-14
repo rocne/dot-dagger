@@ -75,7 +75,7 @@ func TestPromptConfirm_Interactive(t *testing.T) {
 		{"Y\n", true},
 		{"yes\n", true},
 		{"YES\n", true},
-		{"\n", false},    // Enter → no (safe default for [y/N])
+		{"\n", false}, // Enter → no (safe default for [y/N])
 		{"n\n", false},
 		{"no\n", false},
 		{"maybe\n", false},

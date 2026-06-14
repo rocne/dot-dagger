@@ -139,7 +139,7 @@ func (e *PackageEntry) UnmarshalYAML(value *yaml.Node) error {
 
 // Registry is the parsed packages.yaml.
 type Registry struct {
-	PackageManagers ManagersSection        `yaml:"package_managers"`
+	PackageManagers ManagersSection         `yaml:"package_managers"`
 	Packages        map[string]PackageEntry `yaml:"packages"`
 }
 
@@ -343,4 +343,3 @@ func GenerateScript(w io.Writer, reqs []PackageRequest, reg *Registry, lookPath 
 	}
 	return nil
 }
-

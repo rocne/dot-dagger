@@ -32,15 +32,15 @@ var (
 
 type WhenType struct{}
 
-func (WhenType) Key()         string { return KeyWhen }
-func (WhenType) Label()       string { return "When" }
+func (WhenType) Key() string   { return KeyWhen }
+func (WhenType) Label() string { return "When" }
 func (WhenType) Description() string {
 	return "Condition for when this file is active.\n\n" +
 		predicate.IndentSyntaxHelp("  ") + "\n\n" +
 		"Comma separates multiple values for ONE key. Use AND/OR to join two conditions."
 }
-func (WhenType) Kind()        InputKind { return KindText }
-func (WhenType) Options()     []string  { return nil }
+func (WhenType) Kind() InputKind        { return KindText }
+func (WhenType) Options() []string      { return nil }
 func (WhenType) Format(s string) string { return "# @when(" + s + ")" }
 
 // Validate delegates to the canonical predicate parser so the wizard accepts
@@ -60,11 +60,11 @@ func (WhenType) Validate(s string) error {
 
 type AfterType struct{}
 
-func (AfterType) Key()         string { return KeyAfter }
-func (AfterType) Label()       string { return "After" }
-func (AfterType) Description() string { return "Logical name this file must load after" }
-func (AfterType) Kind()        InputKind { return KindText }
-func (AfterType) Options()     []string  { return nil }
+func (AfterType) Key() string            { return KeyAfter }
+func (AfterType) Label() string          { return "After" }
+func (AfterType) Description() string    { return "Logical name this file must load after" }
+func (AfterType) Kind() InputKind        { return KindText }
+func (AfterType) Options() []string      { return nil }
 func (AfterType) Format(s string) string { return "# @after(" + s + ")" }
 func (AfterType) Validate(string) error  { return nil }
 
@@ -72,11 +72,13 @@ func (AfterType) Validate(string) error  { return nil }
 
 type RequireType struct{}
 
-func (RequireType) Key()         string { return KeyRequire }
-func (RequireType) Label()       string { return "Require" }
-func (RequireType) Description() string { return "Package that must be installed for this file to be active" }
-func (RequireType) Kind()        InputKind { return KindText }
-func (RequireType) Options()     []string  { return nil }
+func (RequireType) Key() string   { return KeyRequire }
+func (RequireType) Label() string { return "Require" }
+func (RequireType) Description() string {
+	return "Package that must be installed for this file to be active"
+}
+func (RequireType) Kind() InputKind        { return KindText }
+func (RequireType) Options() []string      { return nil }
 func (RequireType) Format(s string) string { return "# @require(" + s + ")" }
 func (RequireType) Validate(string) error  { return nil }
 
@@ -84,11 +86,11 @@ func (RequireType) Validate(string) error  { return nil }
 
 type RequestType struct{}
 
-func (RequestType) Key()         string { return KeyRequest }
-func (RequestType) Label()       string { return "Request" }
-func (RequestType) Description() string { return "Package to install if missing (non-blocking)" }
-func (RequestType) Kind()        InputKind { return KindText }
-func (RequestType) Options()     []string  { return nil }
+func (RequestType) Key() string            { return KeyRequest }
+func (RequestType) Label() string          { return "Request" }
+func (RequestType) Description() string    { return "Package to install if missing (non-blocking)" }
+func (RequestType) Kind() InputKind        { return KindText }
+func (RequestType) Options() []string      { return nil }
 func (RequestType) Format(s string) string { return "# @request(" + s + ")" }
 func (RequestType) Validate(string) error  { return nil }
 
@@ -96,13 +98,16 @@ func (RequestType) Validate(string) error  { return nil }
 
 type ActionType struct{}
 
-func (ActionType) Key()         string { return KeyAction }
-func (ActionType) Label()       string { return "Action" }
-func (ActionType) Description() string { return "How dotd processes this file (source, no-source, or link)" }
-func (ActionType) Kind()        InputKind { return KindChoice }
+func (ActionType) Key() string   { return KeyAction }
+func (ActionType) Label() string { return "Action" }
+func (ActionType) Description() string {
+	return "How dotd processes this file (source, no-source, or link)"
+}
+func (ActionType) Kind() InputKind { return KindChoice }
+
 // NOTE: must stay in sync with the pipeline.Action* constants in
 // internal/pipeline/walk.go; annotation cannot import pipeline (import cycle).
-func (ActionType) Options()     []string  { return []string{"source", "no-source", "link"} }
+func (ActionType) Options() []string      { return []string{"source", "no-source", "link"} }
 func (ActionType) Format(s string) string { return "# @action(" + s + ")" }
 func (ActionType) Validate(string) error  { return nil }
 
@@ -110,11 +115,11 @@ func (ActionType) Validate(string) error  { return nil }
 
 type NameType struct{}
 
-func (NameType) Key()         string { return KeyName }
-func (NameType) Label()       string { return "Name" }
-func (NameType) Description() string { return "Override logical name used in the dependency graph" }
-func (NameType) Kind()        InputKind { return KindText }
-func (NameType) Options()     []string  { return nil }
+func (NameType) Key() string            { return KeyName }
+func (NameType) Label() string          { return "Name" }
+func (NameType) Description() string    { return "Override logical name used in the dependency graph" }
+func (NameType) Kind() InputKind        { return KindText }
+func (NameType) Options() []string      { return nil }
 func (NameType) Format(s string) string { return "# @name(" + s + ")" }
 func (NameType) Validate(string) error  { return nil }
 
@@ -122,10 +127,10 @@ func (NameType) Validate(string) error  { return nil }
 
 type DisableType struct{}
 
-func (DisableType) Key()         string { return KeyDisable }
-func (DisableType) Label()       string { return "Disable" }
-func (DisableType) Description() string { return "Exclude this file from all processing" }
-func (DisableType) Kind()        InputKind { return KindBool }
-func (DisableType) Options()     []string  { return nil }
-func (DisableType) Format(string) string   { return "# @disable" }
-func (DisableType) Validate(string) error  { return nil }
+func (DisableType) Key() string           { return KeyDisable }
+func (DisableType) Label() string         { return "Disable" }
+func (DisableType) Description() string   { return "Exclude this file from all processing" }
+func (DisableType) Kind() InputKind       { return KindBool }
+func (DisableType) Options() []string     { return nil }
+func (DisableType) Format(string) string  { return "# @disable" }
+func (DisableType) Validate(string) error { return nil }
