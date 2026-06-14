@@ -230,6 +230,7 @@ func newRootCmd() *cobra.Command {
 	for _, cmd := range []*cobra.Command{
 		newConfigCmd(cfg),
 		newEnvCmd(cfg),
+		newPathsCmd(cfg),
 		newSetupCmd(cfg),
 		newInitCmd(cfg),
 		newTeardownCmd(cfg),
