@@ -13,10 +13,7 @@ import (
 
 func TestDetectShellConfig_BashLinux(t *testing.T) {
 	home := t.TempDir()
-	sc, ok, err := setup.DetectShellConfig("bash", "linux", home)
-	if err != nil {
-		t.Fatalf("DetectShellConfig: %v", err)
-	}
+	sc, ok := setup.DetectShellConfig("bash", "linux", home, "")
 	if !ok {
 		t.Fatal("expected ok=true for bash+linux")
 	}
@@ -31,10 +28,7 @@ func TestDetectShellConfig_BashLinux(t *testing.T) {
 
 func TestDetectShellConfig_BashMacOS(t *testing.T) {
 	home := t.TempDir()
-	sc, ok, err := setup.DetectShellConfig("bash", "macos", home)
-	if err != nil {
-		t.Fatalf("DetectShellConfig: %v", err)
-	}
+	sc, ok := setup.DetectShellConfig("bash", "macos", home, "")
 	if !ok {
 		t.Fatal("expected ok=true for bash+macos")
 	}
@@ -46,10 +40,7 @@ func TestDetectShellConfig_BashMacOS(t *testing.T) {
 
 func TestDetectShellConfig_ZshLinux(t *testing.T) {
 	home := t.TempDir()
-	sc, ok, err := setup.DetectShellConfig("zsh", "linux", home)
-	if err != nil {
-		t.Fatalf("DetectShellConfig: %v", err)
-	}
+	sc, ok := setup.DetectShellConfig("zsh", "linux", home, "")
 	if !ok {
 		t.Fatal("expected ok=true for zsh+linux")
 	}
@@ -61,10 +52,7 @@ func TestDetectShellConfig_ZshLinux(t *testing.T) {
 
 func TestDetectShellConfig_ZshMacOS(t *testing.T) {
 	home := t.TempDir()
-	sc, ok, err := setup.DetectShellConfig("zsh", "macos", home)
-	if err != nil {
-		t.Fatalf("DetectShellConfig: %v", err)
-	}
+	sc, ok := setup.DetectShellConfig("zsh", "macos", home, "")
 	if !ok {
 		t.Fatal("expected ok=true for zsh+macos")
 	}
@@ -74,25 +62,37 @@ func TestDetectShellConfig_ZshMacOS(t *testing.T) {
 	}
 }
 
+// fish RC lives under the XDG config home, not $HOME. Verify configDir is
+// honored (and that the path is built from the passed-in value, not the env).
+func TestDetectShellConfig_Fish(t *testing.T) {
+	home := t.TempDir()
+	configDir := t.TempDir()
+	sc, ok := setup.DetectShellConfig("fish", "linux", home, configDir)
+	if !ok {
+		t.Fatal("expected ok=true for fish")
+	}
+	if sc.Shell != "fish" {
+		t.Errorf("Shell = %q, want 'fish'", sc.Shell)
+	}
+	want := filepath.Join(configDir, "fish", "config.fish")
+	if sc.RCFile != want {
+		t.Errorf("RCFile = %q, want %q", sc.RCFile, want)
+	}
+}
+
 func TestDetectShellConfig_UnknownShell(t *testing.T) {
 	home := t.TempDir()
-	_, ok, err := setup.DetectShellConfig("tcsh", "linux", home)
-	if err != nil {
-		t.Fatalf("unexpected error for unknown shell: %v", err)
-	}
+	_, ok := setup.DetectShellConfig("tcsh", "linux", home, "")
 	if ok {
 		t.Error("expected ok=false for unknown shell 'tcsh'")
 	}
 }
 
-// Verify that the RCFile path is rooted at the provided home (linkRoot convention).
+// Verify that the RCFile path is rooted at the provided home (home convention).
 func TestDetectShellConfig_RCFileRootedAtHome(t *testing.T) {
 	home := t.TempDir()
 	for _, shell := range []string{"bash", "zsh"} {
-		sc, ok, err := setup.DetectShellConfig(shell, "linux", home)
-		if err != nil {
-			t.Fatalf("DetectShellConfig(%s): %v", shell, err)
-		}
+		sc, ok := setup.DetectShellConfig(shell, "linux", home, "")
 		if !ok {
 			t.Fatalf("DetectShellConfig(%s): expected ok=true", shell)
 		}

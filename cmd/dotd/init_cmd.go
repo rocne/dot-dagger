@@ -99,10 +99,7 @@ func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config, nonInt
 	if shell == "" {
 		return nil
 	}
-	sc, ok, err := setup.DetectShellConfig(shell, resolved["os"], cfg.home)
-	if err != nil {
-		return fmt.Errorf("init: detect shell config: %w", err)
-	}
+	sc, ok := setup.DetectShellConfig(shell, resolved["os"], cfg.home, cfg.configDir)
 	if !ok {
 		return nil // unrecognised shell — skip
 	}
