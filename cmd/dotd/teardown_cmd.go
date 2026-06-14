@@ -71,7 +71,7 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	if resolved, rerr := resolveEnv(cfg); rerr == nil {
 		if shell := resolved["shell"]; shell != "" {
 			osName := resolved["os"]
-			if sc, ok, _ := setup.DetectShellConfig(shell, osName, cfg.home); ok {
+			if sc, ok := setup.DetectShellConfig(shell, osName, cfg.home, cfg.configDir); ok {
 				has, _ := setup.HasSourceLine(sc.RCFile, cfg.initFile)
 				if has {
 					rcFile = sc.RCFile
