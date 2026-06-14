@@ -38,6 +38,7 @@ Examples:
 				return writePathsJSON(cmd.OutOrStdout(), rows)
 			}
 			for _, r := range rows {
+				// column width 11 = len("config.yaml"), the longest label; bump if a longer name is added
 				fmt.Fprintf(cmd.OutOrStdout(), "%-11s %s\n", r.Name, r.Path)
 			}
 			return nil
