@@ -60,17 +60,17 @@ func TestResolvePathUsesDefault(t *testing.T) {
 	}
 }
 
-func TestDefaultInitFileUsesXDGDataHome(t *testing.T) {
+func TestInitFileUsesXDGDataHome(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmp)
 
-	got, err := ecosystem.DefaultInitFile()
+	got, err := ecosystem.InitFile()
 	if err != nil {
-		t.Fatalf("DefaultInitFile error = %v", err)
+		t.Fatalf("InitFile error = %v", err)
 	}
 	want := filepath.Join(tmp, "dot-dagger", "init.sh")
 	if got != want {
-		t.Errorf("DefaultInitFile = %q, want %q", got, want)
+		t.Errorf("InitFile = %q, want %q", got, want)
 	}
 }
 
@@ -88,16 +88,10 @@ func TestDefaultEnvFileUsesXDGConfigHome(t *testing.T) {
 	}
 }
 
-func TestDefaultLinkRootUsesHOME(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-
-	got, err := ecosystem.DefaultLinkRoot()
-	if err != nil {
-		t.Fatalf("DefaultLinkRoot error = %v", err)
-	}
-	if got != tmp {
-		t.Errorf("DefaultLinkRoot = %q, want %q", got, tmp)
+func TestHome_RespectsHOME(t *testing.T) {
+	t.Setenv("HOME", "/home/respected")
+	if got, err := ecosystem.Home(); err != nil || got != "/home/respected" {
+		t.Fatalf("Home() = %q, %v; want /home/respected", got, err)
 	}
 }
 
@@ -147,41 +141,30 @@ func TestDefaultDotfilesFallsToCwd(t *testing.T) {
 
 // --- Additional path tests (AUDIT-046) ---
 
-// TestDefaultBinDir verifies that DefaultBinDir returns $HOME/.local/bin/dot-dagger
-// and is NOT rooted at XDG_DATA_HOME (FHS user-local binary convention).
-func TestDefaultBinDir(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	// Explicitly set XDG_DATA_HOME to a different dir to prove it is not used.
-	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "xdg-data"))
-
-	got, err := ecosystem.DefaultBinDir()
-	if err != nil {
-		t.Fatalf("DefaultBinDir error: %v", err)
+func TestBinDir_NamespacedHonorsXDG(t *testing.T) {
+	t.Setenv("HOME", "/home/u")
+	t.Setenv("XDG_BIN_HOME", "")
+	if got, _ := ecosystem.BinDir(); got != "/home/u/.local/bin/"+ecosystem.Name {
+		t.Fatalf("BinDir() default = %q", got)
 	}
-	want := filepath.Join(tmp, ".local", "bin", "dot-dagger")
-	if got != want {
-		t.Errorf("DefaultBinDir = %q, want %q", got, want)
-	}
-	// Confirm it is NOT under XDG_DATA_HOME.
-	xdgHome := filepath.Join(tmp, "xdg-data")
-	if len(got) > len(xdgHome) && got[:len(xdgHome)] == xdgHome {
-		t.Errorf("DefaultBinDir %q must NOT be rooted at XDG_DATA_HOME %q", got, xdgHome)
+	t.Setenv("XDG_BIN_HOME", "/custom/bin")
+	if got, _ := ecosystem.BinDir(); got != "/custom/bin/"+ecosystem.Name {
+		t.Fatalf("BinDir() with XDG_BIN_HOME = %q", got)
 	}
 }
 
-// TestDefaultGeneratedDir verifies DefaultGeneratedDir = $XDG_DATA_HOME/dot-dagger/generated.
-func TestDefaultGeneratedDir(t *testing.T) {
+// TestGeneratedDir verifies GeneratedDir = $XDG_DATA_HOME/dot-dagger/generated.
+func TestGeneratedDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmp)
 
-	got, err := ecosystem.DefaultGeneratedDir()
+	got, err := ecosystem.GeneratedDir()
 	if err != nil {
-		t.Fatalf("DefaultGeneratedDir error: %v", err)
+		t.Fatalf("GeneratedDir error: %v", err)
 	}
 	want := filepath.Join(tmp, "dot-dagger", "generated")
 	if got != want {
-		t.Errorf("DefaultGeneratedDir = %q, want %q", got, want)
+		t.Errorf("GeneratedDir = %q, want %q", got, want)
 	}
 }
 
@@ -253,17 +236,17 @@ func TestDefaultPaths_HomeUnavailable(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 
-	t.Run("DefaultBinDir errors without HOME", func(t *testing.T) {
-		_, err := ecosystem.DefaultBinDir()
+	t.Run("BinDir errors without HOME", func(t *testing.T) {
+		_, err := ecosystem.BinDir()
 		if err == nil {
-			t.Error("DefaultBinDir: want error when HOME unavailable, got nil")
+			t.Error("BinDir: want error when HOME unavailable, got nil")
 		}
 	})
 
-	t.Run("DefaultGeneratedDir errors without XDG_DATA_HOME and HOME", func(t *testing.T) {
-		_, err := ecosystem.DefaultGeneratedDir()
+	t.Run("GeneratedDir errors without XDG_DATA_HOME and HOME", func(t *testing.T) {
+		_, err := ecosystem.GeneratedDir()
 		if err == nil {
-			t.Error("DefaultGeneratedDir: want error when HOME unavailable, got nil")
+			t.Error("GeneratedDir: want error when HOME unavailable, got nil")
 		}
 	})
 
@@ -274,17 +257,17 @@ func TestDefaultPaths_HomeUnavailable(t *testing.T) {
 		}
 	})
 
-	t.Run("DefaultInitFile errors without XDG_DATA_HOME and HOME", func(t *testing.T) {
-		_, err := ecosystem.DefaultInitFile()
+	t.Run("InitFile errors without XDG_DATA_HOME and HOME", func(t *testing.T) {
+		_, err := ecosystem.InitFile()
 		if err == nil {
-			t.Error("DefaultInitFile: want error when HOME unavailable, got nil")
+			t.Error("InitFile: want error when HOME unavailable, got nil")
 		}
 	})
 
-	t.Run("DefaultLinkRoot errors without HOME", func(t *testing.T) {
-		_, err := ecosystem.DefaultLinkRoot()
+	t.Run("Home errors without HOME", func(t *testing.T) {
+		_, err := ecosystem.Home()
 		if err == nil {
-			t.Error("DefaultLinkRoot: want error when HOME unavailable, got nil")
+			t.Error("Home: want error when HOME unavailable, got nil")
 		}
 	})
 }
