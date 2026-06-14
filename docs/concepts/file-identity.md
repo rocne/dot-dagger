@@ -28,7 +28,7 @@ The convention is to name them with `dot-` instead:
 ```
 config/dot-zshrc     →  symlinked to ~/.zshrc (with link_root: ~)
 config/dot-gitconfig →  symlinked to ~/.gitconfig (with link_root: ~)
-config/nvim/         →  symlinked under ~/.config/nvim/ (default link_root: ~/.config)
+config/nvim/         →  symlinked under ~/.config/nvim/ (default link_root: $config)
 ```
 
 The `dot-` prefix is stripped when computing both the logical name and the symlink destination.

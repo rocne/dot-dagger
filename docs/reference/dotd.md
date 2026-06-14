@@ -9,13 +9,9 @@ These flags apply to all `dotd` subcommands:
 | Flag | Default | Description |
 |---|---|---|
 | `-f, --files` | `$DOTD_FILES` → `$DOTFILES` → config.yaml `dotfiles` → cwd | Path to dotfiles repo |
-| `--config` | `$DOTD_CONFIG_FILE` → `~/.config/dot-dagger/config.yaml` | Path to config.yaml |
-| `--env-file` | `$DOTD_ENV_FILE` → `~/.config/dot-dagger/env.yaml` | Path to env.yaml |
+| `--dotd-config` | `$DOTD_CONFIG_FILE` → `~/.config/dot-dagger/config.yaml` | Path to config.yaml |
+| `--dotd-env` | `$DOTD_ENV_FILE` → `~/.config/dot-dagger/env.yaml` | Path to env.yaml |
 | `--env key=value` | — | Override an env key (repeatable) |
-| `--init-file` | `$DOTD_INIT_FILE` → `~/.local/share/dot-dagger/init.sh` | Path to write init.sh |
-| `--link-root` | config.yaml `link_root` → `$HOME` | Home dir for `~` expansion in link destinations |
-| `--bin-dir` | config.yaml `bin_dir` → `~/.local/bin/dot-dagger` | Bin directory for bin/ files |
-| `--generated-dir` | config.yaml `generated_dir` → `~/.local/share/dot-dagger/generated` | Directory for compose-assembled files |
 | `--dry-run` | false | Print actions without executing |
 | `--force` | false | Override safety checks |
 | `--log-level` | `info` | Log verbosity: debug, info, warn, error |
@@ -84,13 +80,13 @@ dotd setup --non-interactive  # accept all defaults (alias: -n)
 dotd setup -n -f ~/my-dotfiles  # scripted, custom dotfiles directory
 ```
 
-Steps through: dotfiles path, bin directory, generated files directory, and link root. Writes config.yaml and (if absent) env.yaml. Run `dotd init` next to scaffold convention directories in your dotfiles repo.
+Sets the dotfiles path, then writes config.yaml and (if absent) env.yaml. Run `dotd init` next to scaffold convention directories in your dotfiles repo.
 
 ---
 
 ## dotd teardown
 
-Remove dot-dagger system-level configuration from this machine. Removes config.yaml, env.yaml (at the resolved paths — `--config`, `--env-file`, and `DOTD_*` overrides are honored), and the dotd source line from your shell RC file. The preview shows the exact paths before anything is removed. Does not remove symlinks — run `dotd unapply` first.
+Remove dot-dagger system-level configuration from this machine. Removes config.yaml, env.yaml (at the resolved paths — `--dotd-config`, `--dotd-env`, and `DOTD_*` overrides are honored), and the dotd source line from your shell RC file. The preview shows the exact paths before anything is removed. Does not remove symlinks — run `dotd unapply` first.
 
 ```sh
 dotd teardown                  # preview, then prompt for confirmation
@@ -130,9 +126,19 @@ dotd config edit               # open config.yaml in $EDITOR
 | Key | Description |
 |---|---|
 | `dotfiles` | Path to your dotfiles repo |
-| `bin_dir` | Where executable scripts from the dotfiles repo are linked |
-| `generated_dir` | Where compose-assembled shell fragments are written |
-| `link_root` | Home directory used for `~` expansion in link destinations |
+
+---
+
+## dotd paths
+
+Print where every anchor and tool path resolves on this machine. Read-only; makes no changes.
+
+```sh
+dotd paths          # print resolved paths in human-readable form
+dotd paths --json   # machine-readable output
+```
+
+Output includes: home (`~`), `$bin`, `$config`, generated files directory, init.sh, dotfiles repo, config.yaml, and env.yaml.
 
 ---
 
