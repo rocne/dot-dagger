@@ -20,42 +20,54 @@ The `feature/claude-` prefix makes it visually clear the branch was Claude's wor
 
 ## Release Process
 
-Two release paths exist:
+Releases are driven by [release-please](https://github.com/googleapis/release-please)
+from the Conventional Commit history. There is one primary path and one
+break-glass path.
 
-- **Auto release** (`.github/workflows/auto-release.yml`) — triggers on every merge to `main` when `internal/**` or `cmd/dotd/**` changes. Auto-bumps the patch version. No manual action needed.
-- **Manual release** (`.github/workflows/release.yml`) — push a tag to trigger a controlled release.
+### Primary path: release-please (no manual tagging)
 
-### Tag format
+`.github/workflows/release-please.yml` runs on every push to `main`. It reads the
+Conventional Commit subjects since the last release and maintains a standing
+**release PR** (`chore(main): release <version>`) that bumps the version and
+updates `CHANGELOG.md`.
 
-```
-v<semver>
-```
+- **Cutting a release = merging that release PR.** Merging it tags the commit and
+  creates the GitHub release, then — in the *same* run — delegates the artifact
+  build + e2e to the reusable `_release.yml`. No PAT is needed because the build
+  is chained in-run rather than triggered by the API-created tag.
+- **The version is derived, not chosen.** `fix:` → patch, `feat:` → minor (while
+  pre-1.0, per `bump-minor-pre-major`), `feat!:`/`BREAKING CHANGE` → still minor
+  pre-1.0. Commits typed `docs:`/`chore:`/`ci:`/`style:`/`refactor:`/`test:` do
+  not trigger a release on their own.
+- **PR titles are the source of truth.** PRs are squash-merged, so the PR title
+  becomes the commit subject release-please reads. `.github/workflows/pr-title.yml`
+  enforces Conventional-Commit PR titles; a malformed title silently drops the
+  change from release automation.
 
-Example: `v0.2.0`
+State lives in `release-please-config.json` and `.release-please-manifest.json`
+(current released version). Do not hand-edit the manifest — release-please owns it.
 
-### How to manually release
+### Break-glass path: manual tag
+
+`.github/workflows/release.yml` triggers on a pushed `v*` tag and calls the same
+`_release.yml`. Use only when release-please can't (e.g. re-cutting a botched
+release). Tag format `v<semver>` (e.g. `v0.6.1`); always tag from `main`, and the
+workflow files must exist at the tagged commit.
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.6.1
+git push origin v0.6.1
 ```
 
-This triggers `.github/workflows/release.yml`, which:
-1. Runs GoReleaser to build linux+darwin × amd64+arm64 archives (`--skip=validate,publish`)
-2. Creates the GitHub release via `gh release create` attached to the tag
+Both paths funnel through `_release.yml` so the manual and automated releases can
+never drift: GoReleaser builds linux+darwin × amd64+arm64, publishes the GitHub
+release, bumps the Homebrew tap, then runs release e2e (opens an issue on failure).
 
-### Re-triggering a release
+### Repo setting required
 
-If a release fails mid-run, delete and re-push the tag from `main`:
-
-```sh
-git push origin --delete v0.2.0
-git tag -d v0.2.0
-git tag v0.2.0   # ensure main is checked out
-git push origin v0.2.0
-```
-
-Always tag from `main`. The workflow files must be present at the tagged commit — tagging a commit before the release workflow was merged will silently not trigger.
+release-please needs **Settings → Actions → General → "Allow GitHub Actions to
+create and approve pull requests" = ON** (it opens the release PR). This is
+currently ON; if release PRs stop appearing, check it first.
 
 ## Canonical Resolution Paths
 
