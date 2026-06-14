@@ -99,11 +99,7 @@ func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config, nonInt
 	if shell == "" {
 		return nil
 	}
-	home, err := ecosystem.Home()
-	if err != nil {
-		return fmt.Errorf("init: %w", err)
-	}
-	sc, ok, err := setup.DetectShellConfig(shell, resolved["os"], home)
+	sc, ok, err := setup.DetectShellConfig(shell, resolved["os"], cfg.home)
 	if err != nil {
 		return fmt.Errorf("init: detect shell config: %w", err)
 	}
@@ -132,7 +128,7 @@ func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config, nonInt
 		return nil
 	}
 
-	if err := setup.AppendSourceLine(sc.RCFile, cfg.initFile, home); err != nil {
+	if err := setup.AppendSourceLine(sc.RCFile, cfg.initFile, cfg.home); err != nil {
 		return fmt.Errorf("init: append source line: %w", err)
 	}
 	ui.OKf(out, "  added source line to %s", sc.RCFile)

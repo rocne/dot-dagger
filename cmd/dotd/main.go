@@ -28,7 +28,7 @@ var version = "dev"
 // path/mutation flag in --help. The flag stays registered on the root
 // PersistentFlags (so cfg paths still resolve uniformly via resolvePaths),
 // but Cobra's "Global Flags" block hides it on commands that don't act
-// on it — e.g. `dotd config get` no longer surfaces --bin-dir.
+// on it — e.g. `dotd config get` no longer surfaces --dry-run.
 //
 // Keys are the full command path ("dotd apply", "dotd dag order"). The
 // root command and `dotd help` are intentionally absent: root --help
@@ -325,7 +325,12 @@ func resolveEnv(cfg *config) (map[string]string, error) {
 }
 
 // resolvePaths fills in all empty path fields in cfg.
-// Precedence: CLI flag > DOTD_* env var > config.yaml field > XDG/system default.
+//
+// Full resolution chain (CLI flag > DOTD_* env var > config.yaml field > XDG/system default)
+// applies only to envFile, configPath, and files.
+//
+// The XDG-derived fields (home, binDir, configDir, generatedDir, initFile) are read
+// directly from ecosystem accessors — they have no user-override tier.
 func resolvePaths(cfg *config) error {
 	var err error
 

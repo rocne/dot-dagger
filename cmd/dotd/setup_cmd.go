@@ -47,11 +47,6 @@ Examples:
 func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 	out := cmd.OutOrStdout()
 	reader := bufio.NewReader(cmd.InOrStdin())
-	// home is used only to expand "~" in user-typed paths, not for config resolution.
-	home, err := ecosystem.Home()
-	if err != nil {
-		return err
-	}
 
 	// cfg.configPath is resolved by PersistentPreRunE.
 	// Load existing config.yaml — returns empty Config (no error) if absent.
@@ -76,7 +71,7 @@ func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 		fmt.Fprintln(out, "Press Enter to accept the shown default.")
 	}
 
-	dotfilesPath, err := promptPath(out, reader, "Dotfiles repo", "Your dotfiles git repository.", existing.Dotfiles, cfg.files, home, nonInteractive)
+	dotfilesPath, err := promptPath(out, reader, "Dotfiles repo", "Your dotfiles git repository.", existing.Dotfiles, cfg.files, cfg.home, nonInteractive)
 	if err != nil {
 		return err
 	}

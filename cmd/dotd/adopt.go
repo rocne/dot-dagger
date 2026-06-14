@@ -116,14 +116,10 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 		}
 	}
 
-	home, err := ecosystem.Home()
-	if err != nil {
-		return fmt.Errorf("adopt: %w", err)
-	}
 	opts := adopter.AdoptOptions{
 		DotfilesRoot: cfg.files,
 		Conventions:  conv,
-		HomeDir:      home,
+		HomeDir:      cfg.home,
 		ConfigDir:    cfg.configDir,
 		BinDir:       cfg.binDir,
 		Force:        cfg.force,
