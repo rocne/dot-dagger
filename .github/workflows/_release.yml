@@ -1,0 +1,70 @@
+name: Release (reusable)
+
+# Shared release body. Callers decide WHEN and at WHAT version; this defines
+# HOW we release and verify. Invoked via workflow_call by:
+#   - release.yml      (manual: human-pushed tag)
+#   - auto-release.yml (auto: computed patch bump on merge to main)
+#
+# version is the tag to release (e.g. v0.5.4). For the manual path the git tag
+# already exists; for the auto path GoReleaser creates it via
+# GORELEASER_CURRENT_TAG. VERSION is also exported because .goreleaser/dotd.yaml
+# stamps it into the binary's ldflags.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Tag/version to release (e.g. v0.5.4)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --config .goreleaser/dotd.yaml --clean --skip=validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ inputs.version }}
+          VERSION: ${{ inputs.version }}
+
+  e2e:
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distro: [ubuntu]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run e2e tests (${{ matrix.distro }})
+        run: ./test/run-e2e-release.sh
+        env:
+          DOTD_VERSION: ${{ inputs.version }}
+
+      - name: Open issue on failure
+        if: failure()
+        run: |
+          gh issue create \
+            --title "e2e failure: ${{ inputs.version }} (${{ matrix.distro }})" \
+            --body "E2e tests failed for release [${{ inputs.version }}](https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}) on \`${{ matrix.distro }}\`.\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
