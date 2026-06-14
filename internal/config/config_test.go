@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -138,5 +139,51 @@ func TestConfig_OnlyDotfiles(t *testing.T) {
 		if _, err := loadFrom(strings.NewReader(field)); err == nil {
 			t.Errorf("expected strict-decode error for removed field: %q", field)
 		}
+	}
+}
+
+// TestLoadLenient_IgnoresUnknownFields verifies that LoadLenient tolerates a
+// legacy config (removed fields), still reads `dotfiles`, and reports which
+// fields it ignored — so the path preamble never hard-fails on stale config.
+func TestLoadLenient_IgnoresUnknownFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	legacy := "dotfiles: ~/d\nbin_dir: /x\ngenerated_dir: /g\nlink_root: ~/.config\n"
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, unknown, err := LoadLenient(path)
+	if err != nil {
+		t.Fatalf("LoadLenient error = %v", err)
+	}
+	if cfg.Dotfiles != "~/d" {
+		t.Errorf("Dotfiles = %q, want ~/d", cfg.Dotfiles)
+	}
+	want := []string{"bin_dir", "generated_dir", "link_root"}
+	if !slices.Equal(unknown, want) {
+		t.Errorf("unknown = %v, want %v", unknown, want)
+	}
+}
+
+// TestLoadLenient_MissingFileIsZero verifies a missing file is not an error.
+func TestLoadLenient_MissingFileIsZero(t *testing.T) {
+	cfg, unknown, err := LoadLenient(filepath.Join(t.TempDir(), "absent.yaml"))
+	if err != nil {
+		t.Fatalf("LoadLenient(missing) error = %v", err)
+	}
+	if cfg.Dotfiles != "" || len(unknown) != 0 {
+		t.Errorf("expected zero config and no unknowns, got %+v / %v", cfg, unknown)
+	}
+}
+
+// TestLoadLenient_MalformedYAMLErrors verifies genuine syntax errors still surface.
+func TestLoadLenient_MalformedYAMLErrors(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("dotfiles: [unterminated\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := LoadLenient(path); err == nil {
+		t.Fatal("expected error on malformed YAML")
 	}
 }
