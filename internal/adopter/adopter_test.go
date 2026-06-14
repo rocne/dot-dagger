@@ -121,7 +121,7 @@ func TestAdopt_Config(t *testing.T) {
 	opts := AdoptOptions{
 		DotfilesRoot: dotfiles,
 		Conventions:  DefaultConventions(),
-		HomeDir:     srcDir,
+		HomeDir:      srcDir,
 	}
 
 	res, err := Adopt(src, "config/dot-bashrc", opts)
@@ -174,7 +174,7 @@ func TestAdopt_Bin(t *testing.T) {
 	opts := AdoptOptions{
 		DotfilesRoot: dotfiles,
 		Conventions:  DefaultConventions(),
-		HomeDir:     srcDir,
+		HomeDir:      srcDir,
 		BinDir:       binDir,
 	}
 
@@ -216,7 +216,7 @@ func TestAdopt_Shellrc(t *testing.T) {
 	opts := AdoptOptions{
 		DotfilesRoot: dotfiles,
 		Conventions:  DefaultConventions(),
-		HomeDir:     srcDir,
+		HomeDir:      srcDir,
 	}
 
 	res, err := Adopt(src, "shellrc/aliases.sh", opts)
@@ -277,7 +277,7 @@ func TestAdopt_DryRun(t *testing.T) {
 	opts := AdoptOptions{
 		DotfilesRoot: dotfiles,
 		Conventions:  DefaultConventions(),
-		HomeDir:     t.TempDir(),
+		HomeDir:      t.TempDir(),
 		DryRun:       true,
 	}
 

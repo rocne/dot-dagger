@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 )
 
 // --- dotd compose check exit codes (2026-06-13 audit, PR 1) ---
@@ -14,6 +16,14 @@ import (
 // target (gen.sh.d → gen.sh) and returns the repo plus a fresh generated dir.
 func composeDotfiles(t *testing.T) (dotfiles, generatedDir string) {
 	t.Helper()
+	// Hermetic env: paths resolve from HOME/XDG, not the real machine.
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	dataHome := filepath.Join(tmp, "data")
+	t.Setenv("XDG_DATA_HOME", dataHome)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
+	t.Setenv("XDG_BIN_HOME", filepath.Join(tmp, "bin"))
+
 	dotfiles = t.TempDir()
 	target := filepath.Join(dotfiles, "gen.sh.d")
 	if err := os.MkdirAll(target, 0o755); err != nil {
@@ -26,20 +36,19 @@ func composeDotfiles(t *testing.T) (dotfiles, generatedDir string) {
 	if err := os.WriteFile(filepath.Join(target, "a.sh"), []byte("a=1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return dotfiles, t.TempDir()
+	// generated files resolve to $XDG_DATA_HOME/dot-dagger/generated
+	return dotfiles, filepath.Join(dataHome, ecosystem.Name, "generated")
 }
 
-// composeFlags returns the common flag set for compose tests.
+// composeFlags returns the common flag set for compose tests. Paths now resolve
+// from the environment (set in composeDotfiles), so only the repo + env file
+// remain as flags. generatedDir is unused but kept for call-site symmetry.
 func composeFlags(t *testing.T, dotfiles, generatedDir string) []string {
 	t.Helper()
-	tmp := t.TempDir()
+	_ = generatedDir
 	return []string{
 		"-f", dotfiles,
-		"--env-file", emptyEnvFile(t),
-		"--generated-dir", generatedDir,
-		"--init-file", filepath.Join(tmp, "init.sh"),
-		"--link-root", tmp,
-		"--bin-dir", filepath.Join(tmp, "bin"),
+		"--dotd-env", emptyEnvFile(t),
 	}
 }
 

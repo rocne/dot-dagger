@@ -427,10 +427,10 @@ func TestAct_DeriveLinkDest(t *testing.T) {
 // TestAct_CreateSymlink_ForceClobberGuard covers the three distinct behaviors
 // of createSymlink (exercised via Act) related to existing paths at dest:
 //
-//   (a) Existing symlink at dest — silently replaced; no Force needed.
-//   (b) Existing real file at dest with Force=true — file removed; symlink created.
-//   (c) Existing real file at dest with Force=false — Act errors; original file
-//       content is preserved on disk (safety-critical no-clobber guarantee).
+//	(a) Existing symlink at dest — silently replaced; no Force needed.
+//	(b) Existing real file at dest with Force=true — file removed; symlink created.
+//	(c) Existing real file at dest with Force=false — Act errors; original file
+//	    content is preserved on disk (safety-critical no-clobber guarantee).
 func TestAct_CreateSymlink_ForceClobberGuard(t *testing.T) {
 	// (a) Re-link over an existing symlink — Force not required.
 	t.Run("relink_over_existing_symlink", func(t *testing.T) {
@@ -590,7 +590,7 @@ func TestAct_CreateSymlink_ForceClobberGuard(t *testing.T) {
 	})
 }
 
-// TestAct_BinDirExpansion covers "~bin" and "~bin/x" link destination expansion
+// TestAct_BinDirExpansion covers "$bin" and "$bin/x" link destination expansion
 // against ActOptions.BinDir (AUDIT-047). All sub-cases use DryRun so no
 // filesystem writes occur; only the resolved Dest value is asserted.
 func TestAct_BinDirExpansion(t *testing.T) {
@@ -601,28 +601,28 @@ func TestAct_BinDirExpansion(t *testing.T) {
 		wantDest string // exact expected Dest after expansion
 	}{
 		{
-			name:     "~bin expands to BinDir",
-			dest:     "~bin",
+			name:     "$bin expands to BinDir",
+			dest:     "$bin",
 			binDir:   "/path/to/bin",
 			wantDest: "/path/to/bin",
 		},
 		{
-			name:     "~bin/myscript expands under BinDir",
-			dest:     "~bin/myscript",
+			name:     "$bin/myscript expands under BinDir",
+			dest:     "$bin/myscript",
 			binDir:   "/path/to/bin",
 			wantDest: "/path/to/bin/myscript",
 		},
 		{
-			name:     "~bin with empty BinDir is not expanded",
-			dest:     "~bin",
+			name:     "$bin with empty BinDir is not expanded",
+			dest:     "$bin",
 			binDir:   "",
-			wantDest: "~bin",
+			wantDest: "$bin",
 		},
 		{
-			name:     "~bin-other is not treated as ~bin prefix",
-			dest:     "~bin-other",
+			name:     "$bin-other is not treated as $bin prefix",
+			dest:     "$bin-other",
 			binDir:   "/path/to/bin",
-			wantDest: "~bin-other",
+			wantDest: "$bin-other",
 		},
 	}
 

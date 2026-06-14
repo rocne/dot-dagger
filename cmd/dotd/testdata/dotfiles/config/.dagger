@@ -1,4 +1,4 @@
-link_root: "~/.config"
+link_root: "$config"
 defaults:
   actions:
     - link

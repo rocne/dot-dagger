@@ -73,7 +73,7 @@ func (e *ienv) runMayFail(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	base := []string{
 		"--files", e.dotfiles,
-		"--env-file", filepath.Join(e.dotfiles, "env.yaml"),
+		"--dotd-env", filepath.Join(e.dotfiles, "env.yaml"),
 		"--link-root", e.home,
 		"--bin-dir", e.binDir,
 		"--init-file", e.initFile,
@@ -92,7 +92,7 @@ func (e *ienv) runWithStdin(t *testing.T, stdin io.Reader, args ...string) (stri
 	t.Helper()
 	base := []string{
 		"--files", e.dotfiles,
-		"--env-file", filepath.Join(e.dotfiles, "env.yaml"),
+		"--dotd-env", filepath.Join(e.dotfiles, "env.yaml"),
 		"--link-root", e.home,
 		"--bin-dir", e.binDir,
 		"--init-file", e.initFile,
@@ -652,7 +652,7 @@ func TestInitAfterSetup(t *testing.T) {
 	initCmd.SetErr(&initBuf)
 	initCmd.SetArgs([]string{"init",
 		"--files", dotfilesDir,
-		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
+		"--dotd-env", filepath.Join(dotfilesDir, "env.yaml"),
 	})
 	if err := initCmd.Execute(); err != nil {
 		t.Fatalf("init error = %v\noutput:\n%s", err, initBuf.String())
@@ -692,7 +692,7 @@ func TestInitNonInteractive(t *testing.T) {
 	initCmd.SetErr(&initBuf)
 	initCmd.SetArgs([]string{"init", "-n",
 		"--files", dotfilesDir,
-		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
+		"--dotd-env", filepath.Join(dotfilesDir, "env.yaml"),
 		"--link-root", linkRoot,
 	})
 	if err := initCmd.Execute(); err != nil {
@@ -738,8 +738,8 @@ func TestConfigCmdsLifecycle(t *testing.T) {
 	// config show on missing file exits 0 with dotfiles= in output
 	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
 	out, err := run(t, "config", "show",
-		"--config", missingConfig,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", missingConfig,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -752,16 +752,16 @@ func TestConfigCmdsLifecycle(t *testing.T) {
 	// config set dotfiles /tmp/x → config get dotfiles returns /tmp/x
 	configPath := writeConfigYAML(t, "{}\n")
 	if _, err = run(t, "config", "set", "dotfiles", "/tmp/x",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	); err != nil {
 		t.Fatalf("config set error = %v", err)
 	}
 
 	out, err = run(t, "config", "get", "dotfiles",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {

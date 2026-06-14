@@ -27,15 +27,15 @@ func TestConfigShow_Empty(t *testing.T) {
 	configPath := writeConfigYAML(t, "{}\n")
 
 	out, err := run(t, "config", "show",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
 		t.Fatalf("config show error = %v", err)
 	}
-	// All known keys should appear in output even if empty.
-	for _, key := range []string{"dotfiles", "bin_dir", "generated_dir", "link_root"} {
+	// config.yaml now has a single key.
+	for _, key := range []string{"dotfiles"} {
 		if !strings.Contains(out, key+"=") {
 			t.Errorf("expected key %q in output: %q", key, out)
 		}
@@ -43,11 +43,11 @@ func TestConfigShow_Empty(t *testing.T) {
 }
 
 func TestConfigShow_PopulatedKeys(t *testing.T) {
-	configPath := writeConfigYAML(t, "dotfiles: /home/user/dotfiles\nlink_root: /home/user\n")
+	configPath := writeConfigYAML(t, "dotfiles: /home/user/dotfiles\n")
 
 	out, err := run(t, "config", "show",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -55,9 +55,6 @@ func TestConfigShow_PopulatedKeys(t *testing.T) {
 	}
 	if !strings.Contains(out, "dotfiles=/home/user/dotfiles") {
 		t.Errorf("expected dotfiles value in output: %q", out)
-	}
-	if !strings.Contains(out, "link_root=/home/user") {
-		t.Errorf("expected link_root value in output: %q", out)
 	}
 }
 
@@ -67,8 +64,8 @@ func TestConfigGet_ExistingKey(t *testing.T) {
 	configPath := writeConfigYAML(t, "dotfiles: /tmp/myfiles\n")
 
 	out, err := run(t, "config", "get", "dotfiles",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -83,8 +80,8 @@ func TestConfigGet_MissingKey(t *testing.T) {
 	configPath := writeConfigYAML(t, "{}\n")
 
 	_, err := run(t, "config", "get", "no_such_key",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err == nil {
@@ -96,8 +93,8 @@ func TestConfigGet_EmptyValue(t *testing.T) {
 	configPath := writeConfigYAML(t, "{}\n")
 
 	out, err := run(t, "config", "get", "dotfiles",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -114,8 +111,8 @@ func TestConfigSet_WritesValue(t *testing.T) {
 	configPath := writeConfigYAML(t, "{}\n")
 
 	_, err := run(t, "config", "set", "dotfiles", "/new/path",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -124,8 +121,8 @@ func TestConfigSet_WritesValue(t *testing.T) {
 
 	// Read it back.
 	out, err := run(t, "config", "get", "dotfiles",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -140,8 +137,8 @@ func TestConfigSet_UpdatesExistingValue(t *testing.T) {
 	configPath := writeConfigYAML(t, "dotfiles: /old/path\n")
 
 	_, err := run(t, "config", "set", "dotfiles", "/updated/path",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -149,8 +146,8 @@ func TestConfigSet_UpdatesExistingValue(t *testing.T) {
 	}
 
 	out, err := run(t, "config", "get", "dotfiles",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -165,8 +162,8 @@ func TestConfigSet_InvalidKey(t *testing.T) {
 	configPath := writeConfigYAML(t, "{}\n")
 
 	_, err := run(t, "config", "set", "no_such_key", "val",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err == nil {
@@ -196,8 +193,8 @@ func TestConfigEdit_InvokesEditor(t *testing.T) {
 	t.Setenv("EDITOR", editorScript)
 
 	_, err := run(t, "config", "edit",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -234,7 +231,7 @@ func TestEnvEdit_InvokesEditor(t *testing.T) {
 	t.Setenv("EDITOR", editorScript)
 
 	_, err := run(t, "env", "edit",
-		"--env-file", envFile,
+		"--dotd-env", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {

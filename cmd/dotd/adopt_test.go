@@ -63,7 +63,7 @@ func TestAdopt_ShellScript_InfersShellrc(t *testing.T) {
 
 	_, err := run(t, "adopt", "--yes",
 		"--files", dotfiles,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		src,
 	)
 	if err != nil {
@@ -86,10 +86,9 @@ func TestAdopt_ShellScript_InfersShellrc(t *testing.T) {
 func TestAdopt_Executable_InfersBin(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("DOTD_LINK_ROOT", "")
 
 	dotfiles := adoptDotfiles(t)
-	// bin/ directory must be a real path for the Act step to succeed.
+	// $bin resolves to ~/.local/bin/dot-dagger by default; it must exist for Act.
 	binDir := filepath.Join(home, ".local", "bin", "dot-dagger")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -99,8 +98,7 @@ func TestAdopt_Executable_InfersBin(t *testing.T) {
 
 	_, err := run(t, "adopt", "--yes",
 		"--files", dotfiles,
-		"--env-file", emptyEnvFile(t),
-		"--bin-dir", binDir,
+		"--dotd-env", emptyEnvFile(t),
 		src,
 	)
 	if err != nil {
@@ -128,7 +126,7 @@ func TestAdopt_ToFlag_OverridesInference(t *testing.T) {
 	// Note: no symlink destination inference needed since we provide explicit --to.
 	_, err := run(t, "adopt", "--yes",
 		"--files", dotfiles,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--to", "config/foo.conf",
 		src,
 	)
@@ -159,7 +157,7 @@ func TestAdopt_UnknownType_ErrorWithoutTo(t *testing.T) {
 
 	_, err := run(t, "adopt", "--yes",
 		"--files", dotfiles,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		src,
 	)
 	if err == nil {
@@ -182,7 +180,7 @@ func TestAdopt_DryRun_DoesNotMoveFile(t *testing.T) {
 
 	out, err := run(t, "adopt", "--yes", "--dry-run",
 		"--files", dotfiles,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		src,
 	)
 	if err != nil {
@@ -218,7 +216,7 @@ func TestAdopt_NonTTYWithoutYesRefuses(t *testing.T) {
 	// refuse rather than silently move the file.
 	out, err := runWithStdin(t, strings.NewReader("y\n"), "adopt",
 		"--files", dotfiles,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		src,
 	)
 	if err == nil {

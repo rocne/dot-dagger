@@ -169,4 +169,3 @@ func conventionsFrom(cfg *dagger.ComposableNode) adopter.ConventionNames {
 	}
 	return conv
 }
-
