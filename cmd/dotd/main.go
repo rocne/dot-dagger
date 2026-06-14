@@ -22,6 +22,9 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// version is the build version reported by `dotd --version`. It defaults to
+// "dev" for local builds and is overridden at release time via the goreleaser
+// ldflag -X main.version=<tag> (see .goreleaser/dotd.yaml).
 var version = "dev"
 
 // pathFlagOwners restricts which subcommands advertise each persistent
