@@ -4,7 +4,7 @@
 
 **Goal:** Sign release artifacts with keyless cosign and emit SLSA build provenance, enforce verification in `install.sh`, and document it — with zero disruption to the GoReleaser / release-please / Homebrew flow.
 
-**Architecture:** GoReleaser gains a `signs:` block that keyless-signs the checksums file. `_release.yml` installs cosign, attests the archives via `actions/attest-build-provenance`, and (in its `e2e` job) verifies the published signature + provenance as a smoke test. Both release callers grant the `id-token`/`attestations` permissions. `install.sh` verifies the checksums-file signature when cosign is present, aborting only on a genuine bad signature. README documents manual verification.
+**Architecture:** GoReleaser gains a `signs:` block that keyless-signs the checksums file. `_release.yml` installs cosign, attests the archives via `actions/attest-build-provenance`, and (in its `e2e` job) verifies the published signature + provenance as a smoke test. Both release callers grant the `id-token`/`attestations` permissions (scoped to the `release` job in the callee). A manually-triggered `release-dryrun.yml` proves the signing pipeline green pre-merge by signing a snapshot without publishing. `install.sh` verifies the checksums-file signature when cosign is present, aborting only on a genuine bad signature. README documents manual verification.
 
 **Tech Stack:** GoReleaser v2, Sigstore cosign (keyless OIDC), GitHub `actions/attest-build-provenance@v2`, POSIX `sh`.
 
@@ -69,9 +69,15 @@ Reusable workflows receive only the permissions their caller grants, capped by t
 - Modify: `.github/workflows/release-please.yml` (`release` job `permissions:`, currently lines 36-38)
 - Modify: `.github/workflows/release.yml` (`release` job `permissions:`, currently lines 17-19)
 
-- [ ] **Step 1: `_release.yml` — extend top-level permissions**
+- [ ] **Step 1: `_release.yml` — scope the new permissions to the `release` job only**
 
-Replace:
+Least-privilege: only the `release` job signs and attests; the `e2e` job just
+reads. **GitHub semantics: a job-level `permissions:` block REPLACES the top-level
+one for that job (it does not merge)** — so the `release` job block must relist
+`contents: write`.
+
+Leave the top-level block unchanged (the `e2e` job inherits it and needs
+`issues: write` for its failure-issue step):
 
 ```yaml
 permissions:
@@ -79,14 +85,16 @@ permissions:
   issues: write
 ```
 
-with:
+Then add a job-level `permissions:` block to the `release` job, immediately under
+`release:` and above `runs-on:`:
 
 ```yaml
-permissions:
-  contents: write
-  issues: write
-  id-token: write
-  attestations: write
+  release:
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    runs-on: ubuntu-latest
 ```
 
 - [ ] **Step 2: `release-please.yml` — extend the `release` job permissions**
@@ -117,6 +125,10 @@ Apply the identical replacement as Step 2 in `.github/workflows/release.yml`'s `
 
 Run: `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/_release.yml .github/workflows/release-please.yml .github/workflows/release.yml`
 Expected: no output (exit 0).
+
+If actionlint flags `attestations` as an unknown permission, that is a linter-version
+limitation (the `attestations` scope is valid since 2024), not a workflow error —
+bump the pin or ignore that specific finding.
 
 Fallback if blocked: `for f in _release release-please release; do python3 -c "import yaml; yaml.safe_load(open('.github/workflows/$f.yml')); print('$f ok')"; done`.
 
@@ -276,28 +288,13 @@ fi
 Run: `sh -n install.sh`
 Expected: no output (exit 0).
 
-- [ ] **Step 3: Branch test — cosign absent**
+(The three runtime branches — cosign-absent, sig-missing, bad-signature-aborts —
+cannot be honestly exercised locally: the script downloads from a real release and
+install.sh is not factored into testable functions. They are validated end-to-end
+in a real environment in Task 9, Step 4. Do not add stubbed pseudo-tests that don't
+run install.sh itself.)
 
-Run:
-```bash
-PATH="/usr/bin:/bin" sh -c 'command -v cosign >/dev/null 2>&1 && echo present || echo absent'
-```
-Expected: `absent` — confirms the no-cosign branch is reachable on a clean PATH (this is the curl-only fallback that must keep working).
-
-- [ ] **Step 4: Branch test — cosign present, bad signature aborts**
-
-Run:
-```bash
-d=$(mktemp -d)
-printf '#!/bin/sh\nexit 1\n' > "$d/cosign"; chmod +x "$d/cosign"
-PATH="$d:$PATH" sh -c '
-  command -v cosign >/dev/null 2>&1 && \
-  if cosign verify-blob x 2>/dev/null; then echo "WRONG: passed"; else echo "OK: stub fails -> abort path taken"; fi'
-rm -rf "$d"
-```
-Expected: `OK: stub fails -> abort path taken` — confirms a non-zero cosign exit drives the abort branch.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add install.sh
@@ -339,8 +336,10 @@ cosign verify-blob \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
   "dotd_${TAG}_checksums.txt"
 
-# then confirm your archive matches the verified checksums file:
-sha256sum -c --ignore-missing "dotd_${TAG}_checksums.txt"
+# then confirm your archive matches the verified checksums file
+# (Linux: sha256sum; macOS: shasum -a 256):
+sha256sum --ignore-missing -c "dotd_${TAG}_checksums.txt" \
+  || shasum -a 256 -c "dotd_${TAG}_checksums.txt" 2>/dev/null
 ```
 
 ### Build provenance
@@ -366,9 +365,92 @@ git commit -m "docs: document cosign + SLSA release verification"
 
 ---
 
-### Task 7: Open the PR
+### Task 7: Add a manual release dry-run workflow (pre-merge signing gate)
 
-- [ ] **Step 1: Push and confirm no open PR exists yet**
+Signing can't run on a laptop (needs OIDC), and a broken signing config would only
+surface on the next real release — which is the shipping path. This adds a
+manually-triggered workflow that builds + **signs a snapshot** (no publish, no
+Homebrew push) and verifies the signature, so the signing pipeline can be proven
+green *before* merge. It stays in the repo as a reusable manual check.
+
+**Scope note:** the dry-run signs under its *own* workflow identity
+(`release-dryrun.yml@…`), so it validates the GoReleaser `signs:` block, cosign
+install, permissions, and verify mechanics — but **not** the exact `_release.yml`
+identity string. That final string is only exercised on the first real release
+(Task 9). This is the strongest pre-merge gate available.
+
+**Files:**
+- Create: `.github/workflows/release-dryrun.yml`
+
+- [ ] **Step 1: Create the workflow**
+
+```yaml
+name: Release dry-run
+
+# Manually-triggered signing gate. Builds + signs a SNAPSHOT release (no publish,
+# no Homebrew push) and verifies the signature, to de-risk the signing pipeline
+# before a real release. Does NOT validate the _release.yml signing identity
+# (different workflow file) — only that the goreleaser signs block, cosign install,
+# permissions, and verify mechanics work.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  dryrun:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Build + sign snapshot
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --config .goreleaser/dotd.yaml --clean --snapshot --skip=publish
+        env:
+          VERSION: v0.0.0-dryrun
+
+      - name: Verify the snapshot signature
+        run: |
+          CHECKSUMS=$(ls dist/*checksums.txt)
+          cosign verify-blob \
+            --certificate "${CHECKSUMS}.pem" \
+            --signature   "${CHECKSUMS}.sig" \
+            --certificate-identity-regexp "^https://github\.com/${{ github.repository }}/\.github/workflows/release-dryrun\.yml@" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$CHECKSUMS"
+```
+
+- [ ] **Step 2: Lint**
+
+Run: `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/release-dryrun.yml`
+Expected: no output (exit 0).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add .github/workflows/release-dryrun.yml
+git commit -m "ci: add manual release dry-run signing gate"
+```
+
+---
+
+### Task 8: Run the dry-run gate, then open the PR
+
+- [ ] **Step 1: Push the branch**
 
 Run:
 ```bash
@@ -377,20 +459,36 @@ git push -u origin feature/claude-cosign-slsa
 ```
 Expected: empty PR list (none open yet), then a successful push.
 
-- [ ] **Step 2: Create the PR**
+- [ ] **Step 2: Run the dry-run signing gate and confirm it passes**
+
+Run:
+```bash
+gh workflow run release-dryrun.yml --ref feature/claude-cosign-slsa
+sleep 5
+gh run list --workflow=release-dryrun.yml --branch feature/claude-cosign-slsa --limit 1
+```
+Then watch it to completion (`gh run watch <run-id>`). Expected: the `dryrun` job
+is **green**, with the "Verify the snapshot signature" step succeeding. If it fails,
+fix the signing config before opening the PR — do not merge an unproven signing
+pipeline.
+
+- [ ] **Step 3: Create the PR**
 
 ```bash
-gh pr create --title "ci: sign releases with cosign + SLSA provenance" --body "$(cat <<'EOF'
+gh pr create --title "feat: sign releases with cosign + SLSA provenance" --body "$(cat <<'EOF'
 Implements the supply-chain hardening spec (`docs/superpowers/specs/2026-06-14-cosign-slsa-design.md`).
 
 - GoReleaser keyless-signs the checksums file (cosign, Sigstore/Fulcio/Rekor).
 - `actions/attest-build-provenance` emits SLSA build provenance over the archives.
-- `id-token`/`attestations` permissions added to both release callers + the reusable callee.
+- `id-token`/`attestations` permissions added to both release callers + the reusable callee (scoped to the `release` job).
 - `e2e` job smoke-tests the published signature + provenance.
 - `install.sh` verifies the signature when cosign is present (aborts only on a genuine bad signature; curl-only installs keep working).
+- New `release-dryrun.yml` manual signing gate; proven green on this branch before merge.
 - README "Verifying releases" section.
 
-Homebrew is unaffected (archives unchanged → formula sha256 unchanged; signing fails closed before publish). Full live verification happens on the first release after merge — see the spec's testing section.
+`feat:` because install.sh gains user-facing signature verification — and cutting the next release exercises the live signing path immediately.
+
+Homebrew is unaffected (archives unchanged → formula sha256 unchanged; signing fails closed before publish). Full live verification happens on the first release after merge — see Task 9 / the spec's testing section.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -399,7 +497,7 @@ EOF
 
 ---
 
-### Task 8: First-release verification (manual, AFTER merge — do not skip)
+### Task 9: First-release verification (manual, AFTER merge — do not skip)
 
 The live signing path only runs in CI on a real release. After this PR merges and the next release-please release PR is merged (or a tag is cut), verify end-to-end. This is a checklist, not code.
 
@@ -433,7 +531,7 @@ Mark the 🔴 cosign+SLSA item done in `.claude/TODO.md` (local) and note comple
 
 ## Self-review notes
 
-- **Spec coverage:** signs block (Task 1) ✓; permissions across 3 files (Task 2) ✓; cosign-installer + provenance (Task 3) ✓; CI smoke test with its own cosign install (Task 4) ✓; install.sh enforcement with all three branches (Task 5) ✓; README docs incl. cosign v2+ (Task 6) ✓; first-release validation incl. Homebrew check (Task 8) ✓.
+- **Spec coverage:** signs block (Task 1) ✓; permissions across 3 files, scoped to the `release` job in `_release.yml` (Task 2) ✓; cosign-installer + provenance (Task 3) ✓; CI smoke test with its own cosign install (Task 4) ✓; install.sh enforcement (Task 5) ✓; README docs incl. cosign v2+ and macOS `shasum` (Task 6) ✓; pre-merge dry-run signing gate (Task 7) ✓; PR + dry-run run (Task 8) ✓; first-release validation incl. Homebrew check (Task 9) ✓.
 - **Identity regexp** is identical in install.sh (`${REPO}` → `rocne/dot-dagger`), the CI smoke test (`${{ github.repository }}`), and the README (literal) — all pin `_release.yml@` with any ref. Keep them in sync if the workflow filename ever changes.
 - **No placeholders:** every code step shows the exact YAML/shell/markdown to add.
 - **Pinned tool versions** (`goreleaser@v2.4.4`, `actionlint@v1.7.7`) for reproducible local checks; bump if a fetch 404s.
