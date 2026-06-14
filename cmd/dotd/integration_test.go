@@ -38,21 +38,20 @@ func newIenv(t *testing.T) *ienv {
 		t.Fatalf("mkdir home: %v", err)
 	}
 
-	// binDir is inside home so @link(~/bin/hello) resolves to binDir/hello
-	// when --link-root is set to home.
-	binDir := filepath.Join(home, "bin")
-
-	generatedDir := filepath.Join(tmp, "generated")
-	if err := os.MkdirAll(generatedDir, 0o755); err != nil {
-		t.Fatalf("mkdir generated: %v", err)
-	}
+	// Paths resolve from the environment (pure-XDG model): "~" = $HOME, and
+	// init.sh + generated live under $XDG_DATA_HOME. The bin fixture uses an
+	// explicit "~/bin/hello" dest, so binDir is $HOME/bin. $config defaults to
+	// $HOME/.config (XDG_CONFIG_HOME left unset).
+	t.Setenv("HOME", home)
+	xdgData := filepath.Join(tmp, "data")
+	t.Setenv("XDG_DATA_HOME", xdgData)
 
 	return &ienv{
 		dotfiles:     dotfiles,
 		home:         home,
-		initFile:     filepath.Join(tmp, "init.sh"),
-		binDir:       binDir,
-		generatedDir: generatedDir,
+		initFile:     filepath.Join(xdgData, "dot-dagger", "init.sh"),
+		binDir:       filepath.Join(home, "bin"),
+		generatedDir: filepath.Join(xdgData, "dot-dagger", "generated"),
 	}
 }
 
@@ -74,10 +73,6 @@ func (e *ienv) runMayFail(t *testing.T, args ...string) (string, error) {
 	base := []string{
 		"--files", e.dotfiles,
 		"--dotd-env", filepath.Join(e.dotfiles, "env.yaml"),
-		"--link-root", e.home,
-		"--bin-dir", e.binDir,
-		"--init-file", e.initFile,
-		"--generated-dir", e.generatedDir,
 	}
 	var buf bytes.Buffer
 	cmd := newRootCmd()
@@ -93,10 +88,6 @@ func (e *ienv) runWithStdin(t *testing.T, stdin io.Reader, args ...string) (stri
 	base := []string{
 		"--files", e.dotfiles,
 		"--dotd-env", filepath.Join(e.dotfiles, "env.yaml"),
-		"--link-root", e.home,
-		"--bin-dir", e.binDir,
-		"--init-file", e.initFile,
-		"--generated-dir", e.generatedDir,
 	}
 	var buf bytes.Buffer
 	cmd := newRootCmd()
@@ -671,7 +662,7 @@ func TestInitAfterSetup(t *testing.T) {
 func TestInitNonInteractive(t *testing.T) {
 	xdg := t.TempDir()
 	dotfilesDir := t.TempDir()
-	linkRoot := t.TempDir() // keeps the RC source line away from the real home dir
+	t.Setenv("HOME", t.TempDir()) // keeps the RC source line away from the real home dir
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	t.Setenv("DOTFILES", dotfilesDir)
 
@@ -680,7 +671,7 @@ func TestInitNonInteractive(t *testing.T) {
 	var setupBuf bytes.Buffer
 	setupCmd.SetOut(&setupBuf)
 	setupCmd.SetErr(&setupBuf)
-	setupCmd.SetArgs([]string{"setup", "-n", "--link-root", linkRoot})
+	setupCmd.SetArgs([]string{"setup", "-n"})
 	if err := setupCmd.Execute(); err != nil {
 		t.Fatalf("setup -n error = %v\noutput:\n%s", err, setupBuf.String())
 	}
@@ -693,7 +684,6 @@ func TestInitNonInteractive(t *testing.T) {
 	initCmd.SetArgs([]string{"init", "-n",
 		"--files", dotfilesDir,
 		"--dotd-env", filepath.Join(dotfilesDir, "env.yaml"),
-		"--link-root", linkRoot,
 	})
 	if err := initCmd.Execute(); err != nil {
 		t.Fatalf("init -n error = %v\noutput:\n%s", err, initBuf.String())
