@@ -143,13 +143,34 @@ func TestDefaultDotfilesFallsToCwd(t *testing.T) {
 
 func TestBinDir_NamespacedHonorsXDG(t *testing.T) {
 	t.Setenv("HOME", "/home/u")
+
 	t.Setenv("XDG_BIN_HOME", "")
-	if got, _ := ecosystem.BinDir(); got != "/home/u/.local/bin/"+ecosystem.Name {
-		t.Fatalf("BinDir() default = %q", got)
+	got, err := ecosystem.BinDir()
+	if err != nil {
+		t.Fatalf("BinDir() default: unexpected error: %v", err)
 	}
+	if got != "/home/u/.local/bin/"+ecosystem.Name {
+		t.Fatalf("BinDir() default = %q, want %q", got, "/home/u/.local/bin/"+ecosystem.Name)
+	}
+
 	t.Setenv("XDG_BIN_HOME", "/custom/bin")
-	if got, _ := ecosystem.BinDir(); got != "/custom/bin/"+ecosystem.Name {
-		t.Fatalf("BinDir() with XDG_BIN_HOME = %q", got)
+	got, err = ecosystem.BinDir()
+	if err != nil {
+		t.Fatalf("BinDir() with XDG_BIN_HOME: unexpected error: %v", err)
+	}
+	if got != "/custom/bin/"+ecosystem.Name {
+		t.Fatalf("BinDir() with XDG_BIN_HOME = %q, want %q", got, "/custom/bin/"+ecosystem.Name)
+	}
+
+	// Relative XDG_BIN_HOME must be ignored; fall back to ~/.local/bin.
+	t.Setenv("XDG_BIN_HOME", "relative/not-abs")
+	got, err = ecosystem.BinDir()
+	if err != nil {
+		t.Fatalf("BinDir() with relative XDG_BIN_HOME: unexpected error: %v", err)
+	}
+	want := "/home/u/.local/bin/" + ecosystem.Name
+	if got != want {
+		t.Fatalf("BinDir() with relative XDG_BIN_HOME = %q, want %q", got, want)
 	}
 }
 

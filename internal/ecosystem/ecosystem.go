@@ -108,10 +108,10 @@ func Home() (string, error) {
 	return userHome()
 }
 
-// XdgBinHome returns $XDG_BIN_HOME if set to an absolute path, else ~/.local/bin.
+// xdgBinHome returns $XDG_BIN_HOME if set to an absolute path, else ~/.local/bin.
 // $XDG_BIN_HOME is not in the XDG base spec but is the de-facto convention for
 // user binaries; honoring it lets users relocate the bin root the standard way.
-func XdgBinHome() (string, error) {
+func xdgBinHome() (string, error) {
 	if d := os.Getenv("XDG_BIN_HOME"); d != "" && filepath.IsAbs(d) {
 		return d, nil
 	}
@@ -122,20 +122,14 @@ func XdgBinHome() (string, error) {
 	return filepath.Join(home, ".local", "bin"), nil
 }
 
-// BinDir returns the dot-dagger-namespaced bin route: <XdgBinHome>/dot-dagger.
+// BinDir returns the dot-dagger-namespaced bin route: <xdgBinHome>/dot-dagger.
 // Namespacing is free because PATH is a search list; init.sh adds it to PATH.
 func BinDir() (string, error) {
-	base, err := XdgBinHome()
+	base, err := xdgBinHome()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(base, Name), nil
-}
-
-// ConfigDir returns the config route: $XDG_CONFIG_HOME (≈ ~/.config). Configs
-// link directly here (apps read ~/.config/<app>), never namespaced.
-func ConfigDir() (string, error) {
-	return xdgConfigHome()
 }
 
 // DefaultDotfiles returns the default path to the dotfiles repo.
