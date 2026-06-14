@@ -257,13 +257,13 @@ func TestLoadConfig_ReturnsZeroOnMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig nonexistent = %v, want nil error", err)
 	}
-	if cfg.Dotfiles != "" || cfg.BinDir != "" || cfg.LinkRoot != "" {
+	if cfg.Dotfiles != "" {
 		t.Errorf("expected zero Config for missing file, got %+v", cfg)
 	}
 }
 
-func TestLoadConfig_ReadsFields(t *testing.T) {
-	configPath := writeConfigYAML(t, "dotfiles: /df\nbin_dir: /bin\n")
+func TestLoadConfig_ReadsDotfiles(t *testing.T) {
+	configPath := writeConfigYAML(t, "dotfiles: /df\n")
 
 	cfg, err := dotcfg.Load(configPath)
 	if err != nil {
@@ -271,8 +271,5 @@ func TestLoadConfig_ReadsFields(t *testing.T) {
 	}
 	if cfg.Dotfiles != "/df" {
 		t.Errorf("Dotfiles = %q, want /df", cfg.Dotfiles)
-	}
-	if cfg.BinDir != "/bin" {
-		t.Errorf("BinDir = %q, want /bin", cfg.BinDir)
 	}
 }

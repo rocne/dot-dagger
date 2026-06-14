@@ -13,22 +13,14 @@ import (
 )
 
 // Config key names — single source of truth for Get/Set and command display.
-const (
-	KeyDotfiles     = "dotfiles"
-	KeyBinDir       = "bin_dir"
-	KeyGeneratedDir = "generated_dir"
-	KeyLinkRoot     = "link_root"
-)
+const KeyDotfiles = "dotfiles"
 
 // Keys is the ordered list of all valid config keys.
-var Keys = []string{KeyDotfiles, KeyBinDir, KeyGeneratedDir, KeyLinkRoot}
+var Keys = []string{KeyDotfiles}
 
 // Config holds tool preferences from config.yaml. These are machine-stable settings.
 type Config struct {
-	Dotfiles     string `yaml:"dotfiles"`
-	BinDir       string `yaml:"bin_dir"`
-	GeneratedDir string `yaml:"generated_dir"`
-	LinkRoot     string `yaml:"link_root"`
+	Dotfiles string `yaml:"dotfiles"`
 }
 
 // Load parses config.yaml at path.
@@ -68,12 +60,6 @@ func (c *Config) Get(key string) (string, error) {
 	switch key {
 	case KeyDotfiles:
 		return c.Dotfiles, nil
-	case KeyBinDir:
-		return c.BinDir, nil
-	case KeyGeneratedDir:
-		return c.GeneratedDir, nil
-	case KeyLinkRoot:
-		return c.LinkRoot, nil
 	default:
 		return "", fmt.Errorf("config: unknown key %q", key)
 	}
@@ -84,12 +70,6 @@ func (c *Config) Set(key, value string) error {
 	switch key {
 	case KeyDotfiles:
 		c.Dotfiles = value
-	case KeyBinDir:
-		c.BinDir = value
-	case KeyGeneratedDir:
-		c.GeneratedDir = value
-	case KeyLinkRoot:
-		c.LinkRoot = value
 	default:
 		return fmt.Errorf("config: unknown key %q", key)
 	}

@@ -12,14 +12,14 @@ func TestLoad_NotExist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Dotfiles != "" || cfg.BinDir != "" {
+	if cfg.Dotfiles != "" {
 		t.Errorf("non-existent file should return zero value, got %+v", cfg)
 	}
 }
 
-func TestLoad_AllFields(t *testing.T) {
+func TestLoad_DotfilesOnly(t *testing.T) {
 	dir := t.TempDir()
-	content := "dotfiles: ~/dotfiles\nbin_dir: ~/bin\ngenerated_dir: ~/.config/dot-dagger/generated\nlink_root: \"~\"\n"
+	content := "dotfiles: ~/dotfiles\n"
 	path := filepath.Join(dir, "config.yaml")
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -31,29 +31,14 @@ func TestLoad_AllFields(t *testing.T) {
 	if cfg.Dotfiles != "~/dotfiles" {
 		t.Errorf("Dotfiles = %q", cfg.Dotfiles)
 	}
-	if cfg.BinDir != "~/bin" {
-		t.Errorf("BinDir = %q", cfg.BinDir)
-	}
-	if cfg.GeneratedDir != "~/.config/dot-dagger/generated" {
-		t.Errorf("GeneratedDir = %q", cfg.GeneratedDir)
-	}
-	if cfg.LinkRoot != "~" {
-		t.Errorf("LinkRoot = %q", cfg.LinkRoot)
-	}
 }
 
 func TestGet_KnownKeys(t *testing.T) {
 	cfg := &Config{
-		Dotfiles:     "~/dotfiles",
-		BinDir:       "~/bin",
-		GeneratedDir: "~/.config/dot-dagger/generated",
-		LinkRoot:     "~",
+		Dotfiles: "~/dotfiles",
 	}
 	cases := []struct{ key, want string }{
 		{"dotfiles", "~/dotfiles"},
-		{"bin_dir", "~/bin"},
-		{"generated_dir", "~/.config/dot-dagger/generated"},
-		{"link_root", "~"},
 	}
 	for _, c := range cases {
 		got, err := cfg.Get(c.key)
@@ -83,12 +68,6 @@ func TestSet_KnownKeys(t *testing.T) {
 	if cfg.Dotfiles != "~/mydots" {
 		t.Errorf("Set dotfiles: got %q", cfg.Dotfiles)
 	}
-	if err := cfg.Set("bin_dir", "~/bin"); err != nil {
-		t.Fatal(err)
-	}
-	if cfg.BinDir != "~/bin" {
-		t.Errorf("Set bin_dir: got %q", cfg.BinDir)
-	}
 }
 
 func TestSet_UnknownKey(t *testing.T) {
@@ -102,10 +81,7 @@ func TestSave_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	original := &Config{
-		Dotfiles:     "~/dotfiles",
-		BinDir:       "~/bin",
-		GeneratedDir: "~/.config/dot-dagger/generated",
-		LinkRoot:     "~",
+		Dotfiles: "~/dotfiles",
 	}
 	if err := Save(path, original); err != nil {
 		t.Fatal(err)
@@ -114,7 +90,7 @@ func TestSave_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Dotfiles != original.Dotfiles || got.BinDir != original.BinDir {
+	if got.Dotfiles != original.Dotfiles {
 		t.Errorf("round-trip failed: got %+v", got)
 	}
 }
@@ -148,5 +124,19 @@ func TestLoadFrom_RejectsUnknownField(t *testing.T) {
 	}
 	if _, err := Load(path); err == nil {
 		t.Fatal("expected Load to reject unknown field via KnownFields(true)")
+	}
+}
+
+// TestConfig_OnlyDotfiles verifies that Keys contains exactly [dotfiles] and
+// that removed fields (bin_dir, link_root, generated_dir) are rejected by
+// strict YAML decoding.
+func TestConfig_OnlyDotfiles(t *testing.T) {
+	if len(Keys) != 1 || Keys[0] != KeyDotfiles {
+		t.Fatalf("Keys = %v, want [dotfiles]", Keys)
+	}
+	for _, field := range []string{"bin_dir: /x\n", "link_root: ~/.config\n", "generated_dir: /g\n"} {
+		if _, err := loadFrom(strings.NewReader(field)); err == nil {
+			t.Errorf("expected strict-decode error for removed field: %q", field)
+		}
 	}
 }

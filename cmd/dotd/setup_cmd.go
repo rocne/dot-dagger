@@ -30,13 +30,12 @@ Does not create symlinks or scaffold .dagger files.
 Run 'dotd init' next to scaffold your dotfiles repo.
 
 Use --non-interactive (or -n) to accept every shown default without
-prompting. Combine with the global path flags (--files, --bin-dir,
---link-root, --generated-dir) to script a fresh install.
+prompting. Combine with the global path flags (--files) to script a fresh install.
 
 Examples:
-  dotd setup                                       # interactive
-  dotd setup --non-interactive                     # accept all defaults
-  dotd setup -n --files ~/dotfiles --bin-dir ~/bin # scripted with overrides`, ecosystem.EnvFileName),
+  dotd setup                             # interactive
+  dotd setup --non-interactive           # accept all defaults
+  dotd setup -n --files ~/dotfiles       # scripted with overrides`, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSetup(cmd, cfg, nonInteractive)
 		},
@@ -49,7 +48,7 @@ func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 	out := cmd.OutOrStdout()
 	reader := bufio.NewReader(cmd.InOrStdin())
 	// home is used only to expand "~" in user-typed paths, not for config resolution.
-	home, err := os.UserHomeDir()
+	home, err := ecosystem.Home()
 	if err != nil {
 		return err
 	}
@@ -61,7 +60,7 @@ func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 		return fmt.Errorf("setup: load existing config: %w", err)
 	}
 
-	isUpdate := existing.Dotfiles != "" || existing.BinDir != "" || existing.GeneratedDir != "" || existing.LinkRoot != ""
+	isUpdate := existing.Dotfiles != ""
 	switch {
 	case nonInteractive && isUpdate:
 		bannerf(out, cmd, "update machine configuration (non-interactive)")
@@ -82,29 +81,11 @@ func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 		return err
 	}
 
-	binDir, err := promptPath(out, reader, "Bin directory", "Where executable scripts from your dotfiles repo are linked.", existing.BinDir, cfg.binDir, home, nonInteractive)
-	if err != nil {
-		return err
-	}
-
-	generatedDir, err := promptPath(out, reader, "Generated files directory", "Where compose-assembled shell fragments are written.", existing.GeneratedDir, cfg.generatedDir, home, nonInteractive)
-	if err != nil {
-		return err
-	}
-
-	linkRoot, err := promptPath(out, reader, "Link root", "Home directory used for ~ expansion in link destinations (default: $HOME).", existing.LinkRoot, cfg.linkRoot, home, nonInteractive)
-	if err != nil {
-		return err
-	}
-
 	fmt.Fprintln(out)
 
 	// Write config.yaml.
 	toolCfg := &dotcfg.Config{
-		Dotfiles:     dotfilesPath,
-		BinDir:       binDir,
-		GeneratedDir: generatedDir,
-		LinkRoot:     linkRoot,
+		Dotfiles: dotfilesPath,
 	}
 	if err := dotcfg.Save(cfg.configPath, toolCfg); err != nil {
 		return fmt.Errorf("setup: save config.yaml: %w", err)

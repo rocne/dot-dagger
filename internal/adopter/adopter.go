@@ -44,7 +44,8 @@ type Inference struct {
 type AdoptOptions struct {
 	DotfilesRoot string
 	Conventions  ConventionNames
-	LinkRoot     string // resolved home/link-root dir (for symlink expansion)
+	HomeDir      string // resolved home dir (for symlink expansion)
+	ConfigDir    string // resolved XDG config home dir
 	BinDir       string // resolved managed bin dir
 	Force        bool
 	DryRun       bool
@@ -118,10 +119,11 @@ func Adopt(src, destRel string, opts AdoptOptions) (*pipeline.ActResult, error) 
 	actions := actionsFor(destRel, src, opts)
 	n := pipeline.NewFileNode(destAbs, node.DeriveName(rel), actions)
 	actOpts := pipeline.ActOptions{
-		HomeDir: opts.LinkRoot,
-		BinDir:  opts.BinDir,
-		DryRun:  opts.DryRun,
-		Force:   opts.Force,
+		HomeDir:   opts.HomeDir,
+		ConfigDir: opts.ConfigDir,
+		BinDir:    opts.BinDir,
+		DryRun:    opts.DryRun,
+		Force:     opts.Force,
 	}
 
 	// In dry-run, skip all filesystem writes.

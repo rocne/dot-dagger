@@ -1912,3 +1912,24 @@ func TestListEmptyPrintsNote(t *testing.T) {
 		t.Errorf("expected 'no nodes found' note, got:\n%s", out)
 	}
 }
+
+// TestResolvePaths_AnchorsFromEnv verifies that resolvePaths correctly resolves
+// home, configDir, and binDir from XDG environment variables.
+func TestResolvePaths_AnchorsFromEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "/xdg/conf")
+	t.Setenv("XDG_BIN_HOME", "/xdg/bin")
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	t.Setenv("DOTD_ENV_FILE", filepath.Join(t.TempDir(), "env.yaml"))
+	t.Setenv("DOTD_CONFIG_FILE", filepath.Join(t.TempDir(), "nope.yaml"))
+	t.Setenv("DOTFILES", "")
+	t.Setenv("DOTD_FILES", "")
+	cfg := &config{}
+	if err := resolvePaths(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.home != home || cfg.configDir != "/xdg/conf" || cfg.binDir != "/xdg/bin/dot-dagger" {
+		t.Fatalf("home=%q configDir=%q binDir=%q", cfg.home, cfg.configDir, cfg.binDir)
+	}
+}

@@ -34,22 +34,6 @@ var version = "dev"
 // root command and `dotd help` are intentionally absent: root --help
 // shows every flag so users can discover them.
 var pathFlagOwners = map[string]map[string]bool{
-	"init-file": {
-		"dotd apply": true, "dotd check": true,
-		"dotd init": true, "dotd teardown": true, "dotd unapply": true,
-	},
-	"link-root": {
-		"dotd apply": true, "dotd check": true, "dotd adopt": true,
-		"dotd init": true, "dotd setup": true,
-		"dotd teardown": true, "dotd unapply": true,
-	},
-	"bin-dir": {
-		"dotd apply": true, "dotd check": true,
-		"dotd adopt": true, "dotd setup": true,
-	},
-	"generated-dir": {
-		"dotd apply": true, "dotd check": true, "dotd setup": true,
-	},
 	"dry-run": {
 		"dotd apply": true, "dotd adopt": true,
 		"dotd unapply": true, "dotd teardown": true,
@@ -120,7 +104,8 @@ type appConfig struct {
 	envFile      string
 	env          []string
 	initFile     string
-	linkRoot     string
+	home         string
+	configDir    string
 	binDir       string
 	generatedDir string
 	dryRun       bool
@@ -154,13 +139,9 @@ func newRootCmd() *cobra.Command {
 
 	pf := root.PersistentFlags()
 	pf.StringVarP(&cfg.files, "files", "f", "", "path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → config.yaml dotfiles → cwd)")
-	pf.StringVar(&cfg.configPath, "config", "", "path to config.yaml (default: $DOTD_CONFIG_FILE → ~/.config/dot-dagger/config.yaml)")
-	pf.StringVar(&cfg.envFile, "env-file", "", fmt.Sprintf("path to %s (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/%s)", ecosystem.EnvFileName, ecosystem.EnvFileName))
+	pf.StringVar(&cfg.configPath, "dotd-config", "", "path to dot-dagger's own config.yaml (default: $DOTD_CONFIG_FILE → ~/.config/dot-dagger/config.yaml)")
+	pf.StringVar(&cfg.envFile, "dotd-env", "", fmt.Sprintf("path to dot-dagger's own %s (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/%s)", ecosystem.EnvFileName, ecosystem.EnvFileName))
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
-	pf.StringVar(&cfg.initFile, "init-file", "", "path to write init.sh (default: $DOTD_INIT_FILE → ~/.local/share/dot-dagger/init.sh)")
-	pf.StringVar(&cfg.linkRoot, "link-root", "", "home dir for ~/expansion in link destinations (default: config.yaml link_root → $HOME)")
-	pf.StringVar(&cfg.binDir, "bin-dir", "", "bin directory override (default: config.yaml bin_dir → ~/.local/bin/dot-dagger)")
-	pf.StringVar(&cfg.generatedDir, "generated-dir", "", "generated files directory (default: config.yaml generated_dir → ~/.local/share/dot-dagger/generated)")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
 	pf.BoolVar(&cfg.force, "force", false, "override safety checks")
 	pf.StringVar(&cfg.logLevel, "log-level", "info", "log verbosity ("+dotlog.LevelNames()+")")
@@ -380,23 +361,19 @@ func resolvePaths(cfg *config) error {
 		return err
 	}
 
-	cfg.initFile, err = ecosystem.ResolvePath(cfg.initFile, "DOTD_INIT_FILE", "", ecosystem.DefaultInitFile)
-	if err != nil {
+	if cfg.home, err = ecosystem.Home(); err != nil {
 		return err
 	}
-
-	cfg.linkRoot, err = ecosystem.ResolvePath(cfg.linkRoot, "DOTD_LINK_ROOT", toolCfg.LinkRoot, ecosystem.DefaultLinkRoot)
-	if err != nil {
+	if cfg.binDir, err = ecosystem.BinDir(); err != nil {
 		return err
 	}
-
-	cfg.binDir, err = ecosystem.ResolvePath(cfg.binDir, "DOTD_BIN_DIR", toolCfg.BinDir, ecosystem.DefaultBinDir)
-	if err != nil {
+	if cfg.configDir, err = ecosystem.XdgConfigHome(); err != nil {
 		return err
 	}
-
-	cfg.generatedDir, err = ecosystem.ResolvePath(cfg.generatedDir, "DOTD_GENERATED_DIR", toolCfg.GeneratedDir, ecosystem.DefaultGeneratedDir)
-	if err != nil {
+	if cfg.generatedDir, err = ecosystem.GeneratedDir(); err != nil {
+		return err
+	}
+	if cfg.initFile, err = ecosystem.InitFile(); err != nil {
 		return err
 	}
 
@@ -429,11 +406,12 @@ func configureLogger(cfg *config, cmd *cobra.Command) error {
 
 // buildActOptions constructs pipeline.ActOptions from cfg.
 // dryRun forces dry-run mode regardless of cfg.dryRun.
-// cfg.linkRoot is guaranteed non-empty after resolvePaths succeeds.
+// cfg.home is guaranteed non-empty after resolvePaths succeeds.
 func buildActOptions(cfg *config, dryRun bool) pipeline.ActOptions {
 	return pipeline.ActOptions{
-		HomeDir:      cfg.linkRoot,
+		HomeDir:      cfg.home,
 		BinDir:       cfg.binDir,
+		ConfigDir:    cfg.configDir,
 		GeneratedDir: cfg.generatedDir,
 		DryRun:       dryRun || cfg.dryRun,
 		Force:        cfg.force,
@@ -486,7 +464,7 @@ func walkActive(cmd *cobra.Command, cfg *config) (ordered []pipeline.RawNode, re
 		cfg.log.Debugf("disabled: %s", p)
 	}
 
-	if err := pipeline.ValidateNodes(nodes, pipeline.ActOptions{HomeDir: cfg.linkRoot, BinDir: cfg.binDir}); err != nil {
+	if err := pipeline.ValidateNodes(nodes, pipeline.ActOptions{HomeDir: cfg.home, BinDir: cfg.binDir, ConfigDir: cfg.configDir}); err != nil {
 		return nil, 0, 0, err
 	}
 
