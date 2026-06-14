@@ -2,6 +2,8 @@
 
 A dotfiles manager for people who use more than one machine.
 
+### 📖 [Read the documentation → rocne.github.io/dot-dagger](https://rocne.github.io/dot-dagger/)
+
 If your setup is a single laptop running one OS and one shell, a handful of symlinks and a `.zshrc` is probably fine. But if you work across a personal Mac, a work Linux box, maybe a remote server — each with different shells, different package managers, different software installed — keeping one set of dotfiles that behaves correctly everywhere gets complicated fast.
 
 The kind of problems dotd is designed for:
