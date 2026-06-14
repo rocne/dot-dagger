@@ -15,9 +15,8 @@ func newConfigCmd(cfg *config) *cobra.Command {
 		Short: "Inspect and modify tool configuration",
 		Long: `Read and write entries in config.yaml.
 
-Stored values are path defaults for dot-dagger itself: where the dotfiles
-repo lives, where bin scripts are linked, where generated files go, and
-which directory ~ expands to in link destinations.`,
+The only stored preference is the dotfiles repo location (` + "`dotfiles`" + `). All
+other paths resolve from the environment (XDG); run ` + "`dotd paths`" + ` to see them.`,
 	}
 	cmd.AddCommand(
 		newConfigShowCmd(cfg),
@@ -92,8 +91,7 @@ func newConfigGetCmd(cfg *config) *cobra.Command {
 		Long: `Print the value of a single config key to stdout.
 
 Examples:
-  dotd config get dotfiles
-  dotd config get link_root`,
+  dotd config get dotfiles`,
 		Args: configKeyArgs(1, "usage: dotd config get <key>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			toolCfg, err := dotcfg.Load(cfg.configPath)
@@ -117,8 +115,7 @@ func newConfigSetCmd(cfg *config) *cobra.Command {
 		Long: `Write a value to a config key. Persists to config.yaml.
 
 Examples:
-  dotd config set dotfiles ~/dotfiles
-  dotd config set link_root /home/me`,
+  dotd config set dotfiles ~/dotfiles`,
 		Args: configKeyArgs(2, "usage: dotd config set <key> <value>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			toolCfg, err := dotcfg.Load(cfg.configPath)

@@ -81,9 +81,9 @@ func DefaultEnvFile() (string, error) {
 	return filepath.Join(base, Name, "env.yaml"), nil
 }
 
-// DefaultInitFile returns the default path to init.sh: $XDG_DATA_HOME/dot-dagger/init.sh.
+// InitFile returns the path to init.sh: $XDG_DATA_HOME/dot-dagger/init.sh.
 // init.sh is generated output, not user-edited config — it belongs in XDG_DATA_HOME.
-func DefaultInitFile() (string, error) {
+func InitFile() (string, error) {
 	base, err := xdgDataHome()
 	if err != nil {
 		return "", err
@@ -91,30 +91,45 @@ func DefaultInitFile() (string, error) {
 	return filepath.Join(base, Name, "init.sh"), nil
 }
 
-// DefaultLinkRoot returns the default link root directory: $HOME.
-// This is the directory used to expand "~" in link destinations.
-func DefaultLinkRoot() (string, error) {
-	return userHome()
-}
-
-// DefaultBinDir returns the default path for user-managed binaries: ~/.local/bin/dot-dagger.
-// This follows the FHS convention for user-local executables (not an XDG path).
-func DefaultBinDir() (string, error) {
-	home, err := userHome()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".local", "bin", Name), nil
-}
-
-// DefaultGeneratedDir returns the default path to the compose generated-files directory:
+// GeneratedDir returns the path to the compose generated-files directory:
 // $XDG_DATA_HOME/dot-dagger/generated.
-func DefaultGeneratedDir() (string, error) {
+func GeneratedDir() (string, error) {
 	base, err := xdgDataHome()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(base, Name, "generated"), nil
+}
+
+// Home returns the user's home directory ($HOME on linux/darwin) — the single
+// canonical accessor for "~". Not a configurable knob: $HOME is authoritative
+// (universal convention, like $EDITOR).
+func Home() (string, error) {
+	return userHome()
+}
+
+// xdgBinHome returns $XDG_BIN_HOME if set to an absolute path, else ~/.local/bin.
+// $XDG_BIN_HOME is not in the XDG base spec but is the de-facto convention for
+// user binaries; honoring it lets users relocate the bin root the standard way.
+func xdgBinHome() (string, error) {
+	if d := os.Getenv("XDG_BIN_HOME"); d != "" && filepath.IsAbs(d) {
+		return d, nil
+	}
+	home, err := userHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".local", "bin"), nil
+}
+
+// BinDir returns the dot-dagger-namespaced bin route: <xdgBinHome>/dot-dagger.
+// Namespacing is free because PATH is a search list; init.sh adds it to PATH.
+func BinDir() (string, error) {
+	base, err := xdgBinHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, Name), nil
 }
 
 // DefaultDotfiles returns the default path to the dotfiles repo.

@@ -57,7 +57,7 @@ func emptyEnvFile(t *testing.T) string {
 
 func TestEnvShowEmpty(t *testing.T) {
 	_, err := run(t, "env", "show",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -74,7 +74,7 @@ func TestEnvShowFileKeys(t *testing.T) {
 	}
 
 	out, err := run(t, "env", "show",
-		"--env-file", envFile,
+		"--dotd-env", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -87,7 +87,7 @@ func TestEnvShowFileKeys(t *testing.T) {
 
 func TestEnvShowEnvFlagOverride(t *testing.T) {
 	out, err := run(t, "env", "show",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 		"--env", "os=testvalue",
 	)
@@ -109,7 +109,7 @@ func TestEnvGetExistingKey(t *testing.T) {
 	}
 
 	out, err := run(t, "env", "get", "mykey",
-		"--env-file", envFile,
+		"--dotd-env", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestEnvGetExistingKey(t *testing.T) {
 
 func TestEnvGetMissingKey(t *testing.T) {
 	_, err := run(t, "env", "get", "no-such-key",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err == nil {
@@ -140,7 +140,7 @@ func TestEnvSetWritesKey(t *testing.T) {
 	}
 
 	_, err := run(t, "env", "set", "context", "work",
-		"--env-file", envFile,
+		"--dotd-env", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -148,7 +148,7 @@ func TestEnvSetWritesKey(t *testing.T) {
 	}
 
 	out, err := run(t, "env", "get", "context",
-		"--env-file", envFile,
+		"--dotd-env", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -161,7 +161,7 @@ func TestEnvSetWritesKey(t *testing.T) {
 
 func TestEnvSetInvalidArgs(t *testing.T) {
 	_, err := run(t, "env", "set",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err == nil {
@@ -203,8 +203,10 @@ func TestCompletionInvalidShell(t *testing.T) {
 func TestCheckEmptyRepo(t *testing.T) {
 	// check on a fresh repo always reports init.sh missing — exit code non-zero is expected.
 	// What we care about: it runs without panicking and produces symlink/init.sh summary.
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	out, _ := run(t, "check",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if !strings.Contains(out, "symlinks:") {
@@ -214,14 +216,14 @@ func TestCheckEmptyRepo(t *testing.T) {
 
 func TestCheckAfterApply_Unit(t *testing.T) {
 	dotfiles := t.TempDir()
-	dir := t.TempDir()
-	initFile := filepath.Join(dir, "init.sh")
+	xdgData := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", xdgData)
 
 	// Apply first so init.sh exists.
 	_, err := run(t, "apply",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dotfiles,
-		"--init-file", initFile,
 	)
 	if err != nil {
 		t.Fatalf("apply error = %v", err)
@@ -229,9 +231,8 @@ func TestCheckAfterApply_Unit(t *testing.T) {
 
 	// check should succeed since init.sh was created.
 	_, err = run(t, "check",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dotfiles,
-		"--init-file", initFile,
 	)
 	if err != nil {
 		t.Fatalf("check after apply error = %v", err)
@@ -256,13 +257,14 @@ func TestCheck_DetectsMissingSymlink(t *testing.T) {
 	}
 
 	home := t.TempDir()
-	initFile := filepath.Join(t.TempDir(), "init.sh")
+	t.Setenv("HOME", home)
+	xdgData := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
 	envFile := emptyEnvFile(t)
 
 	// init.sh must exist so the missing-symlink case is the only failure.
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -272,8 +274,7 @@ func TestCheck_DetectsMissingSymlink(t *testing.T) {
 	}
 
 	out, err := run(t, "check",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	)
 	if err == nil {
 		t.Fatalf("check should fail when symlink is missing; out=%q", out)
@@ -301,12 +302,13 @@ func TestCheck_DetectsWrongTarget(t *testing.T) {
 	}
 
 	home := t.TempDir()
-	initFile := filepath.Join(t.TempDir(), "init.sh")
+	t.Setenv("HOME", home)
+	xdgData := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
 	envFile := emptyEnvFile(t)
 
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -320,8 +322,7 @@ func TestCheck_DetectsWrongTarget(t *testing.T) {
 	}
 
 	out, err := run(t, "check",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	)
 	if err == nil {
 		t.Fatalf("check should fail on wrong-target symlink; out=%q", out)
@@ -331,33 +332,39 @@ func TestCheck_DetectsWrongTarget(t *testing.T) {
 	}
 }
 
-// TestCheck_DetectsMissingInitSh verifies that check exits non-zero when
-// init.sh is absent (AUDIT-061).
+// TestCheck_DetectsMissingInitSh verifies that check exits non-zero and
+// reports "missing" when init.sh has not yet been written (AUDIT-061).
 func TestCheck_DetectsMissingInitSh(t *testing.T) {
 	dotfiles := t.TempDir()
-	home := t.TempDir()
-	initFile := filepath.Join(t.TempDir(), "init.sh") // intentionally not created
+	t.Setenv("HOME", t.TempDir())
+	xdgData := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
+	// Intentionally do NOT create xdgData/dot-dagger/init.sh
 	envFile := emptyEnvFile(t)
 
-	_, err := run(t, "check",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+	out, err := run(t, "check",
+		"--files", dotfiles, "--dotd-env", envFile,
 	)
 	if err == nil {
 		t.Fatal("check should fail when init.sh is absent")
+	}
+	// The output must mention init.sh and missing — not just any error.
+	if !strings.Contains(out, "init.sh") && !strings.Contains(out, "missing") {
+		t.Errorf("check output should report init.sh missing; got %q", out)
 	}
 }
 
 // --- dotd apply --dry-run ---
 
 func TestApplyDryRunEmptyRepo(t *testing.T) {
-	dir := t.TempDir()
-	initFile := filepath.Join(dir, "init.sh")
+	t.Setenv("HOME", t.TempDir())
+	xdgData := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
+	initFile := filepath.Join(xdgData, "dot-dagger", "init.sh")
 
 	out, err := run(t, "apply", "--dry-run",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
-		"--init-file", initFile,
 	)
 	if err != nil {
 		t.Fatalf("apply --dry-run error = %v", err)
@@ -386,13 +393,14 @@ func TestApplyDryRunWithActiveNode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dir := t.TempDir()
-	initFile := filepath.Join(dir, "init.sh")
+	t.Setenv("HOME", t.TempDir())
+	xdgData := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
+	initFile := filepath.Join(xdgData, "dot-dagger", "init.sh")
 
 	out, err := run(t, "apply", "--dry-run",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dotfiles,
-		"--init-file", initFile,
 		"--env", "os=linux",
 	)
 	if err != nil {
@@ -422,13 +430,14 @@ func TestApplyWritesInitSh(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dir := t.TempDir()
-	initFile := filepath.Join(dir, "init.sh")
+	t.Setenv("HOME", t.TempDir())
+	xdgData := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
+	initFile := filepath.Join(xdgData, "dot-dagger", "init.sh")
 
 	_, err := run(t, "apply",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dotfiles,
-		"--init-file", initFile,
 	)
 	if err != nil {
 		t.Fatalf("apply error = %v", err)
@@ -446,7 +455,7 @@ func TestApplyWritesInitSh(t *testing.T) {
 
 func TestListEmpty(t *testing.T) {
 	_, err := run(t, "list",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -471,7 +480,7 @@ func TestListActiveNodes(t *testing.T) {
 	}
 
 	out, err := run(t, "list",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dotfiles,
 		"--env", "os=linux",
 	)
@@ -500,7 +509,7 @@ func TestListInactiveFlag(t *testing.T) {
 	}
 
 	out, err := run(t, "list", "--inactive",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dotfiles,
 		"--env", "os=linux",
 	)
@@ -519,7 +528,7 @@ func TestListInactiveFlag(t *testing.T) {
 
 func TestBundleNoFile(t *testing.T) {
 	_, err := run(t, "bundle",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 		"nonexistent.sh",
 	)
@@ -542,7 +551,7 @@ func TestBundleSimple(t *testing.T) {
 	}
 
 	out, err := run(t, "bundle",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dotfiles,
 		"shellrc/base.sh",
 	)
@@ -565,7 +574,7 @@ func TestEnvDiffShowsOverride(t *testing.T) {
 	t.Setenv("DOTD_CONTEXT", "")
 
 	out, err := run(t, "env", "diff",
-		"--env-file", envFile,
+		"--dotd-env", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -578,7 +587,7 @@ func TestEnvDiffShowsOverride(t *testing.T) {
 
 func TestEnvDiffEmptyFile(t *testing.T) {
 	out, err := run(t, "env", "diff",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -598,7 +607,7 @@ func TestEnvDiffShellVarMatches(t *testing.T) {
 	t.Setenv("DOTD_CONTEXT", "work")
 
 	out, err := run(t, "env", "diff",
-		"--env-file", envFile,
+		"--dotd-env", envFile,
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -617,7 +626,7 @@ func TestPackageListEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := run(t, "package", "list",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dir,
 	)
 	if err != nil {
@@ -638,7 +647,7 @@ func TestPackageListShowsAnnotations(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, err := run(t, "package", "list",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dir,
 	)
 	if err != nil {
@@ -665,7 +674,7 @@ func TestPackageListShowsRequestAnnotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, err := run(t, "package", "list",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", dir,
 	)
 	if err != nil {
@@ -802,7 +811,7 @@ func TestInit_RequiresConfig(t *testing.T) {
 
 	_, err := run(t, "init",
 		"--files", emptyDotfiles(t),
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 	)
 	if err == nil {
 		t.Fatal("expected error when config.yaml is absent, got nil")
@@ -830,7 +839,7 @@ func TestTeardown_RemovesConfigAndEnv(t *testing.T) {
 
 	_, err := run(t, "teardown", "--yes",
 		"--files", emptyDotfiles(t),
-		"--env-file", envPath,
+		"--dotd-env", envPath,
 	)
 	if err != nil {
 		t.Fatalf("teardown error = %v", err)
@@ -850,7 +859,7 @@ func TestTeardown_SkipsAbsentFiles(t *testing.T) {
 
 	out, err := run(t, "teardown", "--yes",
 		"--files", emptyDotfiles(t),
-		"--env-file", filepath.Join(xdg, "env.yaml"), // doesn't exist
+		"--dotd-env", filepath.Join(xdg, "env.yaml"), // doesn't exist
 	)
 	if err != nil {
 		t.Fatalf("teardown error = %v\noutput:\n%s", err, out)
@@ -875,7 +884,7 @@ func TestTeardown_CancelExits0(t *testing.T) {
 
 	out, err := runWithStdin(t, strings.NewReader("n\n"), "teardown",
 		"--files", emptyDotfiles(t),
-		"--env-file", filepath.Join(xdg, "env.yaml"),
+		"--dotd-env", filepath.Join(xdg, "env.yaml"),
 	)
 	if err != nil {
 		t.Fatalf("teardown cancel should exit 0, got %v", err)
@@ -911,7 +920,7 @@ func TestTeardown_DryRunRemovesNothing(t *testing.T) {
 
 	out, err := run(t, "teardown", "--yes", "--dry-run",
 		"--files", emptyDotfiles(t),
-		"--env-file", envPath,
+		"--dotd-env", envPath,
 	)
 	if err != nil {
 		t.Fatalf("teardown --dry-run error = %v\noutput:\n%s", err, out)
@@ -955,8 +964,8 @@ func TestTeardown_HonorsPathOverrides(t *testing.T) {
 
 	_, err := run(t, "teardown", "--yes",
 		"--files", emptyDotfiles(t),
-		"--config", customConfig,
-		"--env-file", customEnv,
+		"--dotd-config", customConfig,
+		"--dotd-env", customEnv,
 	)
 	if err != nil {
 		t.Fatalf("teardown error = %v", err)
@@ -1016,13 +1025,13 @@ func TestUnapply_RemovesSymlink(t *testing.T) {
 	}
 
 	home := t.TempDir()
-	initFile := filepath.Join(t.TempDir(), "init.sh")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	envFile := emptyEnvFile(t)
 
 	// Apply first.
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -1034,8 +1043,7 @@ func TestUnapply_RemovesSymlink(t *testing.T) {
 
 	// Unapply.
 	if _, err := run(t, "unapply", "--yes",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("unapply error = %v", err)
 	}
@@ -1064,12 +1072,12 @@ func TestUnapply_PartialFailureExits1(t *testing.T) {
 	}
 
 	home := t.TempDir()
-	initFile := filepath.Join(t.TempDir(), "init.sh")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	envFile := emptyEnvFile(t)
 
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -1083,8 +1091,7 @@ func TestUnapply_PartialFailureExits1(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(home, 0o755) })
 
 	out, err := run(t, "unapply", "--yes",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	)
 	if err == nil {
 		t.Fatalf("unapply should have failed; output: %s", out)
@@ -1095,12 +1102,11 @@ func TestUnapply_PartialFailureExits1(t *testing.T) {
 }
 
 func TestUnapply_NothingToRemove(t *testing.T) {
-	home := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	out, err := run(t, "unapply", "--yes",
 		"--files", emptyDotfiles(t),
-		"--env-file", emptyEnvFile(t),
-		"--link-root", home,
-		"--init-file", filepath.Join(t.TempDir(), "init.sh"),
+		"--dotd-env", emptyEnvFile(t),
 	)
 	if err != nil {
 		t.Fatalf("unapply error = %v", err)
@@ -1126,19 +1132,18 @@ func TestUnapply_DryRunPreservesSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	home := t.TempDir()
-	initFile := filepath.Join(t.TempDir(), "init.sh")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	envFile := emptyEnvFile(t)
 
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 
 	out, err := run(t, "unapply", "--dry-run", "--yes",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	)
 	if err != nil {
 		t.Fatalf("unapply --dry-run error = %v", err)
@@ -1169,19 +1174,18 @@ func TestUnapply_CancelExits0(t *testing.T) {
 		t.Fatal(err)
 	}
 	home := t.TempDir()
-	initFile := filepath.Join(t.TempDir(), "init.sh")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	envFile := emptyEnvFile(t)
 
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 
 	out, err := runWithStdin(t, strings.NewReader("n\n"), "unapply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	)
 	if err != nil {
 		t.Fatalf("unapply cancel should exit 0, got %v", err)
@@ -1195,17 +1199,14 @@ func TestUnapply_CancelExits0(t *testing.T) {
 	}
 }
 
-// --- AUDIT-001: linkRoot default ---
+// --- AUDIT-001: home resolution ---
 
-// TestAdopt_DefaultLinkRoot verifies that adopt succeeds without --link-root by
-// resolving $HOME as the default. Before the fix, cfg.linkRoot was empty and
-// adopt would error with "act: HomeDir is required".
-func TestAdopt_DefaultLinkRoot(t *testing.T) {
+// TestAdopt_UsesHomeFromEnv verifies that adopt resolves the home directory
+// from $HOME (without any --link-root flag). The test places the source file
+// in $HOME and confirms adopt runs without "act: HomeDir is required".
+func TestAdopt_UsesHomeFromEnv(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	// Clear DOTD_LINK_ROOT so the test exercises the default-fn path (priority 4),
-	// not the env-var path (priority 2).
-	t.Setenv("DOTD_LINK_ROOT", "")
 
 	dotfiles := t.TempDir()
 	confDir := filepath.Join(dotfiles, "conf")
@@ -1221,33 +1222,26 @@ func TestAdopt_DefaultLinkRoot(t *testing.T) {
 
 	_, err := run(t, "adopt", "--yes",
 		"--files", dotfiles,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		src,
 	)
 	if err != nil && strings.Contains(err.Error(), "HomeDir is required") {
-		t.Fatalf("adopt failed with HomeDir error — linkRoot default not set: %v", err)
+		t.Fatalf("adopt failed with HomeDir error — home not resolved from $HOME: %v", err)
 	}
 	// If adopt errors for another reason (e.g. missing .dagger conventions) that
 	// is acceptable; what matters is that the HomeDir error does not appear.
 }
 
-// TestTeardown_UsesLinkRoot verifies that teardown resolves the shell RC file
-// under cfg.linkRoot (set via --link-root), not under $HOME or cwd.
+// TestTeardown_UsesHome verifies that teardown resolves the shell RC file
+// under $HOME and strips the dot-dagger source line.
 //
 // Setup:
-//   - linkRoot is a separate temp dir from $HOME — any RC lookup under $HOME
-//     would find no file and leave the source line untouched.
+//   - $HOME contains a .bashrc with the dot-dagger source line.
 //   - env.yaml contains shell: bash so DetectShellConfig is invoked and the
-//     RC path is built as <linkRoot>/.bashrc.
-//   - <linkRoot>/.bashrc contains the dot-dagger source line so teardown has
-//     something to remove.
+//     RC path is built as $HOME/.bashrc.
 //
-// Pass criterion: the source line is gone from <linkRoot>/.bashrc after teardown.
-// Fail criterion: if the bug returns (linkRoot ignored → $HOME used instead),
-// the RC under linkRoot would not be found, the source line would not be
-// removed, and the assertion below would fail.
-func TestTeardown_UsesLinkRoot(t *testing.T) {
-	// $HOME is intentionally different from linkRoot so a mix-up is detectable.
+// Pass criterion: the source line is gone from $HOME/.bashrc after teardown.
+func TestTeardown_UsesHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -1255,16 +1249,6 @@ func TestTeardown_UsesLinkRoot(t *testing.T) {
 	xdgConfig := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", xdgData)
 	t.Setenv("XDG_CONFIG_HOME", xdgConfig)
-	t.Setenv("DOTD_LINK_ROOT", "") // ensure env var doesn't override --link-root
-
-	// linkRoot is the directory teardown must use when building the RC path.
-	linkRoot := t.TempDir()
-
-	// Compute the initFile path that resolvePaths will resolve:
-	// DOTD_INIT_FILE is unset, so it falls through to DefaultInitFile →
-	// $XDG_DATA_HOME/dot-dagger/init.sh.
-	t.Setenv("DOTD_INIT_FILE", "") // force default-fn resolution
-	initFile := filepath.Join(xdgData, "dot-dagger", "init.sh")
 
 	// Create the XDG config dir and env.yaml with shell: bash.
 	configDir := filepath.Join(xdgConfig, "dot-dagger")
@@ -1276,42 +1260,31 @@ func TestTeardown_UsesLinkRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create <linkRoot>/.bashrc containing the dot-dagger source line.
-	// DetectShellConfig(bash, linux, linkRoot) → linkRoot/.bashrc.
-	// HasSourceLine and RemoveSourceLine both key on filepath.Base(initFile) = "init.sh".
-	bashrc := filepath.Join(linkRoot, ".bashrc")
+	// Create $HOME/.bashrc containing the dot-dagger source line.
+	// DetectShellConfig(bash, linux, home) → home/.bashrc.
+	// HasSourceLine and RemoveSourceLine key on filepath.Base(initFile) = "init.sh".
+	bashrc := filepath.Join(home, ".bashrc")
 	sourceLine := `source "$HOME/.local/share/dot-dagger/init.sh"`
 	bashrcContents := "# existing rc\n\n# dotd \xe2\x80\x94 generated shell init\n" + sourceLine + "\n"
 	if err := os.WriteFile(bashrc, []byte(bashrcContents), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Confirm $HOME/.bashrc does NOT exist — so if teardown wrongly uses $HOME
-	// it will silently skip removal rather than succeed.
-	homeBashrc := filepath.Join(home, ".bashrc")
-
 	_, err := run(t, "teardown", "--yes",
-		"--link-root", linkRoot,
-		"--init-file", initFile,
 		"--files", emptyDotfiles(t),
-		"--env-file", envPath,
+		"--dotd-env", envPath,
 	)
 	if err != nil {
 		t.Fatalf("teardown error = %v", err)
 	}
 
-	// The source line must be gone from <linkRoot>/.bashrc.
+	// The source line must be gone from $HOME/.bashrc.
 	got, readErr := os.ReadFile(bashrc)
 	if readErr != nil {
 		t.Fatalf("read %s: %v", bashrc, readErr)
 	}
 	if strings.Contains(string(got), "init.sh") {
 		t.Errorf("source line still present in %s — teardown did not strip it:\n%s", bashrc, got)
-	}
-
-	// $HOME/.bashrc must not have been created — teardown must not have touched $HOME.
-	if _, statErr := os.Stat(homeBashrc); statErr == nil {
-		t.Errorf("teardown created %s — it looked up RC under $HOME instead of linkRoot", homeBashrc)
 	}
 }
 
@@ -1367,7 +1340,7 @@ func TestSetup_HonorsConfigFlag(t *testing.T) {
 
 	// Simulate pressing Enter for all prompts (accept all defaults).
 	out, err := runWithStdin(t, strings.NewReader(strings.Repeat("\n", 10)),
-		"setup", "--config", overrideConfig)
+		"setup", "--dotd-config", overrideConfig)
 	if err != nil {
 		t.Fatalf("setup --config error = %v\noutput:\n%s", err, out)
 	}
@@ -1411,12 +1384,12 @@ func TestInit_HonorsConfigFlag(t *testing.T) {
 	missingConfig := filepath.Join(t.TempDir(), "no-such-config.yaml")
 
 	_, err := run(t, "init",
-		"--config", missingConfig,
+		"--dotd-config", missingConfig,
 		"--files", emptyDotfiles(t),
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 	)
 	if err == nil {
-		t.Fatal("expected error when --config path is missing, got nil — --config override was ignored")
+		t.Fatal("expected error when --dotd-config path is missing, got nil — --dotd-config override was ignored")
 	}
 	if !strings.Contains(err.Error(), "no config found") {
 		t.Errorf("expected 'no config found' error, got: %v", err)
@@ -1449,8 +1422,8 @@ func TestConfigPath_EnvVarOverride(t *testing.T) {
 //   - "unconditional" (no @when predicate — always active)
 //   - "conditional"   (guarded by @when(os=special) — inactive under normal env)
 //
-// Returns (dotfilesDir, homeDir, initFile, envFile).
-func buildLinkDotfiles(t *testing.T) (dotfiles, home, initFile, envFile string) {
+// Returns (dotfilesDir, homeDir, envFile). Sets HOME and XDG_DATA_HOME via t.Setenv.
+func buildLinkDotfiles(t *testing.T) (dotfiles, home, envFile string) {
 	t.Helper()
 	dotfiles = t.TempDir()
 	confDir := filepath.Join(dotfiles, "config")
@@ -1473,7 +1446,8 @@ func buildLinkDotfiles(t *testing.T) (dotfiles, home, initFile, envFile string) 
 	}
 
 	home = t.TempDir()
-	initFile = filepath.Join(t.TempDir(), "init.sh")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	envFile = emptyEnvFile(t)
 	return
 }
@@ -1487,12 +1461,11 @@ func buildLinkDotfiles(t *testing.T) (dotfiles, home, initFile, envFile string) 
 //  2. Unapply --all with os=linux (so the predicate-gated node is INACTIVE under
 //     normal pipeline) → both symlinks must be removed anyway.
 func TestUnapply_All_RemovesAllDotfilesSymlinks(t *testing.T) {
-	dotfiles, home, initFile, envFile := buildLinkDotfiles(t)
+	dotfiles, home, envFile := buildLinkDotfiles(t)
 
 	// Apply with os=special so both nodes are created.
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 		"--env", "os=special",
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
@@ -1509,8 +1482,7 @@ func TestUnapply_All_RemovesAllDotfilesSymlinks(t *testing.T) {
 
 	// Unapply --all with a DIFFERENT env (os=linux, so predicate-gated node is inactive).
 	if _, err := run(t, "unapply", "--all", "--yes",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 		"--env", "os=linux",
 	); err != nil {
 		t.Fatalf("unapply --all error = %v", err)
@@ -1527,12 +1499,11 @@ func TestUnapply_All_RemovesAllDotfilesSymlinks(t *testing.T) {
 // TestUnapply_All_OnlyRemovesDotfilesSymlinks verifies that --all does not
 // remove symlinks that do NOT point into the dotfiles repo (AUDIT-059).
 func TestUnapply_All_OnlyRemovesDotfilesSymlinks(t *testing.T) {
-	dotfiles, home, initFile, envFile := buildLinkDotfiles(t)
+	dotfiles, home, envFile := buildLinkDotfiles(t)
 
 	// Apply with os=special so both nodes are created.
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 		"--env", "os=special",
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
@@ -1549,8 +1520,7 @@ func TestUnapply_All_OnlyRemovesDotfilesSymlinks(t *testing.T) {
 	}
 
 	if _, err := run(t, "unapply", "--all", "--yes",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("unapply --all error = %v", err)
 	}
@@ -1579,20 +1549,19 @@ func TestUnapply_YesFlagSkipsConfirmation(t *testing.T) {
 	}
 
 	home := t.TempDir()
-	initFile := filepath.Join(t.TempDir(), "init.sh")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	envFile := emptyEnvFile(t)
 
 	if _, err := run(t, "apply",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 
 	// --yes bypasses the prompt; no stdin input needed.
 	_, err := run(t, "unapply", "--yes",
-		"--files", dotfiles, "--env-file", envFile,
-		"--link-root", home, "--init-file", initFile,
+		"--files", dotfiles, "--dotd-env", envFile,
 	)
 	if err != nil {
 		t.Fatalf("unapply --yes error = %v (prompt may not have been bypassed)", err)
@@ -1646,7 +1615,7 @@ func assertRuntimeError(t *testing.T, err error, label string) {
 // subcommand classifies as usage (would exit 2).
 func TestUsageError_ArgValidator(t *testing.T) {
 	err := runErr(t, "env", "get",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	assertUsageError(t, err, "env get (no args)")
@@ -1670,20 +1639,19 @@ func TestUsageError_CompletionInvalidShell(t *testing.T) {
 // passed to a syntactically-valid command) stays a runtime error (exit 1).
 func TestRuntimeError_UnknownConfigKey(t *testing.T) {
 	err := runErr(t, "config", "get", "bogus",
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	assertRuntimeError(t, err, "config get bogus")
 }
 
 // TestHelp_HidesIrrelevantPathFlags verifies that `dotd config get --help`
-// omits global path/mutation flags it doesn't act on (--bin-dir, --init-file,
-// etc.), while `dotd apply --help` still advertises every flag.
+// omits mutation flags it doesn't act on (--force, --dry-run), while
+// `dotd apply --help` still advertises them. The path flags (--bin-dir,
+// --init-file, --link-root, --generated-dir) were removed in the XDG model.
 func TestHelp_HidesIrrelevantPathFlags(t *testing.T) {
-	hiddenOnConfigGet := []string{
-		"--bin-dir", "--init-file", "--link-root",
-		"--generated-dir", "--force", "--dry-run",
-	}
+	// Flags scoped to mutation commands (pathFlagOwners) must be hidden on config get.
+	hiddenOnConfigGet := []string{"--force", "--dry-run"}
 
 	out, err := run(t, "config", "get", "--help")
 	if err != nil {
@@ -1695,7 +1663,7 @@ func TestHelp_HidesIrrelevantPathFlags(t *testing.T) {
 		}
 	}
 	// Sanity: globally relevant flags must remain visible.
-	for _, flag := range []string{"--log-level", "--config", "--env-file"} {
+	for _, flag := range []string{"--log-level", "--dotd-config", "--dotd-env"} {
 		if !strings.Contains(out, flag) {
 			t.Errorf("config get --help should still show %s; got:\n%s", flag, out)
 		}
@@ -1714,7 +1682,7 @@ func TestHelp_HidesIrrelevantPathFlags(t *testing.T) {
 
 // TestHelp_HiddenStateRestored verifies that filtering one subcommand's --help
 // doesn't permanently mutate flag state — a subsequent root --help must still
-// show every flag.
+// show every flag (including mutation flags hidden on config get).
 func TestHelp_HiddenStateRestored(t *testing.T) {
 	if _, err := run(t, "config", "get", "--help"); err != nil {
 		t.Fatalf("config get --help error = %v", err)
@@ -1723,7 +1691,8 @@ func TestHelp_HiddenStateRestored(t *testing.T) {
 	if err != nil {
 		t.Fatalf("root --help error = %v", err)
 	}
-	for _, flag := range []string{"--bin-dir", "--init-file", "--link-root", "--generated-dir"} {
+	// Mutation flags (scoped via pathFlagOwners) must be restored on root --help.
+	for _, flag := range []string{"--dry-run", "--force"} {
 		if !strings.Contains(out, flag) {
 			t.Errorf("root --help should show %s after subcommand --help ran; got:\n%s", flag, out)
 		}
@@ -1792,7 +1761,7 @@ func TestEnvResolution_ShellExpandedValue(t *testing.T) {
 	// Run dotd list — no --env flag; env resolution must come entirely from
 	// the shell-expanded env.yaml value.
 	out, err := run(t, "list",
-		"--env-file", envFile,
+		"--dotd-env", envFile,
 		"--files", dotfiles,
 	)
 	if err != nil {
@@ -1819,8 +1788,8 @@ func TestApplyRefusesCwdFallbackWhenUnconfigured(t *testing.T) {
 	t.Setenv("DOTD_FILES", "")
 	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
 	out, err := run(t, "apply",
-		"--config", missingConfig,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", missingConfig,
+		"--dotd-env", emptyEnvFile(t),
 	)
 	if err == nil {
 		t.Fatalf("expected error, got none\noutput: %s", out)
@@ -1841,8 +1810,8 @@ func TestListRefusesCwdFallbackWhenUnconfigured(t *testing.T) {
 	t.Setenv("DOTD_FILES", "")
 	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
 	_, err := run(t, "list",
-		"--config", missingConfig,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", missingConfig,
+		"--dotd-env", emptyEnvFile(t),
 	)
 	if err == nil || !strings.Contains(err.Error(), "no dotfiles repo configured") {
 		t.Errorf("list error = %v, want cwd-fallback refusal", err)
@@ -1861,12 +1830,11 @@ func TestApplyWarnsWhenNoActions(t *testing.T) {
 		t.Fatal(err)
 	}
 	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
 	out, err := run(t, "apply",
 		"-f", dotfiles,
-		"--env-file", emptyEnvFile(t),
-		"--init-file", filepath.Join(tmp, "init.sh"),
-		"--link-root", tmp,
-		"--bin-dir", filepath.Join(tmp, "bin"),
+		"--dotd-env", emptyEnvFile(t),
 	)
 	if err != nil {
 		t.Fatalf("apply error = %v\noutput: %s", err, out)
@@ -1882,12 +1850,14 @@ func TestApplyWarnsWhenNoActions(t *testing.T) {
 // TestCheckHintsSetupWhenUnconfigured: check failures on a machine without
 // config.yaml must point at 'dotd setup'.
 func TestCheckHintsSetupWhenUnconfigured(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
 	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
 	_, err := run(t, "check",
 		"-f", emptyDotfiles(t),
-		"--config", missingConfig,
-		"--env-file", emptyEnvFile(t),
-		"--init-file", filepath.Join(t.TempDir(), "init.sh"),
+		"--dotd-config", missingConfig,
+		"--dotd-env", emptyEnvFile(t),
 	)
 	if err == nil {
 		t.Fatal("expected check to report issues")
@@ -1903,12 +1873,33 @@ func TestCheckHintsSetupWhenUnconfigured(t *testing.T) {
 func TestListEmptyPrintsNote(t *testing.T) {
 	out, err := run(t, "list",
 		"-f", emptyDotfiles(t),
-		"--env-file", emptyEnvFile(t),
+		"--dotd-env", emptyEnvFile(t),
 	)
 	if err != nil {
 		t.Fatalf("list error = %v", err)
 	}
 	if !strings.Contains(out, "no nodes found") {
 		t.Errorf("expected 'no nodes found' note, got:\n%s", out)
+	}
+}
+
+// TestResolvePaths_AnchorsFromEnv verifies that resolvePaths correctly resolves
+// home, configDir, and binDir from XDG environment variables.
+func TestResolvePaths_AnchorsFromEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "/xdg/conf")
+	t.Setenv("XDG_BIN_HOME", "/xdg/bin")
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	t.Setenv("DOTD_ENV_FILE", filepath.Join(t.TempDir(), "env.yaml"))
+	t.Setenv("DOTD_CONFIG_FILE", filepath.Join(t.TempDir(), "nope.yaml"))
+	t.Setenv("DOTFILES", "")
+	t.Setenv("DOTD_FILES", "")
+	cfg := &config{}
+	if err := resolvePaths(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.home != home || cfg.configDir != "/xdg/conf" || cfg.binDir != "/xdg/bin/dot-dagger" {
+		t.Fatalf("home=%q configDir=%q binDir=%q", cfg.home, cfg.configDir, cfg.binDir)
 	}
 }

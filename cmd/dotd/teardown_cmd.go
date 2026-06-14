@@ -20,7 +20,7 @@ func newTeardownCmd(cfg *config) *cobra.Command {
 		Short: fmt.Sprintf("Remove dot-dagger system config (config.yaml, %s, RC source line)", ecosystem.EnvFileName),
 		Long: fmt.Sprintf(`Remove dot-dagger system-level configuration from this machine.
 
-Removes (at the resolved paths — honors --config, --env-file, DOTD_* vars):
+Removes (at the resolved paths — honors --dotd-config, --dotd-env, DOTD_* vars):
   - config.yaml
   - %s
   - The dotd source line from the shell RC file (if detected)
@@ -71,7 +71,7 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	if resolved, rerr := resolveEnv(cfg); rerr == nil {
 		if shell := resolved["shell"]; shell != "" {
 			osName := resolved["os"]
-			if sc, ok, _ := setup.DetectShellConfig(shell, osName, cfg.linkRoot); ok {
+			if sc, ok, _ := setup.DetectShellConfig(shell, osName, cfg.home); ok {
 				has, _ := setup.HasSourceLine(sc.RCFile, cfg.initFile)
 				if has {
 					rcFile = sc.RCFile

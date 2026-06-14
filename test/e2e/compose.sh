@@ -1,28 +1,23 @@
 #!/bin/sh
 set -e
 
-mkdir -p /home/e2e/bin /tmp/generated
+export HOME=/home/e2e
+export XDG_BIN_HOME=/home/e2e/bin
+export XDG_DATA_HOME=/tmp/xdgdata
+mkdir -p /home/e2e/bin /tmp/xdgdata
 
 dotd apply \
   --files /fixture \
-  --env-file /fixture/env.yaml \
-  --link-root /home/e2e \
-  --bin-dir /home/e2e/bin \
-  --init-file /tmp/init.sh \
-  --generated-dir /tmp/generated \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal
 
-test -f /tmp/generated/extras.sh || { printf 'FAIL: extras.sh not generated\n'; exit 1; }
-grep -q "extras.sh" /tmp/init.sh || { printf 'FAIL: extras.sh not sourced in init.sh\n'; exit 1; }
+test -f /tmp/xdgdata/dot-dagger/generated/extras.sh || { printf 'FAIL: extras.sh not generated\n'; exit 1; }
+grep -q "extras.sh" /tmp/xdgdata/dot-dagger/init.sh || { printf 'FAIL: extras.sh not sourced in init.sh\n'; exit 1; }
 
 OUT=$(dotd compose list \
   --files /fixture \
-  --env-file /fixture/env.yaml \
-  --link-root /home/e2e \
-  --bin-dir /home/e2e/bin \
-  --init-file /tmp/init.sh \
-  --generated-dir /tmp/generated \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal)
 printf '%s' "$OUT" | grep -q "extras.sh" \
@@ -30,25 +25,17 @@ printf '%s' "$OUT" | grep -q "extras.sh" \
 
 dotd compose check \
   --files /fixture \
-  --env-file /fixture/env.yaml \
-  --link-root /home/e2e \
-  --bin-dir /home/e2e/bin \
-  --init-file /tmp/init.sh \
-  --generated-dir /tmp/generated \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal \
   || { printf 'FAIL: compose check should pass after apply\n'; exit 1; }
 
-printf 'stale content\n' > /tmp/generated/extras.sh
+printf 'stale content\n' > /tmp/xdgdata/dot-dagger/generated/extras.sh
 
 # Stale target must be reported AND exit non-zero.
 if OUT=$(dotd compose check \
   --files /fixture \
-  --env-file /fixture/env.yaml \
-  --link-root /home/e2e \
-  --bin-dir /home/e2e/bin \
-  --init-file /tmp/init.sh \
-  --generated-dir /tmp/generated \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal 2>&1); then
   printf 'FAIL: compose check should exit non-zero when stale\n'; exit 1

@@ -427,10 +427,10 @@ func TestAct_DeriveLinkDest(t *testing.T) {
 // TestAct_CreateSymlink_ForceClobberGuard covers the three distinct behaviors
 // of createSymlink (exercised via Act) related to existing paths at dest:
 //
-//   (a) Existing symlink at dest — silently replaced; no Force needed.
-//   (b) Existing real file at dest with Force=true — file removed; symlink created.
-//   (c) Existing real file at dest with Force=false — Act errors; original file
-//       content is preserved on disk (safety-critical no-clobber guarantee).
+//	(a) Existing symlink at dest — silently replaced; no Force needed.
+//	(b) Existing real file at dest with Force=true — file removed; symlink created.
+//	(c) Existing real file at dest with Force=false — Act errors; original file
+//	    content is preserved on disk (safety-critical no-clobber guarantee).
 func TestAct_CreateSymlink_ForceClobberGuard(t *testing.T) {
 	// (a) Re-link over an existing symlink — Force not required.
 	t.Run("relink_over_existing_symlink", func(t *testing.T) {
@@ -590,7 +590,7 @@ func TestAct_CreateSymlink_ForceClobberGuard(t *testing.T) {
 	})
 }
 
-// TestAct_BinDirExpansion covers "~bin" and "~bin/x" link destination expansion
+// TestAct_BinDirExpansion covers "$bin" and "$bin/x" link destination expansion
 // against ActOptions.BinDir (AUDIT-047). All sub-cases use DryRun so no
 // filesystem writes occur; only the resolved Dest value is asserted.
 func TestAct_BinDirExpansion(t *testing.T) {
@@ -601,28 +601,28 @@ func TestAct_BinDirExpansion(t *testing.T) {
 		wantDest string // exact expected Dest after expansion
 	}{
 		{
-			name:     "~bin expands to BinDir",
-			dest:     "~bin",
+			name:     "$bin expands to BinDir",
+			dest:     "$bin",
 			binDir:   "/path/to/bin",
 			wantDest: "/path/to/bin",
 		},
 		{
-			name:     "~bin/myscript expands under BinDir",
-			dest:     "~bin/myscript",
+			name:     "$bin/myscript expands under BinDir",
+			dest:     "$bin/myscript",
 			binDir:   "/path/to/bin",
 			wantDest: "/path/to/bin/myscript",
 		},
 		{
-			name:     "~bin with empty BinDir is not expanded",
-			dest:     "~bin",
+			name:     "$bin with empty BinDir is not expanded",
+			dest:     "$bin",
 			binDir:   "",
-			wantDest: "~bin",
+			wantDest: "$bin",
 		},
 		{
-			name:     "~bin-other is not treated as ~bin prefix",
-			dest:     "~bin-other",
+			name:     "$bin-other is not treated as $bin prefix",
+			dest:     "$bin-other",
 			binDir:   "/path/to/bin",
-			wantDest: "~bin-other",
+			wantDest: "$bin-other",
 		},
 	}
 
@@ -658,6 +658,87 @@ func TestAct_BinDirExpansion(t *testing.T) {
 				t.Errorf("link.Dest = %q, want %q", res.Links[0].Dest, c.wantDest)
 			}
 		})
+	}
+}
+
+// TestAct_ConfigDirExpansion covers "$config" and "$config/<rel>" link
+// destination expansion against ActOptions.ConfigDir. Mirrors
+// TestAct_BinDirExpansion. All sub-cases use DryRun so no filesystem writes
+// occur; only the resolved Dest value is asserted.
+func TestAct_ConfigDirExpansion(t *testing.T) {
+	cases := []struct {
+		name      string
+		dest      string
+		configDir string
+		wantDest  string // exact expected Dest after expansion
+	}{
+		{
+			name:      "$config expands to ConfigDir",
+			dest:      "$config",
+			configDir: "/some/conf",
+			wantDest:  "/some/conf",
+		},
+		{
+			name:      "$config/nvim expands under ConfigDir",
+			dest:      "$config/nvim",
+			configDir: "/some/conf",
+			wantDest:  "/some/conf/nvim",
+		},
+		{
+			name:      "$config with empty ConfigDir is not expanded",
+			dest:      "$config",
+			configDir: "",
+			wantDest:  "$config",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srcDir := t.TempDir()
+
+			// Build a real source file so Act doesn't error on a missing path.
+			srcPath := filepath.Join(srcDir, "init.lua")
+			if err := os.WriteFile(srcPath, []byte("-- config\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			n := RawNode{
+				Path:        srcPath,
+				LogicalName: "init.lua",
+				Actions:     []Action{{Type: ActionLink, Dest: c.dest}},
+			}
+
+			home := t.TempDir()
+			res, err := Act([]RawNode{n}, ActOptions{
+				HomeDir:   home,
+				ConfigDir: c.configDir,
+				DryRun:    true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Links) != 1 {
+				t.Fatalf("expected 1 link, got %d: %v", len(res.Links), res.Links)
+			}
+			if res.Links[0].Dest != c.wantDest {
+				t.Errorf("link.Dest = %q, want %q", res.Links[0].Dest, c.wantDest)
+			}
+		})
+	}
+}
+
+func TestExpandDest_Anchors(t *testing.T) {
+	const home, bin, conf = "/home/u", "/home/u/.local/bin/dot-dagger", "/home/u/.config"
+	cases := []struct{ in, want string }{
+		{"~", home}, {"~/.zshrc", home + "/.zshrc"},
+		{"$bin", bin}, {"$bin/fmt", bin + "/fmt"},
+		{"$config", conf}, {"$config/nvim/init.lua", conf + "/nvim/init.lua"},
+		{"/abs/path", "/abs/path"}, {"relative/path", "relative/path"},
+	}
+	for _, c := range cases {
+		if got := expandDest(c.in, home, bin, conf); got != c.want {
+			t.Errorf("expandDest(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }
 

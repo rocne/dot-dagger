@@ -1,11 +1,14 @@
 #!/bin/sh
 set -e
 
-mkdir -p /home/e2e/bin /tmp/generated
+export HOME=/home/e2e
+export XDG_BIN_HOME=/home/e2e/bin
+export XDG_DATA_HOME=/tmp/xdgdata
+mkdir -p /home/e2e/bin /tmp/xdgdata
 
 printf 'existing content\n' > /home/e2e/.zshrc
 
-APPLY_ARGS="--files /fixture --env-file /fixture/env.yaml --link-root /home/e2e --bin-dir /home/e2e/bin --init-file /tmp/init.sh --generated-dir /tmp/generated --env os=linux --env context=personal"
+APPLY_ARGS="--files /fixture --dotd-env /fixture/env.yaml --env os=linux --env context=personal"
 
 dotd apply $APPLY_ARGS 2>/dev/null \
   && { printf 'FAIL: apply without --force should have failed on plain-file conflict\n'; exit 1; } \

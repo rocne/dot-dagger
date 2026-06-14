@@ -3,7 +3,7 @@ set -e
 
 OUT=$(dotd bundle shellrc/aliases.sh \
   --files /fixture \
-  --env-file /fixture/env.yaml \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal)
 

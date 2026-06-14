@@ -1,4 +1,4 @@
-link_root: "~bin"
+link_root: "$bin"
 defaults:
   actions:
     - link

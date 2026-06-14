@@ -38,21 +38,20 @@ func newIenv(t *testing.T) *ienv {
 		t.Fatalf("mkdir home: %v", err)
 	}
 
-	// binDir is inside home so @link(~/bin/hello) resolves to binDir/hello
-	// when --link-root is set to home.
-	binDir := filepath.Join(home, "bin")
-
-	generatedDir := filepath.Join(tmp, "generated")
-	if err := os.MkdirAll(generatedDir, 0o755); err != nil {
-		t.Fatalf("mkdir generated: %v", err)
-	}
+	// Paths resolve from the environment (pure-XDG model): "~" = $HOME, and
+	// init.sh + generated live under $XDG_DATA_HOME. The bin fixture uses an
+	// explicit "~/bin/hello" dest, so binDir is $HOME/bin. $config defaults to
+	// $HOME/.config (XDG_CONFIG_HOME left unset).
+	t.Setenv("HOME", home)
+	xdgData := filepath.Join(tmp, "data")
+	t.Setenv("XDG_DATA_HOME", xdgData)
 
 	return &ienv{
 		dotfiles:     dotfiles,
 		home:         home,
-		initFile:     filepath.Join(tmp, "init.sh"),
-		binDir:       binDir,
-		generatedDir: generatedDir,
+		initFile:     filepath.Join(xdgData, "dot-dagger", "init.sh"),
+		binDir:       filepath.Join(home, "bin"),
+		generatedDir: filepath.Join(xdgData, "dot-dagger", "generated"),
 	}
 }
 
@@ -73,11 +72,7 @@ func (e *ienv) runMayFail(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	base := []string{
 		"--files", e.dotfiles,
-		"--env-file", filepath.Join(e.dotfiles, "env.yaml"),
-		"--link-root", e.home,
-		"--bin-dir", e.binDir,
-		"--init-file", e.initFile,
-		"--generated-dir", e.generatedDir,
+		"--dotd-env", filepath.Join(e.dotfiles, "env.yaml"),
 	}
 	var buf bytes.Buffer
 	cmd := newRootCmd()
@@ -92,11 +87,7 @@ func (e *ienv) runWithStdin(t *testing.T, stdin io.Reader, args ...string) (stri
 	t.Helper()
 	base := []string{
 		"--files", e.dotfiles,
-		"--env-file", filepath.Join(e.dotfiles, "env.yaml"),
-		"--link-root", e.home,
-		"--bin-dir", e.binDir,
-		"--init-file", e.initFile,
-		"--generated-dir", e.generatedDir,
+		"--dotd-env", filepath.Join(e.dotfiles, "env.yaml"),
 	}
 	var buf bytes.Buffer
 	cmd := newRootCmd()
@@ -652,7 +643,7 @@ func TestInitAfterSetup(t *testing.T) {
 	initCmd.SetErr(&initBuf)
 	initCmd.SetArgs([]string{"init",
 		"--files", dotfilesDir,
-		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
+		"--dotd-env", filepath.Join(dotfilesDir, "env.yaml"),
 	})
 	if err := initCmd.Execute(); err != nil {
 		t.Fatalf("init error = %v\noutput:\n%s", err, initBuf.String())
@@ -671,7 +662,7 @@ func TestInitAfterSetup(t *testing.T) {
 func TestInitNonInteractive(t *testing.T) {
 	xdg := t.TempDir()
 	dotfilesDir := t.TempDir()
-	linkRoot := t.TempDir() // keeps the RC source line away from the real home dir
+	t.Setenv("HOME", t.TempDir()) // keeps the RC source line away from the real home dir
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	t.Setenv("DOTFILES", dotfilesDir)
 
@@ -680,7 +671,7 @@ func TestInitNonInteractive(t *testing.T) {
 	var setupBuf bytes.Buffer
 	setupCmd.SetOut(&setupBuf)
 	setupCmd.SetErr(&setupBuf)
-	setupCmd.SetArgs([]string{"setup", "-n", "--link-root", linkRoot})
+	setupCmd.SetArgs([]string{"setup", "-n"})
 	if err := setupCmd.Execute(); err != nil {
 		t.Fatalf("setup -n error = %v\noutput:\n%s", err, setupBuf.String())
 	}
@@ -692,8 +683,7 @@ func TestInitNonInteractive(t *testing.T) {
 	initCmd.SetErr(&initBuf)
 	initCmd.SetArgs([]string{"init", "-n",
 		"--files", dotfilesDir,
-		"--env-file", filepath.Join(dotfilesDir, "env.yaml"),
-		"--link-root", linkRoot,
+		"--dotd-env", filepath.Join(dotfilesDir, "env.yaml"),
 	})
 	if err := initCmd.Execute(); err != nil {
 		t.Fatalf("init -n error = %v\noutput:\n%s", err, initBuf.String())
@@ -738,8 +728,8 @@ func TestConfigCmdsLifecycle(t *testing.T) {
 	// config show on missing file exits 0 with dotfiles= in output
 	missingConfig := filepath.Join(t.TempDir(), "config.yaml")
 	out, err := run(t, "config", "show",
-		"--config", missingConfig,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", missingConfig,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {
@@ -752,16 +742,16 @@ func TestConfigCmdsLifecycle(t *testing.T) {
 	// config set dotfiles /tmp/x → config get dotfiles returns /tmp/x
 	configPath := writeConfigYAML(t, "{}\n")
 	if _, err = run(t, "config", "set", "dotfiles", "/tmp/x",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	); err != nil {
 		t.Fatalf("config set error = %v", err)
 	}
 
 	out, err = run(t, "config", "get", "dotfiles",
-		"--config", configPath,
-		"--env-file", emptyEnvFile(t),
+		"--dotd-config", configPath,
+		"--dotd-env", emptyEnvFile(t),
 		"--files", emptyDotfiles(t),
 	)
 	if err != nil {

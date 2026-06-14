@@ -9,7 +9,7 @@ Files that can't carry annotations (JSON, XML, compiled binaries) are declared h
 ```yaml
 # directory-level conditions and behavior
 when: os=macos
-link_root: ~/.config/nvim
+link_root: $config/nvim
 name: nvim.config
 actions:
   - source
@@ -50,7 +50,7 @@ These fields apply to the directory that contains the `.dagger` file.
 | Field | Type | Description |
 |---|---|---|
 | `when` | string | Gate traversal of this directory on a condition. If false, no files here are processed. |
-| `link_root` | string | Override the symlink root for this directory and all subdirectories. `~/` is expanded to the home directory. |
+| `link_root` | string | Override the symlink root for this directory and all subdirectories. Supported anchor tokens: `~` (expands to `$HOME`), `$bin` (`$XDG_BIN_HOME`, defaulting to `~/.local/bin/dot-dagger`), `$config` (`$XDG_CONFIG_HOME`, defaulting to `~/.config`). An unknown anchor token is a hard validation error. |
 | `name` | string | Override the directory's logical name. |
 | `actions` | list of strings | Actions for this directory node (mainly used with `compose: true`). |
 | `after` | list of strings | Load-order dependencies for this directory. |
@@ -202,9 +202,9 @@ Multiple `.dagger` files cascade from root to leaf. For any given file:
 dotfiles/
   .dagger              # (empty)
   config/
-    .dagger            # defaults.actions: [link] (link_root defaults to ~/.config)
+    .dagger            # defaults.actions: [link] (link_root defaults to $config)
     nvim/
-      .dagger          # link_root: ~/.config/nvim
+      .dagger          # link_root: $config/nvim
       init.lua         # → ~/.config/nvim/init.lua
       lua/
         plugins.lua    # → ~/.config/nvim/lua/plugins.lua

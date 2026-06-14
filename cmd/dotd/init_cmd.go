@@ -99,7 +99,7 @@ func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config, nonInt
 	if shell == "" {
 		return nil
 	}
-	sc, ok, err := setup.DetectShellConfig(shell, resolved["os"], cfg.linkRoot)
+	sc, ok, err := setup.DetectShellConfig(shell, resolved["os"], cfg.home)
 	if err != nil {
 		return fmt.Errorf("init: detect shell config: %w", err)
 	}
@@ -128,7 +128,7 @@ func maybeAddSourceLine(out io.Writer, reader *bufio.Reader, cfg *config, nonInt
 		return nil
 	}
 
-	if err := setup.AppendSourceLine(sc.RCFile, cfg.initFile, cfg.linkRoot); err != nil {
+	if err := setup.AppendSourceLine(sc.RCFile, cfg.initFile, cfg.home); err != nil {
 		return fmt.Errorf("init: append source line: %w", err)
 	}
 	ui.OKf(out, "  added source line to %s", sc.RCFile)
@@ -151,9 +151,9 @@ var conventionRoles = []conventionRole{
 	},
 	{
 		label:   "Config files",
-		desc:    "Files here are symlinked into ~/.config by default (e.g. config/nvim/init.lua → ~/.config/nvim/init.lua).",
+		desc:    "Files here are symlinked into your config dir by default (e.g. config/nvim/init.lua → $config/nvim/init.lua).",
 		defDir:  adopter.DirConfig,
-		content: "link_root: \"~/.config\"\ndefaults:\n  actions:\n    - link\n",
+		content: "link_root: \"" + pipeline.ConfigPrefix + "\"\ndefaults:\n  actions:\n    - link\n",
 	},
 	{
 		label:   "Bin scripts",

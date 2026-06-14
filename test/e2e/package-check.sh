@@ -3,7 +3,7 @@ set -e
 
 OUT=$(dotd package check \
   --files /fixture \
-  --env-file /fixture/env.yaml \
+  --dotd-env /fixture/env.yaml \
   --env os=linux \
   --env context=personal)
 
@@ -18,7 +18,7 @@ printf '#!/bin/bash\n# @require(not-installable)\necho hi\n' \
 
 if dotd package generate \
   --files /tmp/pkgdotfiles \
-  --env-file /tmp/pkgdotfiles/env.yaml \
+  --dotd-env /tmp/pkgdotfiles/env.yaml \
   --env os=linux 2>/dev/null; then
   printf 'FAIL: package generate should fail with uninstallable @require\n'
   exit 1

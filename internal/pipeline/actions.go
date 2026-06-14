@@ -66,7 +66,7 @@ func CheckLinkConflicts(nodes []RawNode, opts ActOptions) error {
 			}
 			dest := a.Dest
 			if opts.HomeDir != "" {
-				dest = resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir)
+				dest = resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir, opts.ConfigDir)
 			} else if dest == "" {
 				// Can't resolve without HomeDir; skip empty dests.
 				continue
@@ -80,11 +80,40 @@ func CheckLinkConflicts(nodes []RawNode, opts ActOptions) error {
 	return nil
 }
 
+// validateAnchor rejects a link destination or link_root value that begins with
+// an anchor sigil ("~" or "$") but is not a recognized token. Catches typos like
+// "$conifg" that expandDest would otherwise treat as a literal path. Paths with
+// no leading sigil are always allowed. field labels the error source.
+func validateAnchor(field, value string) error {
+	if value == "" {
+		return nil
+	}
+	switch value[0] {
+	case '~':
+		if value == "~" || strings.HasPrefix(value, "~/") {
+			return nil
+		}
+	case '$':
+		for _, tok := range []string{BinPrefix, ConfigPrefix} {
+			if value == tok || strings.HasPrefix(value, tok+"/") {
+				return nil
+			}
+		}
+	default:
+		return nil
+	}
+	return fmt.Errorf("unknown anchor token %q in %s — valid anchors are ~, %s, %s", value, field, BinPrefix, ConfigPrefix)
+}
+
 func validateNode(n RawNode) error {
 	// Compose fragments are consumed by the compose mechanism; act.go never
 	// processes their actions as standalone nodes.
 	if n.IsCompose {
 		return nil
+	}
+
+	if err := validateAnchor("link_root", n.LinkRoot); err != nil {
+		return fmt.Errorf("node %s: %w", n.LogicalName, err)
 	}
 
 	// Directory nodes have ComposeTarget == Path (set by Walk for composition.enabled dirs).
@@ -104,6 +133,9 @@ func validateNode(n RawNode) error {
 			// Empty dest is valid when link_root is set — destination is derived at act time.
 			if a.Dest == "" && n.LinkRoot == "" {
 				return fmt.Errorf("node %s: link requires a destination", n.LogicalName)
+			}
+			if err := validateAnchor("link destination", a.Dest); err != nil {
+				return fmt.Errorf("node %s: %w", n.LogicalName, err)
 			}
 			if isDir && !seenCompose {
 				return fmt.Errorf("node %s: link/source must follow compose", n.LogicalName)

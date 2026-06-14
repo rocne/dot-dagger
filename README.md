@@ -519,7 +519,7 @@ Per-directory config. Controls how files in a directory are processed, and decla
 
 ```yaml
 when: os=macos
-link_root: ~/.config/nvim
+link_root: $config/nvim
 
 defaults:
   when: context=work

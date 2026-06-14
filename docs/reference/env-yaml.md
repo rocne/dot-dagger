@@ -9,10 +9,10 @@ dotd looks for `env.yaml` in two places, in order:
 1. `<dotfiles>/env.yaml` (inside your dotfiles repo)
 2. `~/.config/dot-dagger/env.yaml`
 
-Override with `--env-file`:
+Override with `--dotd-env`:
 
 ```sh
-dotd apply --env-file ~/.config/dot-dagger/env.yaml
+dotd apply --dotd-env ~/.config/dot-dagger/env.yaml
 ```
 
 ## Format

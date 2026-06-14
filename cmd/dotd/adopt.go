@@ -119,7 +119,8 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 	opts := adopter.AdoptOptions{
 		DotfilesRoot: cfg.files,
 		Conventions:  conv,
-		LinkRoot:     cfg.linkRoot,
+		HomeDir:      cfg.home,
+		ConfigDir:    cfg.configDir,
 		BinDir:       cfg.binDir,
 		Force:        cfg.force,
 	}
@@ -168,4 +169,3 @@ func conventionsFrom(cfg *dagger.ComposableNode) adopter.ConventionNames {
 	}
 	return conv
 }
-
