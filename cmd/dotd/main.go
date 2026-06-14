@@ -129,6 +129,12 @@ type appConfig struct {
 	// configExists is whether config.yaml was present at resolve time.
 	filesFromCwd bool
 	configExists bool
+
+	// configWarning is set by resolvePaths when config.yaml was present but
+	// could not be parsed strictly (legacy/unknown fields or malformed YAML).
+	// Resolution degrades gracefully; the warning is emitted once, after the
+	// logger is configured.
+	configWarning string
 }
 
 // config is a type alias so sub-command constructors can use the short name.
@@ -166,7 +172,13 @@ func newRootCmd() *cobra.Command {
 		if err := resolvePaths(cfg); err != nil {
 			return err
 		}
-		return configureLogger(cfg, cmd)
+		if err := configureLogger(cfg, cmd); err != nil {
+			return err
+		}
+		if cfg.configWarning != "" {
+			ui.Warnf(cmd.ErrOrStderr(), "%s", cfg.configWarning)
+		}
+		return nil
 	}
 
 	// 'dotd help --all' reveals hidden internal commands. The flag lives on
@@ -355,9 +367,16 @@ func resolvePaths(cfg *config) error {
 	if err != nil {
 		return err
 	}
-	toolCfg, err := dotcfg.Load(cfg.configPath)
+	// Lenient load: the preamble only needs `dotfiles`, so a legacy or corrupt
+	// config.yaml must not hard-fail every command (including teardown, whose
+	// job is to remove it). Degrade gracefully and warn; strict validation lives
+	// in the `config` subcommands.
+	toolCfg, unknownFields, err := dotcfg.LoadLenient(cfg.configPath)
 	if err != nil {
-		return err
+		toolCfg = &dotcfg.Config{}
+		cfg.configWarning = fmt.Sprintf("config.yaml could not be parsed (%v); ignoring it — run 'dotd setup' to rewrite it", err)
+	} else if len(unknownFields) > 0 {
+		cfg.configWarning = fmt.Sprintf("config.yaml has unrecognized field(s): %s (ignored) — run 'dotd setup' to rewrite it", strings.Join(unknownFields, ", "))
 	}
 	_, statErr := os.Stat(cfg.configPath)
 	cfg.configExists = statErr == nil

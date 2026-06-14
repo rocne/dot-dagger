@@ -853,6 +853,40 @@ func TestTeardown_RemovesConfigAndEnv(t *testing.T) {
 	}
 }
 
+// TestTeardown_LegacyConfigStillRemoved: a config.yaml left over from before the
+// roots-model migration (carrying removed fields) must not block teardown — its
+// whole job is to remove that file. Regression for the strict-decode hard-fail
+// in the path-resolution preamble.
+func TestTeardown_LegacyConfigStillRemoved(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	configDir := filepath.Join(xdg, "dot-dagger")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.yaml")
+	envPath := filepath.Join(configDir, "env.yaml")
+	legacy := "dotfiles: /tmp/df\nbin_dir: /x\ngenerated_dir: /g\nlink_root: ~/.config\n"
+	if err := os.WriteFile(configPath, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(envPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "teardown", "--yes",
+		"--files", emptyDotfiles(t),
+		"--dotd-env", envPath,
+	)
+	if err != nil {
+		t.Fatalf("teardown must tolerate a legacy config, got error: %v\noutput:\n%s", err, out)
+	}
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Error("legacy config.yaml should be removed")
+	}
+}
+
 func TestTeardown_SkipsAbsentFiles(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
