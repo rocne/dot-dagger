@@ -2,13 +2,13 @@ name: Release (reusable)
 
 # Shared release body. Callers decide WHEN and at WHAT version; this defines
 # HOW we release and verify. Invoked via workflow_call by:
-#   - release.yml      (manual: human-pushed tag)
-#   - auto-release.yml (auto: computed patch bump on merge to main)
+#   - release-please.yml (primary: merging the standing release PR)
+#   - release.yml        (break-glass: human-pushed tag)
 #
-# version is the tag to release (e.g. v0.5.4). For the manual path the git tag
-# already exists; for the auto path GoReleaser creates it via
-# GORELEASER_CURRENT_TAG. VERSION is also exported because .goreleaser/dotd.yaml
-# stamps it into the binary's ldflags.
+# version is the tag to release (e.g. v0.6.1). The git tag already exists by the
+# time we run (release-please creates it on PR merge; the manual path pushes it),
+# so GORELEASER_CURRENT_TAG just points GoReleaser at it. VERSION is also exported
+# because .goreleaser/dotd.yaml stamps it into the binary's ldflags.
 
 on:
   workflow_call:

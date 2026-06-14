@@ -115,18 +115,27 @@ Most stages are also inspectable standalone: `dotd env show`, `dotd dag check`, 
 
 ## Install
 
-### install.sh (recommended)
+### Homebrew (macOS / Linux)
+
+```sh
+brew install rocne/tap/dot-dagger
+```
+
+Installs the `dotd` binary and tracks updates with `brew upgrade`. Each release
+auto-bumps the formula in [rocne/homebrew-tap](https://github.com/rocne/homebrew-tap).
+
+### install.sh
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh
 ```
 
-Detects your OS and architecture, downloads the latest release, and installs to `~/.local/bin`. Requires only `curl`.
+Detects your OS and architecture, downloads the latest release, and installs to `~/.local/bin`. Requires only `curl`. Use this when you don't have Homebrew.
 
 Install a specific version:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.2.0
+curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.6.1
 ```
 
 Install to a custom directory:
