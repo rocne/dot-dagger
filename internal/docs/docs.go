@@ -98,7 +98,8 @@ func orderedFiles(fsys fs.FS) ([]string, error) {
 	return files, nil
 }
 
-// mdFiles walks dir and returns all .md files, sorted.
+// mdFiles walks dir and returns all .md files in lexical order. No explicit
+// sort is needed: fs.WalkDir is documented to visit entries in lexical order.
 func mdFiles(fsys fs.FS, dir string) ([]string, error) {
 	var out []string
 	err := fs.WalkDir(fsys, dir, func(p string, d fs.DirEntry, err error) error {
