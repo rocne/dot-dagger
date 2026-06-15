@@ -7,6 +7,13 @@ by [release-please](https://github.com/googleapis/release-please) from
 Releases prior to the adoption of release-please (≤ v0.5.5) are recorded on the
 [GitHub releases page](https://github.com/rocne/dot-dagger/releases).
 
+## [0.9.0](https://github.com/rocne/dot-dagger/compare/v0.8.0...v0.9.0) (2026-06-15)
+
+
+### Features
+
+* ship GPG-signed deb and rpm packages ([#142](https://github.com/rocne/dot-dagger/issues/142)) ([7533b2f](https://github.com/rocne/dot-dagger/commit/7533b2f4aaf46d9617cfda0c95174b804f6921d9))
+
 ## [0.8.0](https://github.com/rocne/dot-dagger/compare/v0.7.0...v0.8.0) (2026-06-15)
 
 
