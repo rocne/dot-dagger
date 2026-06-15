@@ -250,3 +250,45 @@ func TestWrite_BodyAnnotationLikeCommentPreserved(t *testing.T) {
 		t.Errorf("got:\n%q\nwant:\n%q", got, want)
 	}
 }
+
+// Write must strip every header annotation Scan recognizes — including forms the
+// strip regex missed (a space after "@", or a non-word first char). Otherwise a
+// stale annotation Scan still reads survives the rewrite, duplicating the key.
+func TestWrite_StripsScanRecognizedAnnotations(t *testing.T) {
+	cases := map[string]string{
+		"space after at": "# @ when(os=linux)\nexport FOO=bar\n",
+		"dot key":        "# @.when(os=linux)\nexport FOO=bar\n",
+	}
+	for name, input := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := writeFile(t, dir, "test.sh", input)
+
+			// Sanity: Scan recognizes the existing line as an annotation.
+			if anns, err := Scan(strings.NewReader(input)); err != nil || len(anns) == 0 {
+				t.Fatalf("precondition: Scan should recognize %q (err=%v anns=%+v)", input, err, anns)
+			}
+
+			if err := Write(path, nil, []string{"# @when(os=macos)"}); err != nil {
+				t.Fatal(err)
+			}
+
+			f, err := os.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			anns, err := Scan(f)
+			_ = f.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(anns) != 1 {
+				t.Fatalf("stale annotation survived rewrite: want 1, got %d: %+v\nfile:\n%s",
+					len(anns), anns, readFile(t, path))
+			}
+			if anns[0].Key != KeyWhen || anns[0].Args != "os=macos" {
+				t.Errorf("got (%q,%q), want (%q,%q)", anns[0].Key, anns[0].Args, KeyWhen, "os=macos")
+			}
+		})
+	}
+}
