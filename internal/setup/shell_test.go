@@ -173,6 +173,110 @@ func TestRemoveSourceLine_MultipleCallsIdempotent(t *testing.T) {
 	}
 }
 
+// --- HasSourceLine: structural match (bug 2) ---
+
+// A comment that merely mentions "source" and the init file's basename must
+// NOT be mistaken for dotd's generated source line. A loose substring match
+// false-positives here, which would make `dotd init` skip installing the real
+// source line so init never loads.
+func TestHasSourceLine_IgnoresCommentMentioningInitFile(t *testing.T) {
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	content := "# existing content\n# remember to source the old init.sh\nexport FOO=bar\n"
+	rc := writeTempRC(t, content)
+
+	has, err := setup.HasSourceLine(rc, initFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if has {
+		t.Error("HasSourceLine matched a comment mentioning the basename; want false")
+	}
+}
+
+// An unrelated `source` line that shares only the basename (basename collision,
+// e.g. another tool's init.sh) must NOT match dotd's block. A loose match keyed
+// on the basename false-positives, causing teardown to mis-handle a file dotd
+// does not own.
+func TestHasSourceLine_IgnoresUnrelatedSourceLineSameBasename(t *testing.T) {
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	content := "# existing content\nsource \"$HOME/other/init.sh\"\nexport FOO=bar\n"
+	rc := writeTempRC(t, content)
+
+	has, err := setup.HasSourceLine(rc, initFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if has {
+		t.Error("HasSourceLine matched an unrelated source line sharing the basename; want false")
+	}
+}
+
+// The positive case: a genuine dotd block (the header sentinel followed by a
+// generated source line) must still be detected.
+func TestHasSourceLine_MatchesGeneratedBlock(t *testing.T) {
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	content := "# existing content\n\n# dotd \xe2\x80\x94 generated shell init\nsource \"$HOME/.local/share/dot-dagger/init.sh\"\n"
+	rc := writeTempRC(t, content)
+
+	has, err := setup.HasSourceLine(rc, initFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !has {
+		t.Error("HasSourceLine did not detect a genuine dotd block; want true")
+	}
+}
+
+// --- AppendSourceLine / RemoveSourceLine: blank-line symmetry (bug 3) ---
+
+// AppendSourceLine writes a leading blank line before its header; RemoveSourceLine
+// must strip that blank line too, so append→remove is an exact identity and
+// repeated init→teardown cycles don't accrete blank lines.
+func TestAppendRemove_RoundTripIsIdentity(t *testing.T) {
+	home := t.TempDir()
+	initFile := filepath.Join(home, ".local", "share", "dot-dagger", "init.sh")
+	original := "# pre-existing content\nexport FOO=bar\n"
+	rc := writeTempRC(t, original)
+
+	for i := 0; i < 3; i++ {
+		if err := setup.AppendSourceLine(rc, initFile, home); err != nil {
+			t.Fatalf("cycle %d: AppendSourceLine: %v", i, err)
+		}
+		if err := setup.RemoveSourceLine(rc, initFile); err != nil {
+			t.Fatalf("cycle %d: RemoveSourceLine: %v", i, err)
+		}
+		got, _ := os.ReadFile(rc)
+		if string(got) != original {
+			t.Fatalf("cycle %d: append→remove not identity\nwant: %q\ngot:  %q", i, original, string(got))
+		}
+	}
+}
+
+// --- RemoveSourceLine: file-mode preservation (bug 1) ---
+
+// RemoveSourceLine rewrites the RC file; routing through the atomic writer must
+// preserve the file's existing permission bits rather than forcing a default mode.
+func TestRemoveSourceLine_PreservesFileMode(t *testing.T) {
+	initFile := filepath.Join(t.TempDir(), "init.sh")
+	content := "# header\n\n# dotd \xe2\x80\x94 generated shell init\nsource \"$HOME/.local/share/dot-dagger/init.sh\"\n"
+	rc := writeTempRC(t, content)
+	if err := os.Chmod(rc, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := setup.RemoveSourceLine(rc, initFile); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := os.Stat(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("file mode = %o after RemoveSourceLine, want 600", perm)
+	}
+}
+
 func TestSourceLine_RoundTrip(t *testing.T) {
 	home := t.TempDir()
 	initFile := filepath.Join(home, ".local", "share", "dot-dagger", "init.sh")
