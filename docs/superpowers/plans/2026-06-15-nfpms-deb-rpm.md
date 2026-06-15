@@ -230,6 +230,7 @@ The signing key is on this machine from Task 3 (reuse `$FPR`, or re-derive it). 
 FPR=$(gpg --list-keys --with-colons dotd-packaging@users.noreply.github.com | awk -F: '/^fpr:/{print $10; exit}')
 gpg --armor --export-secret-keys "$FPR" > /tmp/dotd-signing.asc
 export GPG_KEY_PATH=/tmp/dotd-signing.asc
+export VERSION=0.0.0-dev   # ldflags reference {{.Env.VERSION}}; required for local snapshot
 # If the key has a passphrase: export NFPM_DEFAULT_PASSPHRASE='<passphrase>'
 goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish,sign
 ```
@@ -339,6 +340,7 @@ Run:
 FPR=$(gpg --list-keys --with-colons dotd-packaging@users.noreply.github.com | awk -F: '/^fpr:/{print $10; exit}')
 gpg --armor --export-secret-keys "$FPR" > /tmp/dotd-signing.asc
 export GPG_KEY_PATH=/tmp/dotd-signing.asc
+export VERSION=0.0.0-dev   # ldflags reference {{.Env.VERSION}}; required for local snapshot
 goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish,sign
 rpm -K dist/*.rpm
 ls dist/*.deb dist/*.rpm
