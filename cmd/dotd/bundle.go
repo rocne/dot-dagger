@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -85,8 +86,15 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 		if resolveErr != nil {
 			return annotateKeyError(resolveErr)
 		}
-		for k, v := range resolved {
-			fmt.Fprintf(&sb, "export %s=%s\n", k, fileutil.ShellQuote(v))
+		// Emit in sorted key order so the bundle is byte-for-byte reproducible
+		// (map iteration is nondeterministic). Matches `dotd env show` ordering.
+		keys := make([]string, 0, len(resolved))
+		for k := range resolved {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(&sb, "export %s=%s\n", k, fileutil.ShellQuote(resolved[k]))
 		}
 		sb.WriteString("\n")
 	}
