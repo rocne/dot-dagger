@@ -175,6 +175,45 @@ Reload your shell and tab-completion for commands, flags, and subcommands works.
 
 ---
 
+## Verifying releases
+
+Release artifacts are signed with [cosign](https://docs.sigstore.dev/) (keyless,
+no private keys) and carry [SLSA build provenance](https://slsa.dev/). `install.sh`
+verifies the signature automatically when `cosign` is installed; you can also
+verify manually.
+
+### Signature (requires cosign v2+)
+
+```sh
+TAG=v0.6.1   # the release you downloaded
+BASE="https://github.com/rocne/dot-dagger/releases/download/$TAG"
+curl -fsSLO "$BASE/dotd_${TAG}_checksums.txt"
+curl -fsSLO "$BASE/dotd_${TAG}_checksums.txt.sig"
+curl -fsSLO "$BASE/dotd_${TAG}_checksums.txt.pem"
+
+cosign verify-blob \
+  --certificate "dotd_${TAG}_checksums.txt.pem" \
+  --signature   "dotd_${TAG}_checksums.txt.sig" \
+  --certificate-identity-regexp "^https://github\.com/rocne/dot-dagger/\.github/workflows/_release\.yml@" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  "dotd_${TAG}_checksums.txt"
+
+# then confirm your archive matches the verified checksums file
+# (Linux: sha256sum; macOS: shasum -a 256):
+sha256sum --ignore-missing -c "dotd_${TAG}_checksums.txt" \
+  || shasum -a 256 -c "dotd_${TAG}_checksums.txt" 2>/dev/null
+```
+
+### Build provenance
+
+```sh
+gh attestation verify dotd_${TAG}_linux_amd64.tar.gz --repo rocne/dot-dagger
+```
+
+(Requires the `gh` CLI; this repo's attestations are public.)
+
+---
+
 ## Quick start
 
 ```sh

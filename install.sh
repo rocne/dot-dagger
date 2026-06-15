@@ -140,6 +140,31 @@ else
   printf 'warning: no sha256sum or shasum found — skipping checksum verification\n' >&2
 fi
 
+# --- verify signature (enforced when cosign is present) ---
+SIG="${CHECKSUMS}.sig"
+CERT="${CHECKSUMS}.pem"
+if command -v cosign >/dev/null 2>&1; then
+  if curl -fsSL -o "$TMP/$SIG" "$BASE_URL/$SIG" 2>/dev/null \
+    && curl -fsSL -o "$TMP/$CERT" "$BASE_URL/$CERT" 2>/dev/null; then
+    printf 'verifying signature...\n'
+    if cosign verify-blob \
+        --certificate "$TMP/$CERT" \
+        --signature   "$TMP/$SIG" \
+        --certificate-identity-regexp "^https://github\.com/${REPO}/\.github/workflows/_release\.yml@" \
+        --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+        "$TMP/$CHECKSUMS" >/dev/null 2>&1; then
+      printf 'signature verified\n'
+    else
+      printf 'error: signature verification FAILED for %s — aborting\n' "$CHECKSUMS" >&2
+      exit 1
+    fi
+  else
+    printf 'notice: no signature published for %s — skipping signature verification\n' "$TAG" >&2
+  fi
+else
+  printf 'notice: cosign not found — skipping signature verification (install cosign v2+ for full verification)\n' >&2
+fi
+
 # --- extract and install ---
 tar -xzf "$TMP/$ASSET" -C "$TMP"
 mkdir -p "$INSTALL_DIR"
