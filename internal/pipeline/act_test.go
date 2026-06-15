@@ -349,6 +349,37 @@ func TestAct_Compose_NoSourceSuppressesSource(t *testing.T) {
 	}
 }
 
+// TestAct_Compose_FragmentSeparator verifies that fragments are joined with a
+// newline boundary: a fragment lacking a trailing newline must not glue onto the
+// next fragment's first line. A separator is only inserted when the preceding
+// fragment does not already end in a newline, so fragments that already end in
+// "\n" are not double-spaced.
+func TestAct_Compose_FragmentSeparator(t *testing.T) {
+	root := t.TempDir()
+	genDir := t.TempDir()
+	home := t.TempDir()
+
+	frags := []fragment{
+		{"base.conf", "line1"}, // no trailing newline
+		{"nosync-work.conf", "line2\n"},
+	}
+	compDir, targetNode := composeDir(t, root, "dot-tmux.conf.d", frags, nil)
+	frag1 := composeFragNode(t, compDir, "base.conf")
+	frag2 := composeFragNode(t, compDir, "nosync-work.conf")
+
+	res, err := Act([]RawNode{targetNode, frag1, frag2}, ActOptions{HomeDir: home, GeneratedDir: genDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Generated) != 1 {
+		t.Fatalf("expected 1 Generated, got %d", len(res.Generated))
+	}
+	wantContent := "line1\nline2\n"
+	if string(res.Generated[0].Content) != wantContent {
+		t.Errorf("Generated content = %q, want %q", string(res.Generated[0].Content), wantContent)
+	}
+}
+
 // TestAct_DeriveLinkDest covers the empty-dest derivation path in Act
 // (AUDIT-038). When a link action has Dest == "", resolveLink falls through to
 // deriveLinkDest which must correctly apply dot-/nosync- rewrites to every

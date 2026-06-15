@@ -101,6 +101,13 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			frags := composeFragments[n.ComposeTarget]
 			var assembled []byte
 			for _, f := range frags {
+				// Separate fragments with a newline so a fragment lacking a
+				// trailing newline does not glue onto the next one's first
+				// line. Only insert one when the preceding content does not
+				// already end in "\n", to avoid doubling blank lines.
+				if len(assembled) > 0 && assembled[len(assembled)-1] != '\n' {
+					assembled = append(assembled, '\n')
+				}
 				assembled = append(assembled, f.content...)
 			}
 

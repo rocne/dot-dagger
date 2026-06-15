@@ -374,8 +374,10 @@ func cascadeState(root, relPath string, daggerMap map[string]*dagger.ComposableN
 				state.linkRoot = cfg.LinkRoot
 				state.linkRootDir = cur
 			}
-			// Detect compose target directories.
-			if cfg.Composition.Enabled && !state.isCompose {
+			// Detect compose target directories. Honor the `compose: true`
+			// shorthand (IsCompose) as well as composition.enabled, so child
+			// files under a shorthand-declared dir are flagged as fragments.
+			if cfg.IsCompose() && !state.isCompose {
 				state.isCompose = true
 				state.composeDir = cur
 			}
