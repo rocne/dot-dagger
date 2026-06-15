@@ -46,6 +46,12 @@ func TestDeriveName(t *testing.T) {
 		{".gitignore", ".gitignore"},
 		{".editorconfig", ".editorconfig"},
 		{"conf/.bashrc", "conf..bashrc"},
+		// A component that is *only* a strip-prefix must keep its name rather
+		// than reduce to "" — otherwise "dot-" and "nosync-" both derive "" and
+		// collide as duplicates (found by FuzzDeriveName; B-2 family).
+		{"dot-", "dot-"},
+		{"nosync-", "nosync-"},
+		{"conf/dot-", "conf.dot-"},
 	}
 	for _, c := range cases {
 		t.Run(c.path, func(t *testing.T) {

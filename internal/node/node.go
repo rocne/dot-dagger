@@ -26,7 +26,14 @@ func DeriveName(relPath string) string {
 	components := strings.Split(filepath.ToSlash(relPath), "/")
 	result := make([]string, len(components))
 	for i, c := range components {
-		c = StripRepoPrefix(c)
+		// Preserve the component when stripping the prefix would empty it (e.g.
+		// a file named exactly "dot-" or "nosync-"). An empty logical name
+		// collides with every other empty name and aborts apply with a spurious
+		// duplicate-name error — the same failure mode as the ".gitignore" → ""
+		// extension case handled below.
+		if stripped := StripRepoPrefix(c); stripped != "" {
+			c = stripped
+		}
 		if i == len(components)-1 {
 			// Strip the extension only when a non-empty base remains. For a
 			// leading-dot name like ".gitignore", filepath.Ext returns the whole
