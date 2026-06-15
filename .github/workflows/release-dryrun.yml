@@ -37,6 +37,19 @@ jobs:
 
       - uses: sigstore/cosign-installer@v3
 
+      - name: Install rpm tooling
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Generate throwaway package signing key
+        run: |
+          GNUPGHOME="$(mktemp -d)"; export GNUPGHOME
+          printf '%%no-protection\nKey-Type: RSA\nKey-Length: 2048\nName-Real: dryrun\nName-Email: dryrun@example.invalid\nExpire-Date: 0\n%%commit\n' > "$GNUPGHOME/k.conf"
+          gpg --batch --generate-key "$GNUPGHOME/k.conf"
+          FPR=$(gpg --list-keys --with-colons dryrun@example.invalid | awk -F: '/^fpr:/{print $10; exit}')
+          gpg --armor --export-secret-keys "$FPR" > "$RUNNER_TEMP/dryrun-priv.asc"
+          gpg --armor --export "$FPR"             > "$RUNNER_TEMP/dryrun-pub.asc"
+          echo "GPG_KEY_PATH=$RUNNER_TEMP/dryrun-priv.asc" >> "$GITHUB_ENV"
+
       - name: Build + sign snapshot
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -45,8 +58,9 @@ jobs:
           args: release --config .goreleaser/dotd.yaml --clean --snapshot --skip=publish
         env:
           VERSION: v0.0.0-dryrun
+          GPG_KEY_PATH: ${{ env.GPG_KEY_PATH }}
 
-      - name: Verify the snapshot signature
+      - name: Verify the snapshot signature (cosign checksums)
         run: |
           CHECKSUMS=$(ls dist/*checksums.txt)
           cosign verify-blob \
@@ -55,3 +69,14 @@ jobs:
             --certificate-identity-regexp "^https://github\.com/${{ github.repository }}/\.github/workflows/release-dryrun\.yml@" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             "$CHECKSUMS"
+
+      - name: Verify the package signatures (rpm GPG)
+        run: |
+          RPMDB=$(mktemp -d)
+          rpmkeys --dbpath "$RPMDB" --import "$RUNNER_TEMP/dryrun-pub.asc"
+          for f in dist/*.rpm; do
+            echo "checking $f"
+            rpmkeys --dbpath "$RPMDB" -K "$f" | grep -q "signatures OK" \
+              || { echo "::error::$f is not signed"; exit 1; }
+          done
+          echo "all rpm packages signed"
