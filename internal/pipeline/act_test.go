@@ -760,3 +760,23 @@ func TestComposeFileName_Variants(t *testing.T) {
 		}
 	}
 }
+
+// TestAct_Compose_GenFilenameCollision_Error verifies that two compose targets
+// whose generated filenames collide (e.g. "dot-foo.d" and "nosync-dot-foo.d"
+// both reduce to "foo") are rejected rather than silently overwriting each
+// other's generated file.
+func TestAct_Compose_GenFilenameCollision_Error(t *testing.T) {
+	root := t.TempDir()
+	genDir := t.TempDir()
+	home := t.TempDir()
+	_, t1 := composeDir(t, root, "dot-foo.d", nil, nil)
+	_, t2 := composeDir(t, root, "nosync-dot-foo.d", nil, nil)
+	if ComposeFileName(t1.Path) != ComposeFileName(t2.Path) {
+		t.Fatalf("test precondition: expected colliding gen names, got %q and %q",
+			ComposeFileName(t1.Path), ComposeFileName(t2.Path))
+	}
+	_, err := Act([]RawNode{t1, t2}, ActOptions{HomeDir: home, GeneratedDir: genDir})
+	if err == nil {
+		t.Error("expected generated-filename collision error, got nil")
+	}
+}

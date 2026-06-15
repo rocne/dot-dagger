@@ -93,7 +93,10 @@ func ResolveAfterRef(ref string, nodes []RawNode) []string {
 		dotPrefix := strings.ReplaceAll(prefix, "/", ".")
 		var matches []string
 		for _, n := range nodes {
-			if strings.HasPrefix(n.LogicalName, dotPrefix) {
+			// Match the dir node itself ("foo") and its descendants ("foo.bar"),
+			// but not an unrelated sibling that merely shares the prefix string
+			// ("foobar"). The boundary is a dot, not a bare string prefix.
+			if n.LogicalName == dotPrefix || strings.HasPrefix(n.LogicalName, dotPrefix+".") {
 				matches = append(matches, n.LogicalName)
 			}
 		}

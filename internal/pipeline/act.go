@@ -86,6 +86,7 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 	}
 
 	// Main pass: process non-fragment nodes in order.
+	genSeen := map[string]string{} // generated path → first compose target that claimed it
 	for _, n := range nodes {
 		// Skip compose fragments — already collected above.
 		if n.IsCompose {
@@ -107,6 +108,13 @@ func Act(nodes []RawNode, opts ActOptions) (*ActResult, error) {
 			genPath := ""
 			if opts.GeneratedDir != "" {
 				genPath = filepath.Join(opts.GeneratedDir, ComposeFileName(n.Path))
+				// Two compose targets whose names reduce to the same generated
+				// file (e.g. "dot-foo.d" and "nosync-dot-foo.d") would silently
+				// clobber each other's output; reject the collision instead.
+				if prev, ok := genSeen[genPath]; ok {
+					return nil, fmt.Errorf("act: compose targets %s and %s both generate %s", prev, n.Path, genPath)
+				}
+				genSeen[genPath] = n.Path
 			}
 
 			gen := Generated{Path: genPath, Content: assembled, Node: n}

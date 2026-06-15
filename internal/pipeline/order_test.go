@@ -164,6 +164,28 @@ func TestOrder_PrefixSelfRefIgnored(t *testing.T) {
 	}
 }
 
+// TestResolveAfterRef_PrefixBoundary verifies that a prefix ref "foo/" matches
+// the dir node "foo" and its descendants "foo.*", but NOT an unrelated sibling
+// that merely shares the name prefix ("foobar"). The match must be on a dot
+// boundary, not a bare string prefix.
+func TestResolveAfterRef_PrefixBoundary(t *testing.T) {
+	nodes := []RawNode{
+		{LogicalName: "foo"},
+		{LogicalName: "foo.bar"},
+		{LogicalName: "foobar"},
+	}
+	got := ResolveAfterRef("foo/", nodes)
+	if indexOf(got, "foobar") != -1 {
+		t.Errorf("prefix \"foo/\" wrongly matched sibling \"foobar\": %v", got)
+	}
+	if indexOf(got, "foo.bar") == -1 {
+		t.Errorf("prefix \"foo/\" should match descendant \"foo.bar\": %v", got)
+	}
+	if indexOf(got, "foo") == -1 {
+		t.Errorf("prefix \"foo/\" should match the dir node \"foo\": %v", got)
+	}
+}
+
 // TestResolveAfterRef_EmptyMatchSet verifies that ResolveAfterRef returns an
 // empty slice when the prefix doesn't match any node — no error, no panic
 // (AUDIT-051).

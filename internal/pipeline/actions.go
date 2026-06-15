@@ -67,8 +67,11 @@ func CheckLinkConflicts(nodes []RawNode, opts ActOptions) error {
 			dest := a.Dest
 			if opts.HomeDir != "" {
 				dest = resolveLink(a.Dest, n, opts.HomeDir, opts.BinDir, opts.ConfigDir)
-			} else if dest == "" {
-				// Can't resolve without HomeDir; skip empty dests.
+			}
+			if dest == "" {
+				// Empty/unresolvable dest (link with no dest and no link_root).
+				// validateNode reports this as the real error; don't pile a
+				// bogus "both link to ''" conflict on top by mapping to "".
 				continue
 			}
 			if prev, ok := destSeen[dest]; ok {
