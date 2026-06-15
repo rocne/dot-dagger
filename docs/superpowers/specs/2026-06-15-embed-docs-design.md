@@ -43,11 +43,14 @@ hand-maintained Go string literals, no manual copy step.
   itself — `dotd --help`. Repo-level conventions (`AGENTS.md`, `llms.txt`) are
   explicitly out of scope: they're repo files, never shipped in the binary, and
   serve the audience that least needs the feature.
-- **Discoverability = help text only** (nothing else travels with the binary):
-  root `dotd --help` long text / examples names `dotd docs --full`, and the `docs`
-  command's own help labels `--full` as the complete machine-readable reference.
-  The binary never writes a file; a caller who wants one redirects
-  (`dotd docs --full > x.txt`).
+- **Discoverability = help text only, and it is the success criterion** (nothing
+  else travels with the binary): root `dotd --help` long text / examples names
+  `dotd docs --full`, and the `docs` command's own help labels `--full` as the
+  complete machine-readable reference. The binary never writes a file; a caller who
+  wants one redirects (`dotd docs --full > x.txt`). Because the whole feature is
+  dead weight if an agent never finds the command, wiring `dotd docs --full` into
+  the root command's `Example`/`Long` is a **first-class task with its own test**
+  (assert `dotd --help` output contains `docs --full`), not an afterthought.
 
 ## Scope — what goes in the blob
 
@@ -66,11 +69,13 @@ hand-maintained Go string literals, no manual copy step.
   prose.)
 
 `dotd concepts` (existing hardcoded single-page quick-ref in `conceptsText`) is
-left untouched. **Note the cost this incurs immediately:** shipping it *alongside*
-the embedded `docs/concepts/*.md` creates two hand-maintained concept sources that
-will drift from each other starting the day this ships — not a purely future
-concern. Dedup (fold `concepts` onto the embedded set, or drop one) is deferred,
-but the maintenance burden begins now and should be picked up soon.
+left untouched, **and that is correct — not a deferred problem.** `concepts` is a
+hand-written one-page *digest*; the embedded `docs/concepts/*.md` are the *full*
+per-topic pages. Same topics, different depth — a cheat-sheet next to the manual.
+They are two intentional altitudes, not a duplication to dedup. The only upkeep is
+the ordinary cost of keeping a summary aligned with full docs; no consolidation is
+in scope. (Optional, trivial: `concepts` help could point at `docs --full` for
+depth.)
 
 ## Architecture
 
@@ -185,6 +190,8 @@ markdown + rendered help → negligible.
   specific order, not mere run-to-run stability (embed.FS is always stable, so a
   stability check proves nothing).
 - `--full` output leads with the provenance header (`dotd <version>`).
+- **Discoverability:** `dotd --help` output contains `docs --full` (the feature is
+  unreachable to a binary-only agent otherwise).
 - Cross-link traceability: every relative `](...md)` link target in the prose has a
   corresponding path-header present in the blob (no link points outside the dump).
 - Bare `dotd docs` prints cobra subcommand help (lists `--full`), not the blob.
@@ -194,7 +201,12 @@ markdown + rendered help → negligible.
 
 ## Out of scope (follow-ups, noted to keep doors open)
 
-- Human `dotd docs <topic>` rendered/paged view + `dotd docs --list` index.
+- `dotd docs <topic>` topic-scoped output + `dotd docs --list` index. **This serves
+  agents too, not just humans:** the `--full` blob is ~20k+ tokens of agent context
+  per call; a topic-scoped fetch is far cheaper for an agent that knows what it
+  needs. The full blob is the right MVP (an agent without a specific need wants
+  everything), but topic routing is the natural *agent* token-economy follow-up —
+  rendered/paged output for humans is a separable concern layered on top.
 - Man-page generation via cobra `GenManTree`.
 - Emitting an `llms.txt` file artifact (already trivially `dotd docs --full > f`).
 - Dedup between `dotd concepts` and the embedded `docs/concepts/`.
