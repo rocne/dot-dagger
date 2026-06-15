@@ -678,6 +678,32 @@ func TestWalk_FilesDict_ComposeFragment(t *testing.T) {
 	}
 }
 
+// TestWalk_ComposeShorthand_CascadesToFragments verifies that the `compose: true`
+// shorthand (an alias for composition.enabled) flags child files as compose
+// fragments. Without the cascade honoring the shorthand, fragments are never
+// marked IsCompose, so Act collects nothing and the generated file is empty
+// while the real files leak through as standalone nodes.
+func TestWalk_ComposeShorthand_CascadesToFragments(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "target.d/.dagger", "compose: true\nactions:\n  - source\n")
+	writeTestFile(t, root, "target.d/frag.sh", "x=1\n")
+
+	nodes, _, err := Walk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := nodeByPath(nodes, "frag.sh")
+	if n == nil {
+		t.Fatal("frag.sh not found in nodes")
+	}
+	if !n.IsCompose {
+		t.Error("fragment under a compose:true dir must have IsCompose=true")
+	}
+	if filepath.Base(n.ComposeTarget) != "target.d" {
+		t.Errorf("ComposeTarget = %q, want .../target.d", n.ComposeTarget)
+	}
+}
+
 // TestWalk_SkipsRootPackagesYAML: packages.yaml at the repo root is dotd
 // metadata, not a dotfile node (2026-06-13 audit, C6).
 func TestWalk_SkipsRootPackagesYAML(t *testing.T) {
