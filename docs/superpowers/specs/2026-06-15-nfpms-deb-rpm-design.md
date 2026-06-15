@@ -45,7 +45,9 @@ New top-level `nfpms:` section:
   - description: `Dotfiles manager — env resolution, DAG, symlinks, and packages`
   - `license: MIT`
 - `bindir: /usr/bin` → binary installed as `/usr/bin/dotd`
-- `contents:` the `dotd` binary only (no man pages yet)
+- **No explicit `contents:` for the binary** — GoReleaser nfpms auto-includes the
+  `builds:` binaries at `bindir`. Hand-listing it risks double-packaging.
+  `contents:` is only for extra files, of which there are none here.
 - Signing:
   - `rpm.signature.key_file: "{{ .Env.GPG_KEY_PATH }}"`
   - `deb.signature.key_file: "{{ .Env.GPG_KEY_PATH }}"`
@@ -58,6 +60,12 @@ it does not shell out to `gpg`. There is therefore no keyring import, gpg-agent,
 or pinentry to manage. The only CI requirement is: the armored private key on
 disk at `GPG_KEY_PATH`, plus the passphrase env.
 
+Packages are **also** covered by the existing cosign setup for free: GoReleaser
+lists `.deb`/`.rpm` in `checksums.txt`, and the current `signs: artifacts:
+checksum` block cosigns that file. So each package gets its GPG signature *plus*
+transitive cosign coverage via the signed checksums — do **not** add a separate
+cosign blob-signing pass for the packages.
+
 Note on signing value (documented so the trade-off is explicit):
 - **rpm signing is verified** by `rpm -K` / dnf — the real win.
 - **deb signing has ≈ zero practical value today.** nfpm's deb signing produces
@@ -68,7 +76,10 @@ Note on signing value (documented so the trade-off is explicit):
 
 ### 2. GPG signing key (one-time, run locally by maintainer)
 
-- Generate a dedicated signing key (RSA 4096 or ed25519), ASCII-armored export.
+- Generate a dedicated signing key, **RSA 4096** (not EdDSA — older rpm/dnf on
+  RHEL/EPEL can fail to verify EdDSA rpm signatures), **non-expiring** (an expiry
+  silently breaks `rpm -K` on already-shipped packages after the date; if a
+  finite expiry is used, document a rotate-and-republish plan). ASCII-armored export.
 - Store as GitHub repo secrets:
   - `GPG_PRIVATE_KEY` — ASCII-armored private key
   - `GPG_PASSPHRASE` — key passphrase
@@ -91,15 +102,18 @@ GoReleaser step:
 No `gpg --import`, no gpg-agent, no pinentry. GoReleaser's nfpms step reads the
 key file + passphrase env and signs the packages.
 
-The signing secrets must reach whatever job runs GoReleaser — confirm they are
-passed through the reusable-workflow boundary (`_release.yml` is called by both
-release-please and the manual-tag path; both must surface the secrets). Missing
-secrets fail loud, not silent: `key_file: {{ .Env.GPG_KEY_PATH }}` errors the
-GoReleaser template if the env is unset, aborting the build rather than emitting
-unsigned packages.
+**Secret flow needs no caller changes (verified).** Both callers
+(`release.yml`, `release-please.yml`) invoke `_release.yml` with
+`secrets: inherit`, so the new `GPG_PRIVATE_KEY` / `GPG_PASSPHRASE` repo secrets
+reach the reusable workflow automatically. The only edits to `_release.yml`:
+a "write key to temp file" shell step, and two `env:` entries
+(`GPG_KEY_PATH`, `NFPM_DEFAULT_PASSPHRASE`) on the existing GoReleaser step.
 
-Effort: this section is the bulk of the work but is small — secret plumbing plus
-one "write key to file" step, not gpg toolchain wrangling.
+Missing secrets fail loud, not silent: `key_file: {{ .Env.GPG_KEY_PATH }}`
+errors the GoReleaser template if the env is unset, aborting the build rather
+than emitting unsigned packages.
+
+Effort: small — one shell step plus two env lines, no gpg toolchain wrangling.
 
 ### 4. Cleanup (same file)
 
@@ -110,10 +124,13 @@ windows build gets added deliberately at that point.)
 ## Verification
 
 This PR (manual):
+- **Validate first:** confirm nfpm signing actually runs under `--snapshot`
+  (expected, since it is inline in the nfpms build rather than the cosign `signs`
+  block — which *is* snapshot-skipped). If GoReleaser skips it in snapshot, fall
+  back to a full non-snapshot dry build or standalone `nfpm pkg` to verify the
+  signature path before wiring CI.
 - Generate a **throwaway local GPG key** (not the real release key) and point
-  `GPG_KEY_PATH` + `NFPM_DEFAULT_PASSPHRASE` at it for local builds. nfpm signing
-  runs in `--snapshot` (it is part of the nfpms build, not the cosign `signs`
-  block — which *is* skipped in snapshot), so signatures are produced locally.
+  `GPG_KEY_PATH` + `NFPM_DEFAULT_PASSPHRASE` at it for local builds.
 - `goreleaser release --snapshot --clean` produces `.deb` + `.rpm` for amd64 +
   arm64 alongside the existing tar.gz/checksums.
 - `rpm --import <throwaway-pubkey> && rpm -K dist/dotd_*_amd64.rpm` reports the
@@ -141,6 +158,21 @@ existing "Fedora e2e" TODO.
 - **deb signature is non-verifiable in practice** (see §1) — accept as cosmetic.
 - nfpm signs natively, so there is **no gpg toolchain dependency** in the runner
   — removing the largest previously-assumed risk.
+
+## First-release preconditions (runbook)
+
+The first release after this merge breaks unless all three are in place *before*
+it fires (order matters; each missing piece fails the build differently):
+
+1. **Key generated** (RSA 4096, non-expiring) locally by the maintainer.
+2. **Secrets set** — `GPG_PRIVATE_KEY` + `GPG_PASSPHRASE` added to repo secrets.
+   Missing → GoReleaser template error on `GPG_KEY_PATH`.
+3. **Public key committed** at repo-root `dotd-signing-key.asc`. Missing →
+   `release.extra_files` fails (referenced file absent).
+
+Recommended sequence: generate key → set secrets → commit config + public key in
+this PR → merge → release. The PR itself contains the public key and config, so
+1–3 are satisfied by the time the next release PR merges.
 
 ## Outputs
 
