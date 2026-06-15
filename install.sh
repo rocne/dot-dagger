@@ -16,7 +16,7 @@
 # --dir        override install directory   (default: ~/.local/bin)
 # --dry-run    print what would be done, then exit without installing
 #
-# Requires: curl
+# Requires: curl, and sha256sum or shasum (checksum verification is mandatory)
 #
 set -e
 
@@ -137,7 +137,9 @@ if command -v sha256sum >/dev/null 2>&1; then
 elif command -v shasum >/dev/null 2>&1; then
   grep " ${ASSET}$" "$TMP/$CHECKSUMS" | (cd "$TMP" && shasum -a 256 -c -)
 else
-  printf 'warning: no sha256sum or shasum found — skipping checksum verification\n' >&2
+  printf 'error: no sha256sum or shasum found — cannot verify download integrity; aborting\n' >&2
+  printf '       install coreutils (for sha256sum) or run on a system with shasum, then retry.\n' >&2
+  exit 1
 fi
 
 # --- verify signature (enforced when cosign is present) ---
