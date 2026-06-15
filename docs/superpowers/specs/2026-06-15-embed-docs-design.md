@@ -1,7 +1,7 @@
 # Embed docs into the binary — agent-facing reference
 
 **Date:** 2026-06-15
-**Status:** Design approved, ready for implementation plan
+**Status:** In review (red-teamed twice)
 **Topic:** Embed the authored `docs/` set into the `dotd` binary and expose a
 machine-readable, agent-oriented reference command.
 
@@ -65,8 +65,12 @@ hand-maintained Go string literals, no manual copy step.
   already lives in the embedded `docs/index.md`. (Revisit if agents miss install
   prose.)
 
-`dotd concepts` (existing hardcoded single-page quick-ref) is left untouched.
-`docs --full` is the superset; any dedup between them is a later concern.
+`dotd concepts` (existing hardcoded single-page quick-ref in `conceptsText`) is
+left untouched. **Note the cost this incurs immediately:** shipping it *alongside*
+the embedded `docs/concepts/*.md` creates two hand-maintained concept sources that
+will drift from each other starting the day this ships — not a purely future
+concern. Dedup (fold `concepts` onto the embedded set, or drop one) is deferred,
+but the maintenance burden begins now and should be picked up soon.
 
 ## Architecture
 
@@ -98,7 +102,9 @@ var DocsFS embed.FS
 
 Exclusion is by **explicit include patterns** — `docs/superpowers/` is simply
 never listed, so it can never be shipped. Self-documenting; no embed-all-then-
-filter risk of leaking internal material.
+filter risk of leaking internal material. **Consequence to document for
+maintainers:** adding a new top-level doc section (e.g. `docs/guides/`) requires
+adding it to these embed patterns — inclusion is deliberate, not automatic.
 
 ### Components (small, independently testable units)
 
@@ -109,18 +115,34 @@ and violated single-purpose. Split:
 
 1. **Root package `dotdagger`** (`embed.go`) — owns `DocsFS` only. No logic.
 2. **`internal/docs`** — *prose only*, FS-in / string-out, no cobra import:
-   `func RenderProse(fs fs.FS) (string, error)`.
-   - Walks the embedded FS in **deterministic order**: `index.md` →
-     `getting-started/` → `concepts/` → `reference/` (alphabetical within each).
-   - Emits a leading **index** (llms.txt-style list of the sections that follow),
-     then each file body prefixed with a separator header, e.g.
-     `# === docs/concepts/conditions.md ===`.
+   `func RenderProse(fsys fs.FS) (string, error)`.
+   - Walks the embedded FS by **known priority order, then appends unknown
+     top-level dirs alphabetically**: `index.md` → `getting-started/` →
+     `concepts/` → `reference/` → (any other embedded dir). This is *resilient* —
+     a section order list that's never updated still ships new content (just
+     unordered), rather than silently dropping it. Files within a dir are
+     alphabetical.
+   - **Section separators are the full repo-relative path**
+     (`# === docs/concepts/conditions.md ===`). This is load-bearing: the docs
+     contain relative cross-links (`[x](../concepts/conditions.md)`) which don't
+     resolve on stdout, but an agent can trace such a link to the matching
+     path-header in the same blob. Ship docs raw — **no link rewriting** (fragile
+     markdown-parsing pass, marginal benefit). Traceable-by-header is the contract.
+   - Emits a leading **index** (llms.txt-style list of the sections that follow).
    - Pure: takes only the FS (no globals, no cobra) → testable in isolation.
 3. **CLI-help renderer** (in `cmd/dotd`, e.g. `renderCommandRef(root *cobra.Command)
    string`) — walks the cobra tree rendering each command's help, skipping
-   `help`/`completion`/hidden commands so the section stays signal. Lives next to
-   cobra where the command tree already does.
-4. **`cmd/dotd/docs_cmd.go`** — the cobra `docs` command. On `--full`, composes
+   `help`/`completion`/hidden commands so the section stays signal. **Implementation
+   note (non-trivial):** cobra has no clean "give me command X's full help string"
+   accessor — `UsageString()` yields usage+flags but not `Long`/examples. Render by
+   either redirecting each command's output buffer and calling `cmd.Help()`, or
+   assembling `Long` + `UsageString()` per command. The plan must pick one; this is
+   the fiddliest part of the work. Rationale for including it at all: the agent
+   gets the complete CLI surface in *one* call instead of discovering and chaining
+   N `dotd <cmd> --help` invocations.
+4. **`cmd/dotd/docs_cmd.go`** — the cobra `docs` command. On `--full`, emits a
+   **provenance header** (`dotd <version> — embedded reference`, version from the
+   existing build-time version var) then composes
    `docs.RenderProse(dotdagger.DocsFS)` + `renderCommandRef(rootCmd)` to stdout.
    Bare `dotd docs` falls through to cobra's own subcommand help (which already
    lists `--full`) — no custom stub.
@@ -128,9 +150,10 @@ and violated single-purpose. Split:
 ### Data flow
 
 `docs/*.md` (authored) → `//go:embed` at compile → `dotdagger.DocsFS` →
-`docs.RenderProse(DocsFS)` + `renderCommandRef(rootCmd)` composed in `docs_cmd` →
-stdout. CI release builds embed a fresh tree; `go install` from source embeds the
-current working tree. Size impact: ~72K of markdown + rendered help → negligible.
+`docs_cmd` emits provenance header (`main.version`) + `docs.RenderProse(DocsFS)` +
+`renderCommandRef(rootCmd)` → stdout. CI release builds embed a fresh tree;
+`go install` from source embeds the current working tree. Size impact: ~72K of
+markdown + rendered help → negligible.
 
 ## Command surface
 
@@ -161,9 +184,13 @@ current working tree. Size impact: ~72K of markdown + rendered help → negligib
   (index → getting-started → concepts → reference → CLI reference) — assert the
   specific order, not mere run-to-run stability (embed.FS is always stable, so a
   stability check proves nothing).
+- `--full` output leads with the provenance header (`dotd <version>`).
+- Cross-link traceability: every relative `](...md)` link target in the prose has a
+  corresponding path-header present in the blob (no link points outside the dump).
 - Bare `dotd docs` prints cobra subcommand help (lists `--full`), not the blob.
 - `RenderProse` is unit-tested against a small in-memory `fstest.MapFS`, isolated
-  from cobra and the real embed.
+  from cobra and the real embed — including an "unknown dir appended alphabetically"
+  case so the resilient-ordering behavior is locked in.
 
 ## Out of scope (follow-ups, noted to keep doors open)
 
