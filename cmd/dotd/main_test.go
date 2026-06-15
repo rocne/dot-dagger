@@ -284,6 +284,55 @@ func TestCheck_DetectsMissingSymlink(t *testing.T) {
 	}
 }
 
+// TestCheck_IssuesFoundHintsApply: when config.yaml exists but a symlink is
+// missing or wrong, check must guide the user to the fix ('dotd apply') instead
+// of just reporting "issues found" (Track H error-hint pass).
+func TestCheck_IssuesFoundHintsApply(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	envFile := emptyEnvFile(t)
+
+	// A real config.yaml so check takes the "config exists" branch (not the
+	// existing "no config — run setup" hint).
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte("dotfiles: "+dotfiles+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// apply so init.sh exists, then delete the symlink so the only issue is a
+	// missing link (init.sh missing has its own separate message).
+	if _, err := run(t, "apply", "--files", dotfiles, "--dotd-env", envFile, "--dotd-config", configPath); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if err := os.Remove(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "check", "--files", dotfiles, "--dotd-env", envFile, "--dotd-config", configPath)
+	if err == nil {
+		t.Fatal("check should fail when a symlink is missing")
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "dotd apply") {
+		t.Errorf("check 'issues found' should hint 'dotd apply'; got err=%v", err)
+	}
+}
+
 // TestCheck_DetectsWrongTarget verifies that check exits non-zero when the
 // symlink exists but points at a different file (AUDIT-061).
 func TestCheck_DetectsWrongTarget(t *testing.T) {
@@ -448,6 +497,114 @@ func TestApplyWritesInitSh(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "base.sh") {
 		t.Errorf("init.sh missing base.sh: %s", string(content))
+	}
+}
+
+// TestApply_ResumesAfterPartialFailure locks dot-dagger's recovery contract:
+// apply is idempotent and resumable, not transactional. A mid-apply failure
+// leaves partial state on disk, and simply re-running apply once the cause is
+// cleared converges to the full plan — no rollback, no manual cleanup. This
+// guards the idempotency the design relies on (createSymlink remove+recreate,
+// WriteAtomic overwrite) from regressing (Track J, J-1/B-4, 2026-06-15).
+func TestApply_ResumesAfterPartialFailure(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Two link nodes; alphabetical tie-break links dot-aaa before dot-zzz.
+	if err := os.WriteFile(filepath.Join(confDir, "dot-aaa"), []byte("# @link(~/.aaa)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-zzz"), []byte("# @link(~/.zzz)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	envFile := emptyEnvFile(t)
+
+	// Block the second link's destination with a regular file so apply fails
+	// mid-plan, after the first symlink is already on disk.
+	blocker := filepath.Join(home, ".zzz")
+	if err := os.WriteFile(blocker, []byte("pre-existing\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// First apply: fails on the blocked target, leaving partial state.
+	if _, err := run(t, "apply", "--files", dotfiles, "--dotd-env", envFile); err == nil {
+		t.Fatal("apply should fail while .zzz is blocked by a non-symlink file")
+	}
+	if fi, err := os.Lstat(filepath.Join(home, ".aaa")); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf(".aaa should be a symlink after the partial apply: %v", err)
+	}
+
+	// Clear the cause and re-run: apply must converge with no manual cleanup.
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, "apply", "--files", dotfiles, "--dotd-env", envFile); err != nil {
+		t.Fatalf("re-apply should converge after the cause is cleared: %v", err)
+	}
+	for _, name := range []string{".aaa", ".zzz"} {
+		if fi, err := os.Lstat(filepath.Join(home, name)); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+			t.Errorf("%s should be a symlink after re-apply (convergence): %v", name, err)
+		}
+	}
+}
+
+// TestAnnotate_OutsideDotfilesHints: annotating a file that isn't inside the
+// dotfiles repo must point the user at how to bring it in, not just report the
+// rejection (Track H error-hint pass).
+func TestAnnotate_OutsideDotfilesHints(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	outside := filepath.Join(t.TempDir(), "loose.sh")
+	if err := os.WriteFile(outside, []byte("echo hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "annotate", outside,
+		"--files", emptyDotfiles(t),
+		"--dotd-env", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatal("annotate should reject a file outside the dotfiles dir")
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "adopt") {
+		t.Errorf("outside-dotfiles error should hint 'dotd adopt'; got err=%v", err)
+	}
+}
+
+// TestAnnotate_DirectoryHints: pointing annotate at a directory must guide the
+// user to pass a file instead of just reporting "not a regular file" (Track H).
+func TestAnnotate_DirectoryHints(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	dotfiles := t.TempDir()
+	subdir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "annotate", subdir,
+		"--files", dotfiles,
+		"--dotd-env", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatal("annotate should reject a directory")
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "file") {
+		t.Errorf("not-a-regular-file error should hint to pass a file; got err=%v", err)
 	}
 }
 
@@ -929,6 +1086,41 @@ func TestTeardown_CancelExits0(t *testing.T) {
 	}
 	if !strings.Contains(out, "cancelled") {
 		t.Errorf("expected 'cancelled' in output: %q", out)
+	}
+}
+
+// TestTeardown_BestEffortOnRemoveFailure: a failure removing one target must not
+// abort the rest. teardown attempts every target, then returns non-zero — the same
+// best-effort contract runUnapply already follows. Regression for the fail-fast
+// path that left env.yaml + the RC source line untouched after config.yaml failed
+// (Track J, 2026-06-15).
+func TestTeardown_BestEffortOnRemoveFailure(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	// config.yaml is a NON-EMPTY DIRECTORY so os.Remove fails with ENOTEMPTY —
+	// deterministic and uid-independent (root would ignore a perms trick).
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.MkdirAll(filepath.Join(configPath, "blocker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// env.yaml is a normal, removable file in a separate writable dir.
+	envPath := filepath.Join(t.TempDir(), "env.yaml")
+	if err := os.WriteFile(envPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "teardown", "--yes",
+		"--files", emptyDotfiles(t),
+		"--dotd-config", configPath,
+		"--dotd-env", envPath,
+	)
+	if err == nil {
+		t.Fatal("teardown should return non-zero when a target fails to remove")
+	}
+	// Best-effort: the later target is removed despite the earlier failure.
+	if _, statErr := os.Stat(envPath); !os.IsNotExist(statErr) {
+		t.Error("env.yaml should be removed even though config.yaml removal failed")
 	}
 }
 

@@ -580,6 +580,11 @@ Stages run in order:
   5. act    — create symlinks, collect source list
   6. init   — write init.sh from sourced nodes in DAG order
 
+apply is idempotent and resumable, not transactional. If a run fails partway
+(e.g. a destination is blocked by a non-symlink file), the work done so far
+stays on disk; fix the cause and re-run 'dotd apply' to converge to the full
+plan — there is no rollback and no manual cleanup needed.
+
 Examples:
   dotd apply
   dotd apply --dry-run            # preview without making changes
@@ -716,7 +721,10 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 				hint: "no config.yaml found — run 'dotd setup' to configure this machine",
 			}
 		}
-		return errors.New("check: issues found")
+		return &hintError{
+			err:  errors.New("check: issues found"),
+			hint: "run 'dotd apply' to create missing and repair wrong symlinks — add --force to overwrite a non-symlink file at a destination",
+		}
 	}
 	return nil
 }

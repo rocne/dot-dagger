@@ -112,30 +112,40 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 		return nil
 	}
 
-	// Execute.
+	// Execute best-effort: a failure on one target must not skip the others, so
+	// teardown never leaves a half-removed install just because the first target
+	// resisted. Failures are reported to stderr and aggregated into a non-zero
+	// exit — the same contract runUnapply follows.
+	var failures int
 	if configExists {
 		if err := os.Remove(configPath); err != nil {
-			return fmt.Errorf("teardown: remove %s: %w", configPath, err)
+			ui.Errf(errOut, "removing %s: %v", configPath, err)
+			failures++
+		} else {
+			ui.OKf(out, "removed %s", configPath)
 		}
-		ui.OKf(out, "removed %s", configPath)
 	} else {
 		ui.Skipf(out, "skip: %s", configPath)
 	}
 
 	if envExists {
 		if err := os.Remove(envPath); err != nil {
-			return fmt.Errorf("teardown: remove %s: %w", envPath, err)
+			ui.Errf(errOut, "removing %s: %v", envPath, err)
+			failures++
+		} else {
+			ui.OKf(out, "removed %s", envPath)
 		}
-		ui.OKf(out, "removed %s", envPath)
 	} else {
 		ui.Skipf(out, "skip: %s", envPath)
 	}
 
 	if rcFile != "" {
 		if err := setup.RemoveSourceLine(rcFile, cfg.initFile); err != nil {
-			return fmt.Errorf("teardown: strip RC source line: %w", err)
+			ui.Errf(errOut, "stripping RC source line from %s: %v", rcFile, err)
+			failures++
+		} else {
+			ui.OKf(out, "removed source line from %s", rcFile)
 		}
-		ui.OKf(out, "removed source line from %s", rcFile)
 	}
 
 	// Prune config dir if now empty.
@@ -146,6 +156,9 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 		}
 	}
 
+	if failures > 0 {
+		return fmt.Errorf("teardown: %s failed to remove", plural(failures, "target"))
+	}
 	return nil
 }
 
