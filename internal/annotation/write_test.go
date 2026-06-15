@@ -1,8 +1,10 @@
 package annotation
 
 import (
+	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -22,6 +24,77 @@ func readFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// TestWriteScan_RoundTrip is a property test over the mutation path: a set of
+// annotations written into a file's header must Scan back as the identical
+// (key, args) sequence. Guards Write↔Scan from drifting — including args that
+// carry nested parens (e.g. @when(exists(git))), which the first-"("/last-")"
+// split must preserve.
+func TestWriteScan_RoundTrip(t *testing.T) {
+	// (key, args) pairs the wizard could plausibly produce. Empty args models a
+	// bool annotation ("# @disable"); the rest exercise predicate/after content.
+	type pair struct{ key, args string }
+	pool := []pair{
+		{KeyWhen, "os=linux"},
+		{KeyWhen, "os=linux,macos"},
+		{KeyWhen, "exists(git)"},
+		{KeyWhen, "context=work & os=macos"},
+		{KeyAfter, "shellrc/"},
+		{KeyAfter, "core.base"},
+		{KeyRequire, "git"},
+		{KeyRequest, "ripgrep"},
+		{KeyName, "my-thing"},
+		{KeyDisable, ""},
+	}
+
+	rng := rand.New(rand.NewSource(7))
+	const iterations = 300
+	for it := 0; it < iterations; it++ {
+		// Pick a random ordered subset (with possible repeats) of the pool.
+		count := rng.Intn(6)
+		chosen := make([]pair, count)
+		for i := range chosen {
+			chosen[i] = pool[rng.Intn(len(pool))]
+		}
+
+		// Format like the wizard: "# @key(args)" or "# @key" for empty args.
+		lines := make([]string, len(chosen))
+		for i, p := range chosen {
+			if p.args == "" {
+				lines[i] = "# @" + p.key
+			} else {
+				lines[i] = "# @" + p.key + "(" + p.args + ")"
+			}
+		}
+
+		dir := t.TempDir()
+		path := writeFile(t, dir, "f.sh", "#!/bin/sh\necho hi\n")
+		if err := Write(path, nil, lines); err != nil {
+			t.Fatalf("iter %d: Write: %v", it, err)
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			t.Fatalf("iter %d: open: %v", it, err)
+		}
+		scanned, err := Scan(f)
+		_ = f.Close()
+		if err != nil {
+			t.Fatalf("iter %d: Scan: %v", it, err)
+		}
+
+		if len(scanned) != len(chosen) {
+			t.Fatalf("iter %d: scanned %d annotations, wrote %d\nlines:\n%s\nfile:\n%s",
+				it, len(scanned), len(chosen), strings.Join(lines, "\n"), readFile(t, path))
+		}
+		for i, p := range chosen {
+			if scanned[i].Key != p.key || scanned[i].Args != p.args {
+				t.Fatalf("iter %d pos %d: round-trip mismatch: wrote (%q,%q), scanned (%q,%q)",
+					it, i, p.key, p.args, scanned[i].Key, scanned[i].Args)
+			}
+		}
+	}
 }
 
 // Plain file: no shebang. Annotation goes at top, blank line after.
