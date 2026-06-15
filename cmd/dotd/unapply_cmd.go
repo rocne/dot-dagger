@@ -150,7 +150,10 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 	}
 
 	if failures > 0 {
-		return fmt.Errorf("unapply: %d of %d targets failed to remove", failures, len(toRemove)+boolToInt(initShExists))
+		return &hintError{
+			err:  fmt.Errorf("unapply: %d of %d targets failed to remove", failures, len(toRemove)+boolToInt(initShExists)),
+			hint: "see the per-target errors above; re-run `dotd unapply` after resolving them",
+		}
 	}
 	return nil
 }
