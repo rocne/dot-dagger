@@ -67,7 +67,7 @@ func TestRenderProse_UnknownDirsAppendedAlphabetically(t *testing.T) {
 	gi := strings.Index(out, "# === docs/guides/intro.md ===")
 	zi := strings.Index(out, "# === docs/zzz/last.md ===")
 	// Known (reference) before unknown; unknown dirs alphabetical (guides<zzz).
-	if !(ri >= 0 && ri < gi && gi < zi) {
+	if ri < 0 || ri >= gi || gi >= zi {
 		t.Errorf("bad order: reference=%d guides=%d zzz=%d\n%s", ri, gi, zi, out)
 	}
 }
