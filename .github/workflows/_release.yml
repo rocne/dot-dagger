@@ -46,6 +46,14 @@ jobs:
 
       - uses: sigstore/cosign-installer@v3
 
+      - name: Prepare package signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$GPG_PRIVATE_KEY" > "$RUNNER_TEMP/dotd-signing-key.asc"
+          echo "GPG_KEY_PATH=$RUNNER_TEMP/dotd-signing-key.asc" >> "$GITHUB_ENV"
+
       - name: Release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -57,6 +65,7 @@ jobs:
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ inputs.version }}
           VERSION: ${{ inputs.version }}
+          GPG_KEY_PATH: ${{ env.GPG_KEY_PATH }}
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
