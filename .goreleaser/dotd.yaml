@@ -77,6 +77,10 @@ signs:
       - "${artifact}"
       - "--yes"
 
+release:
+  extra_files:
+    - glob: ./dotd-signing-key.asc
+
 changelog:
   sort: asc
   filters:
