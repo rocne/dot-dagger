@@ -40,6 +40,12 @@ func TestDeriveName(t *testing.T) {
 		{"shellrc/dot-aliases.sh", "shellrc.aliases"},
 		{"bin/my-tool", "bin.my-tool"},
 		{"aliases.sh", "aliases"},
+		// Leading-dot literal dotfiles must NOT be stripped to an empty name:
+		// filepath.Ext(".gitignore") is ".gitignore", so a naive ext-strip
+		// yields "" and two such files collide as duplicate logical names.
+		{".gitignore", ".gitignore"},
+		{".editorconfig", ".editorconfig"},
+		{"conf/.bashrc", "conf..bashrc"},
 	}
 	for _, c := range cases {
 		t.Run(c.path, func(t *testing.T) {

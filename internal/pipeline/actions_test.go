@@ -416,3 +416,16 @@ func TestValidateNodes(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckLinkConflicts_EmptyDestNoFalseConflict verifies that two nodes whose
+// link destinations resolve to empty (link action with no dest and no link_root)
+// do NOT trigger a bogus "both link to ''" conflict. Such nodes fail validateNode
+// separately ("link requires a destination"); CheckLinkConflicts must not pile a
+// false conflict on top by mapping them all to the empty string.
+func TestCheckLinkConflicts_EmptyDestNoFalseConflict(t *testing.T) {
+	n1 := RawNode{LogicalName: "a", Actions: []Action{{Type: ActionLink, Dest: ""}}}
+	n2 := RawNode{LogicalName: "b", Actions: []Action{{Type: ActionLink, Dest: ""}}}
+	if err := CheckLinkConflicts([]RawNode{n1, n2}, ActOptions{HomeDir: "/home/u"}); err != nil {
+		t.Errorf("empty-dest nodes should not conflict, got: %v", err)
+	}
+}

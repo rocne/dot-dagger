@@ -28,8 +28,14 @@ func DeriveName(relPath string) string {
 	for i, c := range components {
 		c = StripRepoPrefix(c)
 		if i == len(components)-1 {
+			// Strip the extension only when a non-empty base remains. For a
+			// leading-dot name like ".gitignore", filepath.Ext returns the whole
+			// string, so trimming would yield "" — two such files would then
+			// collide as duplicate empty logical names. Keep the name intact.
 			if ext := filepath.Ext(c); ext != "" {
-				c = strings.TrimSuffix(c, ext)
+				if base := strings.TrimSuffix(c, ext); base != "" {
+					c = base
+				}
 			}
 		}
 		result[i] = c
