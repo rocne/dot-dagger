@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	dotdagger "github.com/rocne/dot-dagger"
+	"github.com/rocne/dot-dagger/internal/docs"
 	"github.com/spf13/cobra"
 )
 
@@ -48,4 +50,43 @@ func renderCommandRef(root *cobra.Command) string {
 	}
 	walk(root)
 	return b.String()
+}
+
+// newDocsCmd builds the `docs` command. With --full it prints the complete
+// machine-readable reference (an llms-full-style blob): a provenance header,
+// the embedded prose, then the full CLI reference. Without --full it falls
+// through to cobra's own help (which lists --full); per-topic human output is
+// a future follow-up that reuses RenderProse.
+func newDocsCmd() *cobra.Command {
+	var full bool
+	cmd := &cobra.Command{
+		Use:   "docs",
+		Short: "Print embedded documentation",
+		Long: `Print dot-dagger's documentation, embedded in the binary.
+
+With --full, prints the complete machine-readable reference to stdout: every
+concept and reference page plus the full CLI reference, as one llms-full-style
+blob — the form intended for agents and tooling. Offline; no doc-site needed.
+
+Examples:
+  dotd docs --full              # complete reference (for agents)
+  dotd docs --full | less       # page it
+  dotd docs --full > dotd.txt   # capture to a file`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !full {
+				return cmd.Help()
+			}
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "# dotd %s — embedded reference\n\n", version)
+			prose, err := docs.RenderProse(dotdagger.DocsFS)
+			if err != nil {
+				return fmt.Errorf("render docs: %w", err)
+			}
+			fmt.Fprint(out, prose)
+			fmt.Fprint(out, renderCommandRef(cmd.Root()))
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&full, "full", false, "print the complete machine-readable reference (for agents)")
+	return cmd
 }
