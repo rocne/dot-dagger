@@ -721,7 +721,10 @@ func runCheck(cmd *cobra.Command, cfg *config) error {
 				hint: "no config.yaml found — run 'dotd setup' to configure this machine",
 			}
 		}
-		return errors.New("check: issues found")
+		return &hintError{
+			err:  errors.New("check: issues found"),
+			hint: "run 'dotd apply' to create missing and repair wrong symlinks — add --force to overwrite a non-symlink file at a destination",
+		}
 	}
 	return nil
 }

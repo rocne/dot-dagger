@@ -56,7 +56,10 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 
 	rel, err := filepath.Rel(cfg.files, absFile)
 	if err != nil || strings.HasPrefix(rel, "..") {
-		return fmt.Errorf("annotate: %s is outside the dotfiles directory %s", absFile, cfg.files)
+		return &hintError{
+			err:  fmt.Errorf("annotate: %s is outside the dotfiles directory %s", absFile, cfg.files),
+			hint: "run 'dotd adopt' to move the file into the repo first, or point --files at the right dotfiles directory",
+		}
 	}
 
 	// Scan existing annotations.
