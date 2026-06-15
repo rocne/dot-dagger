@@ -57,8 +57,41 @@ func SourceLine(initPath, home string) (string, error) {
 	return fmt.Sprintf(`source "$HOME/%s"`, rel), nil
 }
 
-// HasSourceLine reports whether rcFile already contains a source line referencing initPath.
-// Returns false (not an error) if rcFile does not exist.
+// isGeneratedSourceLine reports whether line is exactly the kind of source line
+// AppendSourceLine writes for initPath — i.e. `source "<path>"` where <path>
+// resolves to initPath. This is a structural match, not a substring match: a
+// comment that merely mentions the basename, or an unrelated `source` line that
+// only shares the basename, must not match.
+func isGeneratedSourceLine(line, initPath string) bool {
+	s := strings.TrimSpace(line)
+	const prefix = `source "`
+	if len(s) <= len(prefix) || !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, `"`) {
+		return false
+	}
+	path := s[len(prefix) : len(s)-1]
+	// Absolute fallback form: SourceLine emits the raw path when initPath is not
+	// under $HOME.
+	if path == initPath {
+		return true
+	}
+	// $HOME-relative form: SourceLine emits `$HOME/<rel>` where rel is initPath
+	// relative to home. We don't have home here, but this line only appears in
+	// dotd's own header-anchored block, so matching the basename of the
+	// $HOME-relative path is sufficient to distinguish it from an absolute or
+	// tilde-prefixed line for a different file.
+	if rel, ok := strings.CutPrefix(path, "$HOME/"); ok {
+		return filepath.Base(rel) == filepath.Base(initPath)
+	}
+	return false
+}
+
+// HasSourceLine reports whether rcFile already contains dotd's generated block
+// for initPath. Returns false (not an error) if rcFile does not exist.
+//
+// dotd owns a two-line block: the header sentinel (sourceLineHeader) immediately
+// followed by its generated source line. Detection matches that block
+// structurally — never a bare line that merely mentions "source" or happens to
+// share the init file's basename.
 func HasSourceLine(rcFile, initPath string) (bool, error) {
 	f, err := os.Open(rcFile)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -69,14 +102,14 @@ func HasSourceLine(rcFile, initPath string) (bool, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	// Look for any source line that references the init file by name.
-	needle := filepath.Base(initPath)
 	scanner := bufio.NewScanner(f)
+	sawHeader := false
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.Contains(line, "source") && strings.Contains(line, needle) {
+		if sawHeader && isGeneratedSourceLine(line, initPath) {
 			return true, nil
 		}
+		sawHeader = line == sourceLineHeader
 	}
 	return false, scanner.Err()
 }
@@ -112,15 +145,20 @@ func RemoveSourceLine(rcFile, initFile string) error {
 	}
 
 	lines := strings.Split(string(data), "\n")
-	needle := filepath.Base(initFile)
 
 	out := make([]string, 0, len(lines))
 	i := 0
 	for i < len(lines) {
 		if lines[i] == sourceLineHeader {
+			// AppendSourceLine writes a leading blank line before the header;
+			// drop it too so add→remove is an exact identity and repeated
+			// init→teardown cycles never accrete blank lines.
+			if n := len(out); n > 0 && out[n-1] == "" {
+				out = out[:n-1]
+			}
 			i++ // skip header
-			// skip the following source line if it references our init file
-			if i < len(lines) && strings.Contains(lines[i], "source") && strings.Contains(lines[i], needle) {
+			// skip the following source line if it is dotd's generated line
+			if i < len(lines) && isGeneratedSourceLine(lines[i], initFile) {
 				i++
 			}
 			continue
@@ -129,5 +167,11 @@ func RemoveSourceLine(rcFile, initFile string) error {
 		i++
 	}
 
-	return os.WriteFile(rcFile, []byte(strings.Join(out, "\n")), fileutil.ModeFile)
+	// Rewrite atomically (temp file + rename) so an interrupted write can never
+	// truncate or corrupt a file dotd does not own. Preserve the existing mode.
+	mode := fileutil.ModeFile
+	if info, statErr := os.Stat(rcFile); statErr == nil {
+		mode = info.Mode().Perm()
+	}
+	return fileutil.WriteAtomic(rcFile, []byte(strings.Join(out, "\n")), mode)
 }
