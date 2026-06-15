@@ -131,6 +131,32 @@ func TestScan_PathPrefix(t *testing.T) {
 	}
 }
 
+// An unterminated paren (a typo: missing ")") must still parse to the intended
+// key, never a junk key containing "(". Otherwise the @when condition is dropped
+// silently and the file is treated as unconditionally active.
+func TestScan_UnterminatedParenRecoversKey(t *testing.T) {
+	anns, err := Scan(strings.NewReader("# @when(os=macos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(anns) != 1 {
+		t.Fatalf("want 1 annotation, got %d: %+v", len(anns), anns)
+	}
+	if anns[0].Key != KeyWhen {
+		t.Errorf("Key = %q, want %q (junk key silently drops the @when condition)", anns[0].Key, KeyWhen)
+	}
+	if anns[0].Args != "os=macos" {
+		t.Errorf("Args = %q, want %q", anns[0].Args, "os=macos")
+	}
+}
+
+func TestParseKeyArgs_UnterminatedParen(t *testing.T) {
+	key, args := parseKeyArgs("when(os=macos")
+	if key != "when" || args != "os=macos" {
+		t.Errorf("parseKeyArgs(unterminated) = (%q, %q), want (%q, %q)", key, args, "when", "os=macos")
+	}
+}
+
 func TestGet(t *testing.T) {
 	anns := []Annotation{
 		{Key: "when", Args: "os=macos"},

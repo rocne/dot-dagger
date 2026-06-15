@@ -3,13 +3,10 @@ package annotation
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/fileutil"
 )
-
-var annotationLineRE = regexp.MustCompile(`^(#|//)\s*@\w+`)
 
 // Write atomically rewrites path with the given annotation block.
 // preserved contains annotation lines for unknown keys (passed through unchanged).
@@ -58,7 +55,7 @@ func Write(path string, preserved []string, lines []string) error {
 	// Strip existing annotation lines from the header only.
 	strippedHeader := make([]string, 0, headerEnd)
 	for _, l := range raw[:headerEnd] {
-		if !annotationLineRE.MatchString(strings.TrimSpace(l)) {
+		if !IsAnnotationLine(l) {
 			strippedHeader = append(strippedHeader, l)
 		}
 	}
