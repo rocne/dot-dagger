@@ -94,7 +94,7 @@ func WriteAtomic(path string, data []byte, mode os.FileMode) error {
 // unchanged when it contains no shell-special characters, otherwise
 // single-quoted with embedded quotes escaped via the '"'"' idiom.
 func ShellQuote(s string) string {
-	if s != "" && !strings.ContainsAny(s, " \t\n\"'\\$`#&|;<>()*?[]~") {
+	if s != "" && !strings.ContainsAny(s, " \t\n\"'\\$`#&|;<>()*?[]~{}") {
 		return s
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
