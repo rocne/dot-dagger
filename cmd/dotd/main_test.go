@@ -932,6 +932,41 @@ func TestTeardown_CancelExits0(t *testing.T) {
 	}
 }
 
+// TestTeardown_BestEffortOnRemoveFailure: a failure removing one target must not
+// abort the rest. teardown attempts every target, then returns non-zero — the same
+// best-effort contract runUnapply already follows. Regression for the fail-fast
+// path that left env.yaml + the RC source line untouched after config.yaml failed
+// (Track J, 2026-06-15).
+func TestTeardown_BestEffortOnRemoveFailure(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	// config.yaml is a NON-EMPTY DIRECTORY so os.Remove fails with ENOTEMPTY —
+	// deterministic and uid-independent (root would ignore a perms trick).
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.MkdirAll(filepath.Join(configPath, "blocker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// env.yaml is a normal, removable file in a separate writable dir.
+	envPath := filepath.Join(t.TempDir(), "env.yaml")
+	if err := os.WriteFile(envPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "teardown", "--yes",
+		"--files", emptyDotfiles(t),
+		"--dotd-config", configPath,
+		"--dotd-env", envPath,
+	)
+	if err == nil {
+		t.Fatal("teardown should return non-zero when a target fails to remove")
+	}
+	// Best-effort: the later target is removed despite the earlier failure.
+	if _, statErr := os.Stat(envPath); !os.IsNotExist(statErr) {
+		t.Error("env.yaml should be removed even though config.yaml removal failed")
+	}
+}
+
 // TestTeardown_DryRunRemovesNothing: --dry-run is advertised for teardown
 // (pathFlagOwners) and must stop after the preview — even with --yes
 // (2026-06-13 audit, B1).
