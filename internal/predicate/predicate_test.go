@@ -205,6 +205,59 @@ func TestEval(t *testing.T) {
 	}
 }
 
+// TestEvalMissingKeyCommutative verifies B-1: a missing env key inside AND/OR
+// no longer makes evaluation order-dependent. The missing key surfaces an error
+// only when it actually decides the result; a satisfied OR or a falsified AND
+// swallows it. The error, when surfaced, is still a *MissingKeyError so callers
+// using errors.As keep working.
+func TestEvalMissingKeyCommutative(t *testing.T) {
+	// env deliberately lacks "distro".
+	env := map[string]string{"os": "macos"}
+
+	tests := []struct {
+		name    string
+		input   string
+		want    bool
+		wantErr bool
+	}{
+		{"OR missing-first, satisfied", "distro=ubuntu OR os=macos", true, false},
+		{"OR present-first, satisfied", "os=macos OR distro=ubuntu", true, false},
+		{"OR missing-first, undecided -> error", "distro=ubuntu OR os=linux", false, true},
+		{"OR present-first, undecided -> error", "os=linux OR distro=ubuntu", false, true},
+		{"AND missing-first, falsified", "distro=ubuntu AND os=linux", false, false},
+		{"AND present-first, falsified", "os=linux AND distro=ubuntu", false, false},
+		{"AND missing-first, decisive -> error", "distro=ubuntu AND os=macos", false, true},
+		{"AND present-first, decisive -> error", "os=macos AND distro=ubuntu", false, true},
+		{"lone missing key -> error", "distro=ubuntu", false, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr, err := Parse(tt.input)
+			if err != nil {
+				t.Fatalf("Parse(%q) error = %v", tt.input, err)
+			}
+			ev := &Evaluator{Env: env}
+			got, err := ev.Eval(expr)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("Eval(%q) error = nil, want error", tt.input)
+				}
+				var mke *MissingKeyError
+				if !errors.As(err, &mke) {
+					t.Errorf("Eval(%q) error = %v, want *MissingKeyError", tt.input, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Eval(%q) unexpected error = %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Errorf("Eval(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEvalExists(t *testing.T) {
 	expr, _ := Parse("exists(mytool)")
 	ev := &Evaluator{

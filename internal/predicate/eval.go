@@ -1,6 +1,7 @@
 package predicate
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 )
@@ -12,6 +13,12 @@ type MissingKeyError struct {
 
 func (e *MissingKeyError) Error() string {
 	return fmt.Sprintf("predicate: env key %q not set", e.Key)
+}
+
+// isMissingKey reports whether err is (or wraps) a *MissingKeyError.
+func isMissingKey(err error) bool {
+	var mke *MissingKeyError
+	return errors.As(err, &mke)
 }
 
 // Func is a predicate function registered with a FuncRegistry.
@@ -109,26 +116,52 @@ func (e *Evaluator) Eval(expr Expr) (bool, error) {
 		return false, nil
 
 	case AndExpr:
+		// A definitely-false operand decides the AND, so a MissingKeyError from
+		// another operand is deferred: it only surfaces if no operand is false.
+		// This keeps AND commutative under a missing key (see MissingKeyError).
+		var missErr error
 		for _, operand := range x.Operands {
 			ok, err := e.Eval(operand)
 			if err != nil {
+				if isMissingKey(err) {
+					if missErr == nil {
+						missErr = err
+					}
+					continue
+				}
 				return false, err
 			}
 			if !ok {
 				return false, nil
 			}
 		}
+		if missErr != nil {
+			return false, missErr
+		}
 		return true, nil
 
 	case OrExpr:
+		// A true operand decides the OR, so a MissingKeyError from another
+		// operand is deferred: it only surfaces if no operand is true. This
+		// keeps OR commutative under a missing key (see MissingKeyError).
+		var missErr error
 		for _, operand := range x.Operands {
 			ok, err := e.Eval(operand)
 			if err != nil {
+				if isMissingKey(err) {
+					if missErr == nil {
+						missErr = err
+					}
+					continue
+				}
 				return false, err
 			}
 			if ok {
 				return true, nil
 			}
+		}
+		if missErr != nil {
+			return false, missErr
 		}
 		return false, nil
 
