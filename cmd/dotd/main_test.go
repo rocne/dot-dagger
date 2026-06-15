@@ -284,6 +284,55 @@ func TestCheck_DetectsMissingSymlink(t *testing.T) {
 	}
 }
 
+// TestCheck_IssuesFoundHintsApply: when config.yaml exists but a symlink is
+// missing or wrong, check must guide the user to the fix ('dotd apply') instead
+// of just reporting "issues found" (Track H error-hint pass).
+func TestCheck_IssuesFoundHintsApply(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-gitconfig"),
+		[]byte("# @link(~/.gitconfig)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	envFile := emptyEnvFile(t)
+
+	// A real config.yaml so check takes the "config exists" branch (not the
+	// existing "no config — run setup" hint).
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte("dotfiles: "+dotfiles+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// apply so init.sh exists, then delete the symlink so the only issue is a
+	// missing link (init.sh missing has its own separate message).
+	if _, err := run(t, "apply", "--files", dotfiles, "--dotd-env", envFile, "--dotd-config", configPath); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if err := os.Remove(filepath.Join(home, ".gitconfig")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "check", "--files", dotfiles, "--dotd-env", envFile, "--dotd-config", configPath)
+	if err == nil {
+		t.Fatal("check should fail when a symlink is missing")
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "dotd apply") {
+		t.Errorf("check 'issues found' should hint 'dotd apply'; got err=%v", err)
+	}
+}
+
 // TestCheck_DetectsWrongTarget verifies that check exits non-zero when the
 // symlink exists but points at a different file (AUDIT-061).
 func TestCheck_DetectsWrongTarget(t *testing.T) {
@@ -448,6 +497,31 @@ func TestApplyWritesInitSh(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "base.sh") {
 		t.Errorf("init.sh missing base.sh: %s", string(content))
+	}
+}
+
+// TestAnnotate_OutsideDotfilesHints: annotating a file that isn't inside the
+// dotfiles repo must point the user at how to bring it in, not just report the
+// rejection (Track H error-hint pass).
+func TestAnnotate_OutsideDotfilesHints(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	outside := filepath.Join(t.TempDir(), "loose.sh")
+	if err := os.WriteFile(outside, []byte("echo hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "annotate", outside,
+		"--files", emptyDotfiles(t),
+		"--dotd-env", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatal("annotate should reject a file outside the dotfiles dir")
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "adopt") {
+		t.Errorf("outside-dotfiles error should hint 'dotd adopt'; got err=%v", err)
 	}
 }
 
