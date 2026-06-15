@@ -66,13 +66,9 @@ func orderedFiles(fsys fs.FS) ([]string, error) {
 	for i, name := range priority {
 		rank[name] = i
 	}
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		names = append(names, e.Name())
-	}
-	sort.SliceStable(names, func(i, j int) bool {
-		ri, oki := rank[names[i]]
-		rj, okj := rank[names[j]]
+	sort.SliceStable(entries, func(i, j int) bool {
+		ri, oki := rank[entries[i].Name()]
+		rj, okj := rank[entries[j].Name()]
 		switch {
 		case oki && okj:
 			return ri < rj
@@ -81,18 +77,15 @@ func orderedFiles(fsys fs.FS) ([]string, error) {
 		case okj:
 			return false
 		default:
-			return names[i] < names[j]
+			return entries[i].Name() < entries[j].Name()
 		}
 	})
 
 	var files []string
-	for _, name := range names {
+	for _, e := range entries {
+		name := e.Name()
 		full := path.Join(docsRoot, name)
-		info, err := fs.Stat(fsys, full)
-		if err != nil {
-			return nil, err
-		}
-		if info.IsDir() {
+		if e.IsDir() {
 			subs, err := mdFiles(fsys, full)
 			if err != nil {
 				return nil, err
@@ -120,6 +113,5 @@ func mdFiles(fsys fs.FS, dir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(out)
 	return out, nil
 }
