@@ -1,7 +1,7 @@
 # Embed docs into the binary — agent-facing reference
 
 **Date:** 2026-06-15
-**Status:** In review (red-teamed twice)
+**Status:** Approved (red-teamed three times), ready for implementation plan
 **Topic:** Embed the authored `docs/` set into the `dotd` binary and expose a
 machine-readable, agent-oriented reference command.
 
