@@ -451,6 +451,31 @@ func TestApplyWritesInitSh(t *testing.T) {
 	}
 }
 
+// TestAnnotate_DirectoryHints: pointing annotate at a directory must guide the
+// user to pass a file instead of just reporting "not a regular file" (Track H).
+func TestAnnotate_DirectoryHints(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	dotfiles := t.TempDir()
+	subdir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := run(t, "annotate", subdir,
+		"--files", dotfiles,
+		"--dotd-env", emptyEnvFile(t),
+	)
+	if err == nil {
+		t.Fatal("annotate should reject a directory")
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "file") {
+		t.Errorf("not-a-regular-file error should hint to pass a file; got err=%v", err)
+	}
+}
+
 // --- dotd list ---
 
 func TestListEmpty(t *testing.T) {

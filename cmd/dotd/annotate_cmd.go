@@ -51,7 +51,10 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 		return fmt.Errorf("annotate: %w", err)
 	}
 	if !stat.Mode().IsRegular() {
-		return fmt.Errorf("annotate: %s is not a regular file", absFile)
+		return &hintError{
+			err:  fmt.Errorf("annotate: %s is not a regular file", absFile),
+			hint: "pass the path to a single file inside the dotfiles repo, not a directory",
+		}
 	}
 
 	rel, err := filepath.Rel(cfg.files, absFile)
