@@ -40,6 +40,12 @@ nfpms:
     description: Dotfiles manager — env resolution, DAG, symlinks, and packages
     license: MIT
     bindir: /usr/bin
+    rpm:
+      signature:
+        key_file: "{{ .Env.GPG_KEY_PATH }}"
+    deb:
+      signature:
+        key_file: "{{ .Env.GPG_KEY_PATH }}"
 
 brews:
   - name: dot-dagger
