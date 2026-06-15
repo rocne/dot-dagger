@@ -63,7 +63,10 @@ func runBundle(cmd *cobra.Command, cfg *config, target, outputFile string, inclu
 		}
 	}
 	if targetIdx < 0 {
-		return fmt.Errorf("bundle: %q not found in active nodes", target)
+		return &hintError{
+			err:  fmt.Errorf("bundle: %q not found in active nodes", target),
+			hint: "run `dotd list` to see active nodes — the path may be filtered out by its @when or lie outside the dotfiles root",
+		}
 	}
 
 	// Collect transitive @after dependencies of the target.
