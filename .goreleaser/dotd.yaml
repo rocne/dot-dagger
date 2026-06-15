@@ -26,9 +26,26 @@ archives:
     builds: [dotd]
     name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
+
+nfpms:
+  - id: dotd
+    package_name: dotd
+    ids: [dotd]
+    file_name_template: "{{ .ConventionalFileName }}"
+    formats:
+      - deb
+      - rpm
+    maintainer: Rocne Scribner <rocne.ks@gmail.com>
+    homepage: https://github.com/rocne/dot-dagger
+    description: Dotfiles manager — env resolution, DAG, symlinks, and packages
+    license: MIT
+    bindir: /usr/bin
+    rpm:
+      signature:
+        key_file: "{{ .Env.GPG_KEY_PATH }}"
+    deb:
+      signature:
+        key_file: "{{ .Env.GPG_KEY_PATH }}"
 
 brews:
   - name: dot-dagger
@@ -59,6 +76,10 @@ signs:
       - "--output-signature=${signature}"
       - "${artifact}"
       - "--yes"
+
+release:
+  extra_files:
+    - glob: ./dotd-signing-key.asc
 
 changelog:
   sort: asc
