@@ -18,6 +18,8 @@ jobs:
     permissions:
       contents: write
       issues: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/_release.yml
     with:
       version: ${{ github.ref_name }}
