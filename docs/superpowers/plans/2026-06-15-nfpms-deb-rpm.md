@@ -143,6 +143,8 @@ One-time. Produces the committed public key and the two repo secrets the CI buil
 
 - [ ] **Step 1: Generate an RSA 4096, non-expiring signing key**
 
+Use a **dedicated signing identity** (`dotd-packaging@users.noreply.github.com`) — NOT your personal `rocne.ks@gmail.com`. A distinct UID guarantees every `gpg` lookup below is unambiguous even if you already have a personal key, and capturing the fingerprint makes it airtight.
+
 Run (batch, non-interactive):
 ```bash
 cat > /tmp/dotd-key.conf <<'EOF'
@@ -152,19 +154,21 @@ Key-Length: 4096
 Subkey-Type: RSA
 Subkey-Length: 4096
 Name-Real: dotd package signing
-Name-Email: rocne.ks@gmail.com
+Name-Email: dotd-packaging@users.noreply.github.com
 Expire-Date: 0
 %commit
 EOF
 gpg --batch --generate-key /tmp/dotd-key.conf
+FPR=$(gpg --list-keys --with-colons dotd-packaging@users.noreply.github.com | awk -F: '/^fpr:/{print $10; exit}')
+echo "Signing key fingerprint: $FPR"
 ```
-Expected: a new key is created. `Expire-Date: 0` = non-expiring (spec requirement — an expiry silently breaks `rpm -K` on shipped packages). `%no-protection` creates a passphrase-less key for simplest CI; if you prefer a passphrase, drop that line, set one, and store it as `GPG_PASSPHRASE` (Step 4). Decide now — passphrase-less means `GPG_PASSPHRASE`/`NFPM_DEFAULT_PASSPHRASE` are omitted everywhere below.
+Expected: a new key is created and `$FPR` prints a 40-char fingerprint. `Expire-Date: 0` = non-expiring (spec requirement — an expiry silently breaks `rpm -K` on shipped packages). `%no-protection` creates a passphrase-less key for simplest CI; if you prefer a passphrase, drop that line, set one, and store it as `GPG_PASSPHRASE` (Step 4). Decide now — passphrase-less means `GPG_PASSPHRASE`/`NFPM_DEFAULT_PASSPHRASE` are omitted everywhere below. **Keep `$FPR` exported in this shell** — Steps 2-3 and Tasks 4/7 reference it.
 
 - [ ] **Step 2: Export the public key to the repo root**
 
 Run:
 ```bash
-gpg --armor --export rocne.ks@gmail.com > dotd-signing-key.asc
+gpg --armor --export "$FPR" > dotd-signing-key.asc
 ```
 Expected: `dotd-signing-key.asc` exists at repo root and begins `-----BEGIN PGP PUBLIC KEY BLOCK-----`.
 
@@ -172,7 +176,7 @@ Expected: `dotd-signing-key.asc` exists at repo root and begins `-----BEGIN PGP 
 
 Run:
 ```bash
-gpg --armor --export-secret-keys rocne.ks@gmail.com > /tmp/dotd-private.asc
+gpg --armor --export-secret-keys "$FPR" > /tmp/dotd-private.asc
 ```
 Expected: armored private key written. This file is for the secret only — do **not** commit it.
 
@@ -221,14 +225,15 @@ Expected: `config is valid`.
 
 - [ ] **Step 3: Point the key env at the local private key and build**
 
-The signing key is on this machine from Task 3. Export the same path GoReleaser expects, then snapshot-build:
+The signing key is on this machine from Task 3 (reuse `$FPR`, or re-derive it). Export the private key to the path GoReleaser expects, then snapshot-build. `--skip=sign` skips the **cosign** `signs` block (cosign is not installed locally) — it does **not** affect nfpm's native package signing, which is inline in the nfpms build:
 ```bash
-gpg --armor --export-secret-keys rocne.ks@gmail.com > /tmp/dotd-signing.asc
+FPR=$(gpg --list-keys --with-colons dotd-packaging@users.noreply.github.com | awk -F: '/^fpr:/{print $10; exit}')
+gpg --armor --export-secret-keys "$FPR" > /tmp/dotd-signing.asc
 export GPG_KEY_PATH=/tmp/dotd-signing.asc
 # If the key has a passphrase: export NFPM_DEFAULT_PASSPHRASE='<passphrase>'
-goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish
+goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish,sign
 ```
-Expected: build succeeds. (Drop `--skip=sign` is intentional here vs Task 2 — though `signs` is the cosign block; nfpm signing is inline and runs regardless. If GoReleaser errors that cosign signing needs a key in snapshot, add `--skip=sign` back — it does not affect nfpm package signing.)
+Expected: build succeeds; `dist/` repopulates with deb+rpm.
 
 - [ ] **Step 4: Verify the rpm signature**
 
@@ -331,12 +336,13 @@ git commit -m "ci: supply package signing key to goreleaser nfpms"
 
 Run:
 ```bash
-gpg --armor --export-secret-keys rocne.ks@gmail.com > /tmp/dotd-signing.asc
+FPR=$(gpg --list-keys --with-colons dotd-packaging@users.noreply.github.com | awk -F: '/^fpr:/{print $10; exit}')
+gpg --armor --export-secret-keys "$FPR" > /tmp/dotd-signing.asc
 export GPG_KEY_PATH=/tmp/dotd-signing.asc
-goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish
+goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish,sign
 rpm -K dist/*.rpm
 ls dist/*.deb dist/*.rpm
-shred -u /tmp/dotd-signing.asc
+shred -u /tmp/dotd-signing.asc 2>/dev/null || rm -f /tmp/dotd-signing.asc
 ```
 Expected: 2 deb + 2 rpm, all rpm signatures OK.
 
@@ -354,10 +360,12 @@ gh pr create --fill --title "feat: ship GPG-signed deb and rpm packages"
 ```
 PR body should note: first release after merge requires `GPG_PRIVATE_KEY` (and `GPG_PASSPHRASE` if used) secrets set — done in Task 3 — and that `dotd-signing-key.asc` ships at repo root.
 
-- [ ] **Step 4: Watch the release dry-run / wait for green CI**
+- [ ] **Step 4: Watch CI — but know its limit**
 
 Run: `gh pr checks --watch`
-Expected: all checks pass. Lint (golangci-lint), build, and config validation green.
+Expected: all checks pass (lint, build, test).
+
+**Validation gap — read this:** PR CI does **not** run GoReleaser, so it does **not** build or sign packages. The only pre-merge validation of package signing is the **local snapshot in Step 1**. The first *real* signed `.deb`/`.rpm` build happens when the next release PR merges and `_release.yml` runs. Watch that release run closely (`gh run watch`); if `GPG_KEY_PATH` or the passphrase is wrong, the GoReleaser step fails loud there, not in this PR.
 
 ---
 
