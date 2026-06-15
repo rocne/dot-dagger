@@ -8,8 +8,10 @@ Status: Approved, ready for implementation plan
 Ship `.deb` and `.rpm` packages as release artifacts so the binary installs on
 Debian/Ubuntu (`apt install ./file`) and Fedora/RHEL (`dnf install ./file`)
 without the Homebrew or `curl install.sh` paths. Packages are **GPG-signed** so
-`rpm -K` verification passes today and a future hosted repo can enforce
-`gpgcheck` without re-tooling.
+`rpm -K` verification passes today and a future hosted **yum** repo can enforce
+`gpgcheck` reusing the same per-package rpm signature without re-tooling. (A
+hosted apt repo signs its `Release` metadata with the repo key separately — the
+deb per-package signature does not carry forward; see §1 on deb signing value.)
 
 This is the "DO NEXT" item from the distribution roadmap: cheapest meaningful
 expansion of install surface, no hosting/accounts beyond a signing key.
@@ -133,8 +135,8 @@ This PR (manual):
   `GPG_KEY_PATH` + `NFPM_DEFAULT_PASSPHRASE` at it for local builds.
 - `goreleaser release --snapshot --clean` produces `.deb` + `.rpm` for amd64 +
   arm64 alongside the existing tar.gz/checksums.
-- `rpm --import <throwaway-pubkey> && rpm -K dist/dotd_*_amd64.rpm` reports the
-  signature.
+- `rpm --import <throwaway-pubkey> && rpm -K dist/*.rpm` reports the signature
+  (rpm names use `x86_64`/`aarch64`, not `amd64`/`arm64` — glob `*.rpm`).
 - `go test ./... && go vet ./... && gofmt -l . && golangci-lint run` clean
   (golangci-lint now installed locally — run before push).
 
@@ -147,17 +149,22 @@ existing "Fedora e2e" TODO.
 
 ## Risks / open notes
 
-- **Secret propagation** through the reusable `_release.yml` boundary must be
-  explicit — both caller paths (release-please, manual-tag) must surface
-  `GPG_PRIVATE_KEY` + `GPG_PASSPHRASE`. A missing secret fails loud (template
-  error on `GPG_KEY_PATH`), so the failure mode is an aborted build, not silent
-  unsigned packages — acceptable.
-- **Passphrase env name precedence** — nfpm reads `NFPM_DEFAULT_PASSPHRASE` (and
-  more specific `NFPM_<ID>_<PACKAGER>_PASSPHRASE`). Confirm `NFPM_DEFAULT_PASSPHRASE`
-  is honored when GoReleaser drives nfpm; fall back to the per-packager vars if not.
+- **Secret propagation is resolved, not a risk** (see §3): both callers use
+  `secrets: inherit`, so `GPG_PRIVATE_KEY` + `GPG_PASSPHRASE` reach `_release.yml`
+  with no caller edits. A missing secret still fails loud (template error on
+  `GPG_KEY_PATH`) → aborted build, never silent unsigned packages.
+- **Passphrase env name precedence** (the one real open item) — nfpm reads
+  `NFPM_DEFAULT_PASSPHRASE` and the more specific `NFPM_<ID>_<PACKAGER>_PASSPHRASE`.
+  Confirm `NFPM_DEFAULT_PASSPHRASE` is honored when GoReleaser drives nfpm; fall
+  back to the per-packager vars if not.
 - **deb signature is non-verifiable in practice** (see §1) — accept as cosmetic.
-- nfpm signs natively, so there is **no gpg toolchain dependency** in the runner
-  — removing the largest previously-assumed risk.
+- nfpm signs natively, so there is **no gpg toolchain dependency** in the runner.
+
+### Intentional omissions (not TODO — deliberate YAGNI)
+- deb `Section`/`Priority`, rpm `Group` — left to nfpm defaults; their absence
+  only yields cosmetic `lintian`/`rpmlint` warnings, never install failures.
+- Package version is **not** set manually — GoReleaser feeds the release tag to
+  nfpms automatically, matching the binary's stamped version.
 
 ## First-release preconditions (runbook)
 
@@ -177,6 +184,12 @@ this PR → merge → release. The PR itself contains the public key and config,
 ## Outputs
 
 Each release gains, alongside existing tar.gz + checksums + cosign sigs:
-- `dotd_<ver>_<arch>.deb` (amd64, arm64) — GPG-signed
-- `dotd_<ver>_<arch>.rpm` (amd64, arm64) — GPG-signed
-- `dotd-signing-key.asc` — public signing key
+- `.deb` × 2 — GPG-signed. Conventional names use deb arch: `..._amd64.deb`,
+  `..._arm64.deb`.
+- `.rpm` × 2 — GPG-signed. Conventional names use **rpm** arch: `...x86_64.rpm`,
+  `...aarch64.rpm` (note: not `amd64`/`arm64` — they differ from the deb names).
+- `dotd-signing-key.asc` — public signing key.
+
+Filenames use nfpms' default conventional templates (deb and rpm each follow
+their ecosystem's convention) — intentionally *not* the custom archive
+`name_template`, since package tooling expects the conventional forms.
