@@ -160,3 +160,16 @@ func TestShellQuote_Empty(t *testing.T) {
 		t.Errorf("ShellQuote(\"\") = %q, want '' (a valid empty shell word)", got)
 	}
 }
+
+func TestShellQuote_BraceExpansion(t *testing.T) {
+	// Braces drive brace expansion in bash/zsh, so they must be quoted to
+	// survive sourcing (e.g. `. <path>` or `export k=<val>`) verbatim.
+	cases := []string{"/home/u/{a,b}/init.sh", "{1..3}", "a{b}c"}
+	for _, in := range cases {
+		got := ShellQuote(in)
+		want := "'" + in + "'"
+		if got != want {
+			t.Errorf("ShellQuote(%q) = %q, want %q (single-quoted)", in, got, want)
+		}
+	}
+}
