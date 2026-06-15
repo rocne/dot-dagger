@@ -38,6 +38,8 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - uses: sigstore/cosign-installer@v3
+
       - name: Release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -49,6 +51,11 @@ jobs:
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ inputs.version }}
           VERSION: ${{ inputs.version }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/dotd_*.tar.gz
 
   e2e:
     needs: release
