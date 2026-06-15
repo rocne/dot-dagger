@@ -52,6 +52,32 @@ func composeFlags(t *testing.T, dotfiles, generatedDir string) []string {
 	}
 }
 
+// TestApplyDryRunPreviewsGeneratedFiles: a dry-run apply over a compose-target
+// repo must preview the compose-generated file it would write, otherwise the
+// preview is incomplete (it only showed links + init.sh before).
+func TestApplyDryRunPreviewsGeneratedFiles(t *testing.T) {
+	dotfiles, generatedDir := composeDotfiles(t)
+	flags := composeFlags(t, dotfiles, generatedDir)
+
+	out, err := run(t, append([]string{"apply", "--dry-run"}, flags...)...)
+	if err != nil {
+		t.Fatalf("apply --dry-run error = %v\noutput: %s", err, out)
+	}
+
+	gen := filepath.Join(generatedDir, "gen.sh")
+	if !strings.Contains(out, gen) {
+		t.Errorf("dry-run apply did not preview generated file %q:\n%s", gen, out)
+	}
+	if !strings.Contains(out, "dry-run:") {
+		t.Errorf("expected dry-run-style preview line for generated file:\n%s", out)
+	}
+
+	// Dry-run must not actually write the file.
+	if _, statErr := os.Stat(gen); statErr == nil {
+		t.Errorf("dry-run apply wrote generated file %q; it should only preview", gen)
+	}
+}
+
 // TestComposeCheckExitsNonZeroWhenMissing: a compose target whose generated
 // file has never been written must fail the check (the help text promises a
 // non-zero exit).

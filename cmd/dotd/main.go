@@ -656,6 +656,12 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 		for _, lnk := range run.result.Links {
 			fmt.Fprintf(cmd.OutOrStdout(), "dry-run: link %s %s %s\n", lnk.Src, ui.Arrow("→"), lnk.Dest)
 		}
+		for _, gen := range run.result.Generated {
+			if gen.Path == "" {
+				continue
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "dry-run: would write %s (compose target %s)\n", gen.Path, gen.Node.LogicalName)
+		}
 		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: would write %s (%s sourced)\n", cfg.initFile, plural(len(run.result.Sourced), "node"))
 		return nil
 	}
