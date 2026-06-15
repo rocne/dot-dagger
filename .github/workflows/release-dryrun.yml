@@ -72,9 +72,12 @@ jobs:
 
       - name: Verify the package signatures (rpm GPG)
         run: |
+          shopt -s nullglob
+          rpms=(dist/*.rpm)
+          if [ ${#rpms[@]} -eq 0 ]; then echo "::error::no rpm packages were produced"; exit 1; fi
           RPMDB=$(mktemp -d)
           rpmkeys --dbpath "$RPMDB" --import "$RUNNER_TEMP/dryrun-pub.asc"
-          for f in dist/*.rpm; do
+          for f in "${rpms[@]}"; do
             echo "checking $f"
             rpmkeys --dbpath "$RPMDB" -K "$f" | grep -q "signatures OK" \
               || { echo "::error::$f is not signed"; exit 1; }
