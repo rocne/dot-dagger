@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 )
@@ -233,6 +234,75 @@ func TestOrder_DeterministicTieBreak(t *testing.T) {
 		names := namesOf(got)
 		if !strSliceEq(names, want) {
 			t.Fatalf("iteration %d: got %v, want %v (input was shuffled)", i, names, want)
+		}
+	}
+}
+
+// TestOrder_Property generates random acyclic DAGs — every @after edge points to
+// a strictly-earlier-indexed node, so a cycle is impossible — and checks the
+// invariants Order must hold for every shape, not just the fixed examples above:
+//
+//	A. determinism: reordering the input never changes the output;
+//	B. dependency: every resolved @after dependency precedes its dependent;
+//	C. completeness: acyclic input yields every node exactly once.
+func TestOrder_Property(t *testing.T) {
+	rng := rand.New(rand.NewSource(1))
+	const graphs = 300
+	for g := 0; g < graphs; g++ {
+		n := 1 + rng.Intn(12) // 1..12 nodes
+		names := make([]string, n)
+		for i := range names {
+			names[i] = fmt.Sprintf("n%02d", i)
+		}
+		nodes := make([]RawNode, n)
+		for i := 0; i < n; i++ {
+			var after []string
+			for j := 0; j < i; j++ { // depend only on earlier nodes → acyclic
+				if rng.Intn(3) == 0 {
+					after = append(after, names[j])
+				}
+			}
+			nodes[i] = RawNode{Path: "/dots/" + names[i], LogicalName: names[i], After: after}
+		}
+
+		canonical, err := Order(nodes)
+		if err != nil {
+			t.Fatalf("graph %d: Order error on acyclic input: %v", g, err)
+		}
+
+		// C: completeness.
+		if len(canonical) != n {
+			t.Fatalf("graph %d: result has %d nodes, want %d", g, len(canonical), n)
+		}
+
+		// B: every @after dependency precedes its dependent.
+		pos := make(map[string]int, n)
+		for i, nd := range canonical {
+			pos[nd.LogicalName] = i
+		}
+		for _, nd := range nodes {
+			for _, dep := range nd.After {
+				if pos[dep] >= pos[nd.LogicalName] {
+					t.Fatalf("graph %d: %q must precede %q but does not: %v",
+						g, dep, nd.LogicalName, namesOf(canonical))
+				}
+			}
+		}
+
+		// A: determinism — shuffled inputs produce the identical order.
+		want := namesOf(canonical)
+		for s := 0; s < 5; s++ {
+			shuffled := make([]RawNode, n)
+			copy(shuffled, nodes)
+			rng.Shuffle(n, func(x, y int) { shuffled[x], shuffled[y] = shuffled[y], shuffled[x] })
+			got, err := Order(shuffled)
+			if err != nil {
+				t.Fatalf("graph %d shuffle %d: Order error: %v", g, s, err)
+			}
+			if !strSliceEq(namesOf(got), want) {
+				t.Fatalf("graph %d shuffle %d: non-deterministic order\n got=%v\nwant=%v",
+					g, s, namesOf(got), want)
+			}
 		}
 	}
 }
