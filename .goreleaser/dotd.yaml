@@ -31,6 +31,7 @@ nfpms:
   - id: dotd
     package_name: dotd
     ids: [dotd]
+    file_name_template: "{{ .ConventionalFileName }}"
     formats:
       - deb
       - rpm
