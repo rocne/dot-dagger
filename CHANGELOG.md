@@ -7,6 +7,13 @@ by [release-please](https://github.com/googleapis/release-please) from
 Releases prior to the adoption of release-please (≤ v0.5.5) are recorded on the
 [GitHub releases page](https://github.com/rocne/dot-dagger/releases).
 
+## [0.7.0](https://github.com/rocne/dot-dagger/compare/v0.6.1...v0.7.0) (2026-06-15)
+
+
+### Features
+
+* sign releases with cosign + SLSA provenance ([#137](https://github.com/rocne/dot-dagger/issues/137)) ([5cf4a26](https://github.com/rocne/dot-dagger/commit/5cf4a2676b03fb76e54ce67638f55775aa14ade4))
+
 ## [0.6.1](https://github.com/rocne/dot-dagger/compare/v0.6.0...v0.6.1) (2026-06-14)
 
 
