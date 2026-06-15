@@ -7,6 +7,13 @@ by [release-please](https://github.com/googleapis/release-please) from
 Releases prior to the adoption of release-please (≤ v0.5.5) are recorded on the
 [GitHub releases page](https://github.com/rocne/dot-dagger/releases).
 
+## [0.8.0](https://github.com/rocne/dot-dagger/compare/v0.7.0...v0.8.0) (2026-06-15)
+
+
+### Features
+
+* embed docs into the binary as `dotd docs --full` ([#140](https://github.com/rocne/dot-dagger/issues/140)) ([faa0368](https://github.com/rocne/dot-dagger/commit/faa0368977e8ed75ea3f09270429566da5545d17))
+
 ## [0.7.0](https://github.com/rocne/dot-dagger/compare/v0.6.1...v0.7.0) (2026-06-15)
 
 
