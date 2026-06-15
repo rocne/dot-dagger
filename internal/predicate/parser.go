@@ -20,9 +20,16 @@ func Parse(input string) (Expr, error) {
 	return expr, nil
 }
 
+// maxParseDepth bounds parenthesis nesting. The parser is recursive-descent, so
+// each "(" recurses; without a bound, pathological input (thousands of nested
+// parens) would grow the goroutine stack until it overflows — an unrecoverable
+// fatal crash. No legitimate predicate nests anywhere near this deep.
+const maxParseDepth = 256
+
 type parser struct {
 	lex   *lexer
 	input string
+	depth int // current parenthesis nesting depth
 }
 
 func (p *parser) parseOr() (Expr, error) {
@@ -70,11 +77,16 @@ func (p *parser) parseAtom() (Expr, error) {
 
 	// parenthesised expression
 	if tok.typ == tLParen {
+		if p.depth >= maxParseDepth {
+			return nil, fmt.Errorf("predicate: nesting too deep (limit %d) in %q", maxParseDepth, p.input)
+		}
+		p.depth++
 		p.lex.next() // consume (
 		expr, err := p.parseOr()
 		if err != nil {
 			return nil, err
 		}
+		p.depth--
 		if close := p.lex.next(); close.typ != tRParen {
 			return nil, fmt.Errorf("predicate: expected ) in %q, got %q", p.input, close.val)
 		}

@@ -651,3 +651,19 @@ func TestMissingKeyError(t *testing.T) {
 		t.Errorf("unwrapped Key = %q, want %q", mke.Key, "context")
 	}
 }
+
+// TestParse_DepthLimit: pathologically nested parentheses must be rejected with
+// a clean error rather than recursing until the goroutine stack overflows
+// (an unrecoverable fatal crash). Realistic nesting still parses.
+func TestParse_DepthLimit(t *testing.T) {
+	// A few levels of real nesting must keep working.
+	if _, err := Parse("(((os=linux)))"); err != nil {
+		t.Fatalf("modestly nested predicate should parse, got error: %v", err)
+	}
+
+	// Far beyond any legitimate predicate: must error, must not crash.
+	deep := strings.Repeat("(", 5000) + "os=linux" + strings.Repeat(")", 5000)
+	if _, err := Parse(deep); err == nil {
+		t.Fatal("deeply nested predicate should be rejected, not parsed")
+	}
+}
