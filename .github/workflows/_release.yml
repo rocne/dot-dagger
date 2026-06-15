@@ -66,6 +66,28 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Verify release signature and provenance
+        run: |
+          TAG="${{ inputs.version }}"
+          BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          CHECKSUMS="dotd_${TAG}_checksums.txt"
+          ARCHIVE="dotd_${TAG}_linux_amd64.tar.gz"
+          curl -fsSL -o "$CHECKSUMS"     "$BASE/$CHECKSUMS"
+          curl -fsSL -o "$CHECKSUMS.sig" "$BASE/$CHECKSUMS.sig"
+          curl -fsSL -o "$CHECKSUMS.pem" "$BASE/$CHECKSUMS.pem"
+          curl -fsSL -o "$ARCHIVE"       "$BASE/$ARCHIVE"
+          cosign verify-blob \
+            --certificate "$CHECKSUMS.pem" \
+            --signature   "$CHECKSUMS.sig" \
+            --certificate-identity-regexp "^https://github\.com/${{ github.repository }}/\.github/workflows/_release\.yml@" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$CHECKSUMS"
+          gh attestation verify "$ARCHIVE" --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run e2e tests (${{ matrix.distro }})
         run: ./test/run-e2e-release.sh
         env:
