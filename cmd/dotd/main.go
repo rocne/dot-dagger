@@ -144,8 +144,13 @@ func newRootCmd() *cobra.Command {
 	cfg := &config{}
 
 	root := &cobra.Command{
-		Use:           ecosystem.ToolD,
-		Short:         "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
+		Use:   ecosystem.ToolD,
+		Short: "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
+		Long: `dotd — dotfiles manager: env resolution, DAG, symlinks, and init.sh generation.
+
+Run 'dotd docs --full' for the complete machine-readable reference (concepts,
+reference docs, and the full CLI help) embedded in the binary — intended for
+agents and tooling.`,
 		Version:       fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -271,10 +276,13 @@ func newRootCmd() *cobra.Command {
 
 	conceptsCmd := newConceptsCmd()
 	conceptsCmd.GroupID = "reference"
+	docsCmd := newDocsCmd()
+	docsCmd.GroupID = "reference"
 	completionCmd := newCompletionCmd()
 	completionCmd.GroupID = "reference"
 	root.AddCommand(completionCmd)
 	root.AddCommand(conceptsCmd)
+	root.AddCommand(docsCmd)
 
 	return root
 }
