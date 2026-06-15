@@ -26,9 +26,6 @@ archives:
     builds: [dotd]
     name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
 
 brews:
   - name: dot-dagger
