@@ -451,6 +451,64 @@ func TestApplyWritesInitSh(t *testing.T) {
 	}
 }
 
+// TestApply_ResumesAfterPartialFailure locks dot-dagger's recovery contract:
+// apply is idempotent and resumable, not transactional. A mid-apply failure
+// leaves partial state on disk, and simply re-running apply once the cause is
+// cleared converges to the full plan — no rollback, no manual cleanup. This
+// guards the idempotency the design relies on (createSymlink remove+recreate,
+// WriteAtomic overwrite) from regressing (Track J, J-1/B-4, 2026-06-15).
+func TestApply_ResumesAfterPartialFailure(t *testing.T) {
+	dotfiles := t.TempDir()
+	confDir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, ecosystem.ConfigFile),
+		[]byte("link_root: \"~\"\ndefaults:\n  actions:\n    - link\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Two link nodes; alphabetical tie-break links dot-aaa before dot-zzz.
+	if err := os.WriteFile(filepath.Join(confDir, "dot-aaa"), []byte("# @link(~/.aaa)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "dot-zzz"), []byte("# @link(~/.zzz)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	envFile := emptyEnvFile(t)
+
+	// Block the second link's destination with a regular file so apply fails
+	// mid-plan, after the first symlink is already on disk.
+	blocker := filepath.Join(home, ".zzz")
+	if err := os.WriteFile(blocker, []byte("pre-existing\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// First apply: fails on the blocked target, leaving partial state.
+	if _, err := run(t, "apply", "--files", dotfiles, "--dotd-env", envFile); err == nil {
+		t.Fatal("apply should fail while .zzz is blocked by a non-symlink file")
+	}
+	if fi, err := os.Lstat(filepath.Join(home, ".aaa")); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf(".aaa should be a symlink after the partial apply: %v", err)
+	}
+
+	// Clear the cause and re-run: apply must converge with no manual cleanup.
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, "apply", "--files", dotfiles, "--dotd-env", envFile); err != nil {
+		t.Fatalf("re-apply should converge after the cause is cleared: %v", err)
+	}
+	for _, name := range []string{".aaa", ".zzz"} {
+		if fi, err := os.Lstat(filepath.Join(home, name)); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+			t.Errorf("%s should be a symlink after re-apply (convergence): %v", name, err)
+		}
+	}
+}
+
 // --- dotd list ---
 
 func TestListEmpty(t *testing.T) {

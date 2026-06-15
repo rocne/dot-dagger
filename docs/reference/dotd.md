@@ -41,6 +41,8 @@ dotd unapply --all             # remove all dotfiles symlinks regardless of @whe
 
 Full reconciliation: resolves environment, installs packages, applies symlinks, writes init.sh.
 
+`apply` is idempotent and resumable, not transactional. If a run fails partway (for example, a destination is blocked by a non-symlink file), the work already done stays on disk; fix the cause and re-run `dotd apply` to converge to the full plan. There is no rollback and no manual cleanup required.
+
 ```sh
 dotd apply -f ~/dotfiles
 dotd apply -f ~/dotfiles --dry-run
