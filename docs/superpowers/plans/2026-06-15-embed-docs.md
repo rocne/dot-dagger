@@ -401,14 +401,19 @@ import (
 )
 
 // renderCommandRef walks the command tree under root and renders each command's
-// help (Long, or Short if no Long, then its usage+flags) into a single CLI
+// help (usage line, Long or Short, then its LOCAL flags) into a single CLI
 // Reference section. Hidden commands and the built-in help/completion commands
-// are skipped so the section stays signal. Including the full CLI surface in one
-// blob means an agent gets everything in a single call instead of discovering
-// and chaining N `dotd <cmd> --help` invocations.
+// are skipped so the section stays signal. Global/persistent flags are
+// deliberately NOT repeated per command — they are inherited by every command
+// and are documented once via `dotd --help` and docs/reference/dotd.md;
+// repeating the 8-flag block ~20 times would bloat the agent-facing blob for no
+// gain. Including the full CLI surface here means an agent gets everything in a
+// single call instead of discovering and chaining N `dotd <cmd> --help` calls.
 func renderCommandRef(root *cobra.Command) string {
 	var b strings.Builder
 	b.WriteString("# === CLI Reference ===\n\n")
+	b.WriteString("Global flags apply to every command and are documented once " +
+		"under `dotd --help` and docs/reference/dotd.md; they are omitted per-command below.\n\n")
 
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
@@ -417,14 +422,20 @@ func renderCommandRef(root *cobra.Command) string {
 				continue
 			}
 			fmt.Fprintf(&b, "## %s\n\n", sub.CommandPath())
+			fmt.Fprintf(&b, "Usage: %s\n\n", sub.UseLine())
 			if sub.Long != "" {
 				b.WriteString(sub.Long)
 			} else {
 				b.WriteString(sub.Short)
 			}
 			b.WriteString("\n\n")
-			b.WriteString(sub.UsageString())
-			b.WriteByte('\n')
+			// LocalFlags() excludes flags inherited from the root (the globals),
+			// so this shows only the command's own flags (e.g. docs's --full).
+			if usages := sub.LocalFlags().FlagUsages(); strings.TrimSpace(usages) != "" {
+				b.WriteString("Flags:\n")
+				b.WriteString(usages)
+				b.WriteByte('\n')
+			}
 			walk(sub)
 		}
 	}
@@ -483,16 +494,14 @@ func TestDocsCmd_FullRendersEmbeddedReference(t *testing.T) {
 
 func TestRootHelp_MentionsDocsFull(t *testing.T) {
 	// `--help` short-circuits in cobra before PersistentPreRunE, so this does
-	// not run resolvePaths — it just exercises the help text.
-	root := newRootCmd()
-	var out bytes.Buffer
-	root.SetOut(&out)
-	root.SetArgs([]string{"--help"})
-	if err := root.Execute(); err != nil {
+	// not run resolvePaths. run() is the existing helper (newRootCmd + buffered
+	// out/err + Execute) defined in main_test.go.
+	out, err := run(t, "--help")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "docs --full") {
-		t.Errorf("`dotd --help` does not mention 'docs --full':\n%s", out.String())
+	if !strings.Contains(out, "docs --full") {
+		t.Errorf("`dotd --help` does not mention 'docs --full':\n%s", out)
 	}
 }
 ```
@@ -613,10 +622,11 @@ git commit -m "feat: add 'dotd docs --full' embedded agent reference"
 
 ### Task 5: Full validation
 
-- [ ] **Step 1: Build and run the whole test suite**
+- [ ] **Step 1: Format, build, and run the whole test suite**
 
-Run: `go build ./... && go test ./...`
-Expected: build succeeds; all packages PASS.
+Run: `gofmt -w . && go build ./... && go test ./...`
+Expected: `gofmt` rewrites any hand-aligned literals (e.g. the `fstest.MapFS`
+maps) with no remaining diff on re-run; build succeeds; all packages PASS.
 
 - [ ] **Step 2: Smoke-test the real binary**
 
@@ -637,6 +647,6 @@ In `.claude/TODO.md`, move the "Embed all documentation into the binary" item fr
 
 ## Self-review notes
 
-- **Spec coverage:** root embed pkg (Task 1) ✓; explicit-include exclusion of `superpowers/` (Task 1 test) ✓; cobra-free `RenderProse` + resilient ordering + full-path headers + leading index (Task 2) ✓; `renderCommandRef` skipping help/completion/hidden (Task 3) ✓; `--full` flag + provenance header + bare-`docs`→help (Task 4) ✓; discoverability in root `--help` + test (Task 4) ✓; tests for path-headers, exact order, no-superpowers, version header, discoverability ✓.
+- **Spec coverage:** root embed pkg (Task 1) ✓; explicit-include exclusion of `superpowers/` (Task 1 test) ✓; cobra-free `RenderProse` + resilient ordering + full-path headers + leading index (Task 2) ✓; `renderCommandRef` skipping help/completion/hidden, local-flags-only to avoid repeating globals ~20× (Task 3) ✓; `--full` flag + provenance header + bare-`docs`→help (Task 4) ✓; discoverability in root `--help` + test (Task 4) ✓; tests for path-headers, exact order, no-superpowers, version header, discoverability ✓.
 - **Cross-link traceability** is satisfied structurally: separators use full repo-relative paths matching link targets; no separate transform (per spec, ship raw).
 - **Out of scope (unchanged):** human `dotd docs <topic>`/`--list`, man pages, `concepts` dedup (coexistence is correct — digest vs full pages).
