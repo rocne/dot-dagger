@@ -27,6 +27,19 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
 
+nfpms:
+  - id: dotd
+    package_name: dotd
+    ids: [dotd]
+    formats:
+      - deb
+      - rpm
+    maintainer: Rocne Scribner <rocne.ks@gmail.com>
+    homepage: https://github.com/rocne/dot-dagger
+    description: Dotfiles manager — env resolution, DAG, symlinks, and packages
+    license: MIT
+    bindir: /usr/bin
+
 brews:
   - name: dot-dagger
     ids: [dotd]
