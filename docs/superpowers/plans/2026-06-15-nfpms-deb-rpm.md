@@ -225,24 +225,30 @@ Expected: `config is valid`.
 
 - [ ] **Step 3: Point the key env at the local private key and build**
 
-The signing key is on this machine from Task 3 (reuse `$FPR`, or re-derive it). Export the private key to the path GoReleaser expects, then snapshot-build. `--skip=sign` skips the **cosign** `signs` block (cosign is not installed locally) — it does **not** affect nfpm's native package signing, which is inline in the nfpms build:
+**CORRECTED (verified 2026-06-15):** the real key is NOT on this box (it lives on the Mac + 1Password + GitHub secret). Use a **throwaway** key for local verify. Also: nfpm signing shares GoReleaser's `sign` pipe with cosign — so do NOT pass `--skip=sign` (it would disable package signing). Skip only `publish`; the cosign checksum step then errors locally (cosign not installed) *after* nfpm has signed the packages — expected, CI has cosign.
 ```bash
-FPR=$(gpg --list-keys --with-colons dotd-packaging@users.noreply.github.com | awk -F: '/^fpr:/{print $10; exit}')
-gpg --armor --export-secret-keys "$FPR" > /tmp/dotd-signing.asc
-export GPG_KEY_PATH=/tmp/dotd-signing.asc
-export VERSION=0.0.0-dev   # ldflags reference {{.Env.VERSION}}; required for local snapshot
-# If the key has a passphrase: export NFPM_DEFAULT_PASSPHRASE='<passphrase>'
-goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish,sign
+export GNUPGHOME=$(mktemp -d)   # isolated throwaway keyring
+printf '%%no-protection\nKey-Type: RSA\nKey-Length: 2048\nName-Real: tw\nName-Email: throwaway@example.invalid\nExpire-Date: 0\n%%commit\n' > "$GNUPGHOME/tw.conf"
+gpg --batch --generate-key "$GNUPGHOME/tw.conf"
+TW=$(gpg --list-keys --with-colons throwaway@example.invalid | awk -F: '/^fpr:/{print $10; exit}')
+gpg --armor --export-secret-keys "$TW" > "$GNUPGHOME/tw-priv.asc"
+gpg --armor --export "$TW" > "$GNUPGHOME/tw-pub.asc"
+export GPG_KEY_PATH="$GNUPGHOME/tw-priv.asc"
+export VERSION=0.0.0-dev
+goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish
 ```
-Expected: build succeeds; `dist/` repopulates with deb+rpm.
+Expected: nfpm signs the packages, then build exits 1 at the cosign step ("cosign: executable file not found") — that is AFTER signing, so `dist/` has signed deb+rpm.
 
-- [ ] **Step 4: Verify the rpm signature**
+- [ ] **Step 4: Verify the rpm signature (no root — user rpmdb)**
 
-Run:
+`rpm --import` into the system keyring needs root; use a throwaway `--dbpath` instead:
 ```bash
-rpm --import dotd-signing-key.asc
-rpm -K dist/*.rpm
+RPMDB=$(mktemp -d)
+rpmkeys --dbpath "$RPMDB" --import "$GNUPGHOME/tw-pub.asc"
+rpmkeys --dbpath "$RPMDB" -K dist/*.rpm
+rm -rf "$RPMDB" "$GNUPGHOME"; unset GNUPGHOME
 ```
+Expected: each rpm reports **"digests signatures OK"** (not merely "digests OK").
 Expected: each line ends with `digests signatures OK` (or `pgp ... OK`), not `NOKEY`/`SIGNATURES NOT OK`. Then clean up: `shred -u /tmp/dotd-signing.asc` (or `rm`).
 
 - [ ] **Step 5: Commit**
@@ -335,17 +341,21 @@ git commit -m "ci: supply package signing key to goreleaser nfpms"
 
 - [ ] **Step 1: Full clean snapshot build from scratch**
 
-Run:
+Run (throwaway key; skip only `publish`; verify via user rpmdb — see Task 4 for rationale):
 ```bash
-FPR=$(gpg --list-keys --with-colons dotd-packaging@users.noreply.github.com | awk -F: '/^fpr:/{print $10; exit}')
-gpg --armor --export-secret-keys "$FPR" > /tmp/dotd-signing.asc
-export GPG_KEY_PATH=/tmp/dotd-signing.asc
-export VERSION=0.0.0-dev   # ldflags reference {{.Env.VERSION}}; required for local snapshot
-goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish,sign
-rpm -K dist/*.rpm
+export GNUPGHOME=$(mktemp -d)
+printf '%%no-protection\nKey-Type: RSA\nKey-Length: 2048\nName-Real: tw\nName-Email: throwaway@example.invalid\nExpire-Date: 0\n%%commit\n' > "$GNUPGHOME/tw.conf"
+gpg --batch --generate-key "$GNUPGHOME/tw.conf"
+TW=$(gpg --list-keys --with-colons throwaway@example.invalid | awk -F: '/^fpr:/{print $10; exit}')
+gpg --armor --export-secret-keys "$TW" > "$GNUPGHOME/tw-priv.asc"
+gpg --armor --export "$TW" > "$GNUPGHOME/tw-pub.asc"
+export GPG_KEY_PATH="$GNUPGHOME/tw-priv.asc" VERSION=0.0.0-dev
+goreleaser release --config .goreleaser/dotd.yaml --snapshot --clean --skip=publish   # exits 1 at cosign — expected, AFTER nfpm signs
 ls dist/*.deb dist/*.rpm
-shred -u /tmp/dotd-signing.asc 2>/dev/null || rm -f /tmp/dotd-signing.asc
+RPMDB=$(mktemp -d); rpmkeys --dbpath "$RPMDB" --import "$GNUPGHOME/tw-pub.asc"; rpmkeys --dbpath "$RPMDB" -K dist/*.rpm
+rm -rf "$RPMDB" "$GNUPGHOME"; unset GNUPGHOME
 ```
+Expected: 2 deb + 2 rpm; rpm verify reports "digests signatures OK".
 Expected: 2 deb + 2 rpm, all rpm signatures OK.
 
 - [ ] **Step 2: Confirm the existing pipeline still validates**
@@ -376,4 +386,4 @@ Expected: all checks pass (lint, build, test).
 - **Spec coverage:** nfpms block (T2), GPG signing both formats (T4), public key dist committed+attached (T3,T5), CI wiring (T6), windows cleanup (T1) — all mapped. First-release runbook → T3 (key/secrets/pubkey) executed before merge.
 - **Field-name correction vs spec:** spec wrote `builds: [dotd]`; GoReleaser nfpms uses **`ids: [dotd]`** (verified against the existing `brews` block, which uses `ids`). Plan uses `ids`.
 - **Passphrase branch:** plan offers passphrase-less (`%no-protection`) as the simplest path and notes exactly which lines to drop. Either branch is internally consistent.
-- **Snapshot-signing assumption:** T4 Step 3 carries the fallback if cosign signing complains in snapshot (`--skip=sign` does not affect nfpm signing). This is the spec's "validate first" item, resolved in-task.
+- **Snapshot-signing — RESOLVED (verified 2026-06-15):** nfpm signing shares GoReleaser's `sign` pipe with cosign, so `--skip=sign` would disable it; snapshot does NOT auto-skip the pipe. Correct local verify skips only `publish` (cosign then errors locally after nfpm signs). rpm crypto-verify needs a user `--dbpath` (no root). Confirmed "digests signatures OK".

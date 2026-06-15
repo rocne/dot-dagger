@@ -125,20 +125,25 @@ windows build gets added deliberately at that point.)
 
 ## Verification
 
-This PR (manual):
-- **Validate first:** confirm nfpm signing actually runs under `--snapshot`
-  (expected, since it is inline in the nfpms build rather than the cosign `signs`
-  block — which *is* snapshot-skipped). If GoReleaser skips it in snapshot, fall
-  back to a full non-snapshot dry build or standalone `nfpm pkg` to verify the
-  signature path before wiring CI.
-- Generate a **throwaway local GPG key** (not the real release key) and point
-  `GPG_KEY_PATH` + `NFPM_DEFAULT_PASSPHRASE` at it for local builds.
-- `goreleaser release --snapshot --clean` produces `.deb` + `.rpm` for amd64 +
-  arm64 alongside the existing tar.gz/checksums.
-- `rpm --import <throwaway-pubkey> && rpm -K dist/*.rpm` reports the signature
-  (rpm names use `x86_64`/`aarch64`, not `amd64`/`arm64` — glob `*.rpm`).
-- `go test ./... && go vet ./... && gofmt -l . && golangci-lint run` clean
-  (golangci-lint now installed locally — run before push).
+This PR (manual) — **verified during implementation, 2026-06-15:**
+- **CORRECTION (was an open assumption):** nfpm package signing is NOT independent
+  of the cosign `signs` block — both run in GoReleaser's single **`sign` pipe**.
+  Therefore `--skip=sign` disables package signing too. Snapshot mode does NOT
+  auto-skip the sign pipe (cosign still runs). Correct local verify: skip only
+  `publish`. The cosign checksum-signing step then fails locally (cosign not
+  installed) *after* nfpm has already signed the packages — which is fine; CI
+  has cosign via cosign-installer.
+- Generate a **throwaway GPG key** (real key never touches this box) and point
+  `GPG_KEY_PATH` at its armored private key. `VERSION` env required (ldflags).
+- `goreleaser release --snapshot --clean --skip=publish` signs the packages,
+  then errors at the cosign step (expected locally). Packages are already in
+  `dist/`.
+- Crypto-verify without root using a user rpmdb:
+  `rpmkeys --dbpath <tmp> --import <throwaway-pub>` then
+  `rpmkeys --dbpath <tmp> -K dist/*.rpm` → must report **"digests signatures OK"**
+  (not merely "digests OK"). `rpm --import` into the system keyring needs root —
+  use `--dbpath`. (Result on 2026-06-15: "digests signatures OK" ✓.)
+- `go test ./... && go vet ./... && gofmt -l . && golangci-lint run` clean.
 
 Release pipeline:
 - First real release after merge produces signed `.deb`/`.rpm` + public key
