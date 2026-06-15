@@ -40,15 +40,29 @@ func TestRenderCommandRef_IncludesVisibleSkipsHelpers(t *testing.T) {
 }
 
 func TestDocsCmd_FullRendersEmbeddedReference(t *testing.T) {
-	cmd := newDocsCmd()
+	root := newRootCmd()
+
+	var docsCmd *cobra.Command
+	for _, c := range root.Commands() {
+		if c.Name() == "docs" {
+			docsCmd = c
+			break
+		}
+	}
+	if docsCmd == nil {
+		t.Fatal("docs command not registered on root")
+	}
+
 	var out bytes.Buffer
-	cmd.SetOut(&out)
-	if err := cmd.Flags().Set("full", "true"); err != nil {
+	docsCmd.SetOut(&out)
+
+	if err := docsCmd.Flags().Set("full", "true"); err != nil {
 		t.Fatal(err)
 	}
-	if err := cmd.RunE(cmd, nil); err != nil {
+	if err := docsCmd.RunE(docsCmd, nil); err != nil {
 		t.Fatal(err)
 	}
+
 	s := out.String()
 	if !strings.Contains(s, "embedded reference") {
 		t.Error("missing provenance header")
@@ -56,8 +70,11 @@ func TestDocsCmd_FullRendersEmbeddedReference(t *testing.T) {
 	if !strings.Contains(s, "# === docs/concepts/") {
 		t.Error("missing embedded concepts section")
 	}
-	if !strings.Contains(s, "CLI Reference") {
+	if !strings.Contains(s, "# === CLI Reference ===") {
 		t.Error("missing CLI reference section")
+	}
+	if !strings.Contains(s, "## dotd apply") {
+		t.Errorf("CLI reference does not include real commands from the tree; got:\n%s", s)
 	}
 }
 
