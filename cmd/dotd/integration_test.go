@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -575,6 +576,48 @@ func TestUnapplyCancel(t *testing.T) {
 	assertSymlink(t, zshrc, filepath.Join(e.dotfiles, "config/dot-zshrc"))
 	if !strings.Contains(out, "cancelled") {
 		t.Errorf("expected 'cancelled' in output: %q", out)
+	}
+}
+
+// TestUnapplyMissingKeyHintsAll verifies unapply is non-interactive: a missing
+// @when key (the fixture env.yaml omits "os") yields a hint error pointing at
+// --all, never an interactive prompt. stdin is empty, so a prompt would hang or
+// EOF rather than emit the --all hint we assert on.
+func TestUnapplyMissingKeyHintsAll(t *testing.T) {
+	e := newIenv(t)
+
+	out, err := e.runMayFail(t, "unapply", "--yes")
+	if err == nil {
+		t.Fatalf("expected missing-key error, got nil\noutput:\n%s", out)
+	}
+	if !strings.Contains(err.Error(), "os") {
+		t.Errorf("expected error to mention missing key 'os', got: %v", err)
+	}
+	var h Hinter
+	if !errors.As(err, &h) {
+		t.Fatalf("expected a hint on the error chain, got: %v", err)
+	}
+	if !strings.Contains(h.Hint(), "--all") {
+		t.Errorf("expected hint to mention --all, got: %q", h.Hint())
+	}
+}
+
+// TestTeardownSkipsPromptOnMissingKey verifies teardown's advisory active-link
+// check is non-interactive: with a missing @when key and empty stdin, teardown
+// must still reach its own preview/confirmation rather than launching the
+// missing-key form. Answering "n" to the confirmation leaves files untouched.
+func TestTeardownSkipsPromptOnMissingKey(t *testing.T) {
+	e := newIenv(t)
+
+	// "n" declines teardown's confirmation; if the advisory walk prompted first,
+	// this byte would be consumed by the wrong form and the run would misbehave.
+	out, err := e.runWithStdin(t, strings.NewReader("n\n"),
+		"teardown", "--dotd-config", filepath.Join(e.home, "config.yaml"))
+	if err != nil {
+		t.Fatalf("teardown errored: %v\noutput:\n%s", err, out)
+	}
+	if !strings.Contains(out, "Will remove") {
+		t.Errorf("expected teardown preview, got:\n%s", out)
 	}
 }
 

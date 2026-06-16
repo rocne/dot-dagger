@@ -466,6 +466,19 @@ type pipelineRun struct {
 	result        *pipeline.ActResult
 }
 
+// runOpts tunes a single pipeline run.
+//
+//   - dryRun: pass through to Act so it plans links without touching the disk.
+//   - interactive: when true (and stdin is a TTY), the filter stage prompts for
+//     any missing @when keys instead of erroring. This is a write-path
+//     affordance — only 'apply' sets it. check/unapply/teardown and every
+//     read-only command leave it false, so a missing key surfaces as an
+//     annotated hint error rather than ambushing the user with a form mid-op.
+type runOpts struct {
+	dryRun      bool
+	interactive bool
+}
+
 // guardWalkSource refuses to walk the cwd-fallback dotfiles path on an
 // unconfigured machine. Without it, a fresh-machine 'dotd apply' silently
 // walks whatever directory the user happens to be in. The guard fires only
@@ -488,7 +501,11 @@ func guardWalkSource(cfg *config) error {
 // Validation covers every walked node (not just active ones) in both the
 // read and write paths, so a config that apply rejects also fails under
 // list/dag/bundle/compose/package — including nodes currently filtered out.
-func walkActive(cmd *cobra.Command, cfg *config) (ordered []pipeline.RawNode, resolvedCount, allCount int, err error) {
+//
+// interactive gates the missing-@when-key prompt: true only on the write path
+// ('apply'). When false, a missing key flows through filterWithPrompt's
+// non-TTY branch and returns an annotated hint error.
+func walkActive(cmd *cobra.Command, cfg *config, interactive bool) (ordered []pipeline.RawNode, resolvedCount, allCount int, err error) {
 	if err := guardWalkSource(cfg); err != nil {
 		return nil, 0, 0, err
 	}
@@ -516,7 +533,7 @@ func walkActive(cmd *cobra.Command, cfg *config) (ordered []pipeline.RawNode, re
 		return nil, 0, 0, err
 	}
 
-	active, err := filterWithPrompt(cmd, nodes, resolved, isTTY(cmd.InOrStdin()), reg)
+	active, err := filterWithPrompt(cmd, nodes, resolved, interactive && isTTY(cmd.InOrStdin()), reg)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -528,13 +545,13 @@ func walkActive(cmd *cobra.Command, cfg *config) (ordered []pipeline.RawNode, re
 	return ordered, len(resolved), len(nodes), nil
 }
 
-func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, error) {
-	ordered, resolvedCount, allCount, err := walkActive(cmd, cfg)
+func runPipeline(cmd *cobra.Command, cfg *config, opts runOpts) (*pipelineRun, error) {
+	ordered, resolvedCount, allCount, err := walkActive(cmd, cfg, opts.interactive)
 	if err != nil {
 		return nil, err
 	}
 
-	actOpts := buildActOptions(cfg, dryRun)
+	actOpts := buildActOptions(cfg, opts.dryRun)
 	res, err := pipeline.Act(ordered, actOpts)
 	if err != nil {
 		return nil, fmt.Errorf("act: %w", err)
@@ -550,8 +567,9 @@ func runPipeline(cmd *cobra.Command, cfg *config, dryRun bool) (*pipelineRun, er
 
 // walkOrdered is walkActive for read-only commands that need just the
 // ordered active nodes. Write-path commands use runPipeline (walkActive + Act).
+// Read-only commands never prompt — a missing @when key is a hint error.
 func (cfg *appConfig) walkOrdered(cmd *cobra.Command) ([]pipeline.RawNode, error) {
-	ordered, _, _, err := walkActive(cmd, cfg)
+	ordered, _, _, err := walkActive(cmd, cfg, false)
 	return ordered, err
 }
 
@@ -639,7 +657,8 @@ func warnIfNosyncUnignored(cfg *config) {
 
 func runApply(cmd *cobra.Command, cfg *config) error {
 	warnIfNosyncUnignored(cfg)
-	run, err := runPipeline(cmd, cfg, false)
+	// apply is the one interactive write path: prompt for missing @when keys.
+	run, err := runPipeline(cmd, cfg, runOpts{interactive: true})
 	if err != nil {
 		return err
 	}
@@ -683,7 +702,8 @@ func runApply(cmd *cobra.Command, cfg *config) error {
 
 func runCheck(cmd *cobra.Command, cfg *config) error {
 	warnIfNosyncUnignored(cfg)
-	run, err := runPipeline(cmd, cfg, true)
+	// check is a preview, not a write: report a missing @when key, don't prompt.
+	run, err := runPipeline(cmd, cfg, runOpts{dryRun: true})
 	if err != nil {
 		return err
 	}
