@@ -45,9 +45,11 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	out := cmd.OutOrStdout()
 	errOut := cmd.ErrOrStderr()
 
-	// Pre-action check: warn if active symlinks detected.
-	// Non-fatal if walk fails (env.yaml or dotfiles repo may be absent).
-	if prun, err := runPipeline(cmd, cfg, true); err == nil {
+	// Pre-action check: warn if active symlinks detected. Advisory only, so this
+	// runs non-interactively — a missing @when key must not launch a prompt
+	// before teardown's own preview; the walk just fails and the warning is
+	// skipped. Non-fatal if walk fails (env.yaml or dotfiles repo may be absent).
+	if prun, err := runPipeline(cmd, cfg, runOpts{dryRun: true}); err == nil {
 		if len(prun.result.Links) > 0 {
 			ui.Warnf(errOut, "%s still active — consider running 'dotd unapply' first", plural(len(prun.result.Links), "symlink"))
 		}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/pipeline"
+	"github.com/rocne/dot-dagger/internal/predicate"
 	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -66,8 +68,20 @@ func runUnapply(cmd *cobra.Command, cfg *config, yes, all bool) error {
 			planned = append(planned, linkPair{src: lnk.Src, dest: lnk.Dest})
 		}
 	} else {
-		prun, err := runPipeline(cmd, cfg, true)
+		// Non-interactive: removing links should not prompt for missing @when
+		// keys. A missing key returns a hint error pointing at --env / --all
+		// rather than ambushing the user with a form mid-removal.
+		prun, err := runPipeline(cmd, cfg, runOpts{dryRun: true})
 		if err != nil {
+			// --all is the escape hatch when the apply-time --env keys aren't
+			// persisted; surface it on the very error that --all resolves.
+			var mke *predicate.MissingKeyError
+			if errors.As(err, &mke) {
+				return &hintError{
+					err:  err,
+					hint: fmt.Sprintf("set it with --env %s=<value>, or pass --all to remove every dotfiles symlink regardless of @when predicates", mke.Key),
+				}
+			}
 			return err
 		}
 		for _, lnk := range prun.result.Links {
