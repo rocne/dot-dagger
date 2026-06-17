@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Smoke-test installing dotd from the hosted Cloudsmith repo (rocne/releases):
-# register the repo via its setup script, install dotd by name, and confirm the
-# installed binary's --version matches the expected release.
+# register the repo via its setup script, install the dot-dagger package by
+# name, and confirm the installed `dotd` binary's --version matches the release.
 #
 # Run inside a clean Debian/Ubuntu (MGR=apt) or Fedora/RHEL (MGR=dnf) container.
 # Always invoke with bash (uses `set -o pipefail`); the container's default
@@ -24,7 +24,7 @@ case "$MGR" in
     curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.deb.sh' | bash
     # The repo index can lag a few seconds behind the push; retry.
     for i in 1 2 3 4 5; do
-      { apt-get update && apt-get install -y dotd && break; } \
+      { apt-get update && apt-get install -y dot-dagger && break; } \
         || { echo "retry $i: dotd not in index yet"; sleep 15; }
     done
     ;;
@@ -32,7 +32,7 @@ case "$MGR" in
     dnf install -y curl sudo
     curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.rpm.sh' | bash
     for i in 1 2 3 4 5; do
-      dnf install -y dotd && break \
+      dnf install -y dot-dagger && break \
         || { echo "retry $i: dotd not in index yet"; sleep 15; }
     done
     ;;
