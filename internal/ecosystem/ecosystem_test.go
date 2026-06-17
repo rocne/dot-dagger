@@ -97,7 +97,10 @@ func TestHome_RespectsHOME(t *testing.T) {
 
 func TestDefaultDotfilesFromEnvVar(t *testing.T) {
 	t.Setenv("DOTFILES", "/my/dotfiles")
-	got := ecosystem.DefaultDotfiles()
+	got, err := ecosystem.DefaultDotfiles()
+	if err != nil {
+		t.Fatalf("DefaultDotfiles: %v", err)
+	}
 	if got != "/my/dotfiles" {
 		t.Errorf("DefaultDotfiles = %q, want %q", got, "/my/dotfiles")
 	}
@@ -133,7 +136,10 @@ func TestDefaultDotfilesFallsToCwd(t *testing.T) {
 	})
 
 	wd, _ := os.Getwd()
-	got := ecosystem.DefaultDotfiles()
+	got, err := ecosystem.DefaultDotfiles()
+	if err != nil {
+		t.Fatalf("DefaultDotfiles: %v", err)
+	}
 	if got != wd {
 		t.Errorf("DefaultDotfiles = %q, want cwd %q", got, wd)
 	}

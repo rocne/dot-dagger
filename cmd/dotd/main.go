@@ -395,9 +395,7 @@ func resolvePaths(cfg *config) error {
 	cfg.filesFromCwd = cfg.files == "" && os.Getenv("DOTD_FILES") == "" &&
 		os.Getenv("DOTFILES") == "" && toolCfg.Dotfiles == ""
 
-	cfg.files, err = ecosystem.ResolvePath(cfg.files, "DOTD_FILES", toolCfg.Dotfiles, func() (string, error) {
-		return ecosystem.DefaultDotfiles(), nil
-	})
+	cfg.files, err = ecosystem.ResolvePath(cfg.files, "DOTD_FILES", toolCfg.Dotfiles, ecosystem.DefaultDotfiles)
 	if err != nil {
 		return err
 	}
@@ -638,6 +636,11 @@ func warnIfNosyncUnignored(cfg *config) {
 	_ = filepath.WalkDir(cfg.files, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
+		}
+		// Never descend into the git object store — it holds no managed paths
+		// and walking it is pure waste on a large repo.
+		if d.IsDir() && d.Name() == ".git" {
+			return filepath.SkipDir
 		}
 		base := filepath.Base(path)
 		if !strings.HasPrefix(base, "nosync-") {

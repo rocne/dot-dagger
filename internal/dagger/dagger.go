@@ -68,6 +68,15 @@ func Load(r io.Reader) (*ComposableNode, error) {
 	if err := dec.Decode(&node); err != nil && err != io.EOF {
 		return nil, fmt.Errorf("dagger: decode: %w", err)
 	}
+	// A .dagger file is a single config document. Reject trailing YAML
+	// documents (extra `---` separators) rather than silently dropping them —
+	// consistent with the KnownFields(true) strictness above.
+	if err := dec.Decode(new(ComposableNode)); err != io.EOF {
+		if err != nil {
+			return nil, fmt.Errorf("dagger: decode: %w", err)
+		}
+		return nil, fmt.Errorf("dagger: multiple YAML documents in .dagger file (only one allowed)")
+	}
 	return &node, nil
 }
 

@@ -20,6 +20,17 @@ func TestLoad_Empty(t *testing.T) {
 	}
 }
 
+func TestLoad_MultipleDocumentsRejected(t *testing.T) {
+	input := "when: os=linux\n---\nwhen: os=macos\n"
+	_, err := Load(strings.NewReader(input))
+	if err == nil {
+		t.Fatal("expected error for multi-document .dagger file, got nil")
+	}
+	if !strings.Contains(err.Error(), "multiple YAML documents") {
+		t.Errorf("expected multi-document error, got: %v", err)
+	}
+}
+
 func TestLoad_BasicFields(t *testing.T) {
 	input := `when: os=macos
 link_root: ~/relative
