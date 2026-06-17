@@ -23,9 +23,9 @@ builds:
 
 archives:
   - id: dotd
-    builds: [dotd]
+    ids: [dotd]
     name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
+    formats: [tar.gz]
 
 nfpms:
   - id: dotd
@@ -47,7 +47,7 @@ nfpms:
       signature:
         key_file: "{{ .Env.GPG_KEY_PATH }}"
 
-brews:
+homebrew_casks:
   - name: dot-dagger
     ids: [dotd]
     repository:
@@ -57,10 +57,14 @@ brews:
     homepage: https://github.com/rocne/dot-dagger
     description: Dotfiles manager — env resolution, DAG, symlinks, and packages
     license: MIT
-    install: |
-      bin.install "dotd"
-    test: |
-      system "#{bin}/dotd", "--version"
+    # Binaries are not notarized; strip the Gatekeeper quarantine xattr on install
+    # so the cask-installed dotd runs without "cannot be opened" errors on macOS.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/dotd"]
+          end
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Tag }}_checksums.txt"

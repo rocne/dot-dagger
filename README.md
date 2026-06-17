@@ -118,11 +118,11 @@ Most stages are also inspectable standalone: `dotd env show`, `dotd dag check`, 
 ### Homebrew (macOS / Linux)
 
 ```sh
-brew install rocne/tap/dot-dagger
+brew install --cask rocne/tap/dot-dagger
 ```
 
 Installs the `dotd` binary and tracks updates with `brew upgrade`. Each release
-auto-bumps the formula in [rocne/homebrew-tap](https://github.com/rocne/homebrew-tap).
+auto-bumps the cask in [rocne/homebrew-tap](https://github.com/rocne/homebrew-tap).
 
 ### install.sh
 
