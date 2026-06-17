@@ -271,7 +271,9 @@ func createSymlink(src, dest string, force bool) error {
 	// Handle existing path at dest.
 	if fi, err := os.Lstat(dest); err == nil {
 		if fi.Mode()&os.ModeSymlink != 0 {
-			_ = os.Remove(dest)
+			if err := os.Remove(dest); err != nil {
+				return fmt.Errorf("act: remove existing symlink %s: %w", dest, err)
+			}
 		} else if force {
 			if err := os.Remove(dest); err != nil {
 				return fmt.Errorf("act: remove existing %s: %w", dest, err)

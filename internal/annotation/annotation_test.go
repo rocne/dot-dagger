@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+// TestScan_LongLineDoesNotAbort guards the raised line cap: a comment line
+// longer than bufio's 64KiB default must not abort the scan (ErrTooLong)
+// before a later, valid annotation is read.
+func TestScan_LongLineDoesNotAbort(t *testing.T) {
+	longComment := "# " + strings.Repeat("x", 70_000)
+	input := longComment + "\n# @when(os=linux)\n"
+
+	anns, err := Scan(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("scan aborted on long line: %v", err)
+	}
+	if len(anns) != 1 || anns[0].Key != "when" || anns[0].Args != "os=linux" {
+		t.Errorf("expected the @when annotation after the long line, got %+v", anns)
+	}
+}
+
 func TestScan_HashComment(t *testing.T) {
 	anns, err := Scan(strings.NewReader("# @when(os=macos)"))
 	if err != nil {

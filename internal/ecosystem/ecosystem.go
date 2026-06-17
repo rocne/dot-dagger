@@ -134,12 +134,15 @@ func BinDir() (string, error) {
 
 // DefaultDotfiles returns the default path to the dotfiles repo.
 // Reads $DOTFILES env var; falls back to the current working directory.
-func DefaultDotfiles() string {
+func DefaultDotfiles() (string, error) {
 	if d, ok := os.LookupEnv("DOTFILES"); ok {
-		return d
+		return d, nil
 	}
-	dir, _ := os.Getwd()
-	return dir
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("ecosystem: determine working directory for dotfiles default: %w", err)
+	}
+	return dir, nil
 }
 
 // ResolvePath returns the first non-empty value from: cliArg, os.Getenv(envVar),
