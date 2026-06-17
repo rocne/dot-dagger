@@ -29,7 +29,9 @@ archives:
 
 nfpms:
   - id: dotd
-    package_name: dotd
+    # Package name (install identity in shared apt/dnf/brew namespaces) is the
+    # disambiguated project name; the binary it installs is the short `dotd`.
+    package_name: dot-dagger
     ids: [dotd]
     file_name_template: "{{ .ConventionalFileName }}"
     formats:
@@ -67,7 +69,7 @@ homebrew_casks:
           end
 
 # Publish the signed .deb/.rpm to the Cloudsmith-hosted apt/dnf repo, giving
-# `apt install dotd` / `dnf install dotd` by name with auto-update on upgrade.
+# `apt install dot-dagger` / `dnf install dot-dagger` by name with auto-update.
 # (GoReleaser's native `cloudsmiths` block is Pro-only, so we drive the
 # cloudsmith CLI via a custom publisher instead.) Repo-index signing is handled
 # server-side by Cloudsmith using the dedicated repo-signing key — separate from

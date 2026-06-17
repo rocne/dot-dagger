@@ -131,7 +131,7 @@ updates through `apt upgrade`. Add the repo once, then install:
 
 ```sh
 curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.deb.sh' | sudo -E bash
-sudo apt install dotd
+sudo apt install dot-dagger
 ```
 
 The setup script registers the repo and imports its signing key into a dedicated
@@ -145,7 +145,7 @@ the source up by hand.
 
 ```sh
 curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.rpm.sh' | sudo -E bash
-sudo dnf install dotd
+sudo dnf install dot-dagger
 ```
 
 Same model: the script configures the repo with `gpgcheck`/`repo_gpgcheck`
