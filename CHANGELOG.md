@@ -7,6 +7,19 @@ by [release-please](https://github.com/googleapis/release-please) from
 Releases prior to the adoption of release-please (≤ v0.5.5) are recorded on the
 [GitHub releases page](https://github.com/rocne/dot-dagger/releases).
 
+## [0.10.0](https://github.com/rocne/dot-dagger/compare/v0.9.1...v0.10.0) (2026-06-17)
+
+
+### Features
+
+* **dist:** publish deb/rpm to Cloudsmith apt/dnf repo ([#170](https://github.com/rocne/dot-dagger/issues/170)) ([123d455](https://github.com/rocne/dot-dagger/commit/123d45537d238db32eb72d994b214ca1eea72679))
+
+
+### Bug Fixes
+
+* **cli:** make teardown/unapply/check pipeline preamble non-interactive ([#166](https://github.com/rocne/dot-dagger/issues/166)) ([75cb795](https://github.com/rocne/dot-dagger/commit/75cb79567f768b8b4db1f7d00343489a398d302c))
+* harden broad-audit LOW findings (silent drops, scan caps, error swallows) ([#168](https://github.com/rocne/dot-dagger/issues/168)) ([bbd8ca4](https://github.com/rocne/dot-dagger/commit/bbd8ca4bd07cf95f1d8fb78cbd6f306e769f40a7))
+
 ## [0.9.1](https://github.com/rocne/dot-dagger/compare/v0.9.0...v0.9.1) (2026-06-16)
 
 
