@@ -122,3 +122,48 @@ jobs:
             --body "E2e tests failed for release [${{ inputs.version }}](https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}) on \`${{ matrix.distro }}\`.\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Clean-box smoke test of the hosted apt/dnf repo: register the Cloudsmith
+  # repo via its setup script, install dotd by name, and confirm the installed
+  # binary matches the released version. Runs only at real release time (after
+  # the release job has pushed packages), so there is no chicken-and-egg with
+  # the PR's own CI.
+  package-repo-e2e:
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu:24.04
+            mgr: apt
+          - image: fedora:41
+            mgr: dnf
+    container: ${{ matrix.image }}
+    steps:
+      - name: Install dotd from the Cloudsmith repo and verify
+        run: |
+          set -euxo pipefail
+          TAG="${{ inputs.version }}"
+          VER="${TAG#v}"
+          if [ "${{ matrix.mgr }}" = "apt" ]; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y curl sudo
+            curl -1sLf 'https://dl.cloudsmith.io/public/rocne/dot-dagger/setup.deb.sh' | bash
+            # The repo index can lag a few seconds behind the push; retry.
+            for i in 1 2 3 4 5; do
+              { apt-get update && apt-get install -y dotd && break; } \
+                || { echo "retry $i: dotd not in index yet"; sleep 15; }
+            done
+          else
+            dnf install -y curl sudo
+            curl -1sLf 'https://dl.cloudsmith.io/public/rocne/dot-dagger/setup.rpm.sh' | bash
+            for i in 1 2 3 4 5; do
+              dnf install -y dotd && break \
+                || { echo "retry $i: dotd not in index yet"; sleep 15; }
+            done
+          fi
+          command -v dotd
+          dotd --version
+          dotd --version | grep -F "$VER"
