@@ -130,7 +130,7 @@ dotd is published to a hosted apt repo, so you get `apt install` by name plus
 updates through `apt upgrade`. Add the repo once, then install:
 
 ```sh
-curl -1sLf 'https://dl.cloudsmith.io/public/rocne/dot-dagger/setup.deb.sh' | sudo -E bash
+curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.deb.sh' | sudo -E bash
 sudo apt install dotd
 ```
 
@@ -144,7 +144,7 @@ the source up by hand.
 ### dnf (Fedora / RHEL)
 
 ```sh
-curl -1sLf 'https://dl.cloudsmith.io/public/rocne/dot-dagger/setup.rpm.sh' | sudo -E bash
+curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.rpm.sh' | sudo -E bash
 sudo dnf install dotd
 ```
 

@@ -83,8 +83,8 @@ publishers:
     ids: [dotd]
     cmd: >-
       sh -c 'case "{{ .ArtifactName }}" in
-      *.deb) exec cloudsmith push deb --republish rocne/dot-dagger/any-distro/any-version "{{ .ArtifactPath }}" ;;
-      *.rpm) exec cloudsmith push rpm --republish rocne/dot-dagger/any-distro/any-version "{{ .ArtifactPath }}" ;;
+      *.deb) exec cloudsmith push deb --republish rocne/releases/any-distro/any-version "{{ .ArtifactPath }}" ;;
+      *.rpm) exec cloudsmith push rpm --republish rocne/releases/any-distro/any-version "{{ .ArtifactPath }}" ;;
       *) true ;;
       esac'
     env:
