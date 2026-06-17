@@ -66,6 +66,30 @@ homebrew_casks:
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/dotd"]
           end
 
+# Publish the signed .deb/.rpm to the Cloudsmith-hosted apt/dnf repo, giving
+# `apt install dotd` / `dnf install dotd` by name with auto-update on upgrade.
+# (GoReleaser's native `cloudsmiths` block is Pro-only, so we drive the
+# cloudsmith CLI via a custom publisher instead.) Repo-index signing is handled
+# server-side by Cloudsmith using the dedicated repo-signing key — separate from
+# the package-signing key, which never leaves our control; the public half is
+# committed as dotd-repo-signing-key.asc.
+#
+# Publishers iterate every linux package and archive artifact, so the command
+# dispatches on extension and pushes only deb/rpm — tar.gz archives are skipped.
+# any-distro/any-version makes one upload installable across every apt/dnf distro
+# rather than maintaining a per-distro matrix.
+publishers:
+  - name: cloudsmith
+    ids: [dotd]
+    cmd: >-
+      sh -c 'case "{{ .ArtifactName }}" in
+      *.deb) exec cloudsmith push deb --republish rocne/releases/any-distro/any-version "{{ .ArtifactPath }}" ;;
+      *.rpm) exec cloudsmith push rpm --republish rocne/releases/any-distro/any-version "{{ .ArtifactPath }}" ;;
+      *) true ;;
+      esac'
+    env:
+      - CLOUDSMITH_API_KEY={{ .Env.CLOUDSMITH_API_KEY }}
+
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Tag }}_checksums.txt"
 
@@ -84,6 +108,7 @@ signs:
 release:
   extra_files:
     - glob: ./dotd-signing-key.asc
+    - glob: ./dotd-repo-signing-key.asc
 
 changelog:
   sort: asc

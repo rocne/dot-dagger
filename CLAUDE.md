@@ -4,6 +4,19 @@ This file contains guidance for Claude when working in this repository.
 
 This is a living document. As we discuss conventions, preferences, and project decisions, relevant guidance should be added here. For example, if I ask you to write tests for a module, infer that running tests is part of validation going forward.
 
+## Project Philosophy
+
+This is a personal project, but it is **deliberately engineered to a higher standard than its scale demands.** Roughly half the goal is real distribution; the other half is a working exercise in robust, industry-standard release and distribution engineering.
+
+That means the usual "is this overkill for a personal project?" instinct is **inverted here**: machinery that looks excessive for the audience size (release-please, Conventional-Commit-derived versioning, GPG/cosign signing, self-managed package repos, full CI release pipelines) is **intentional and in scope**, because exercising the robust real-world pattern is itself a goal.
+
+Apply this when proposing or evaluating work:
+
+- **Default toward the robust, real-world pattern** — the one a serious org or platform team would run — over the minimal solution that merely works, even when the minimal one would suffice for the current audience.
+- **Prefer the path that teaches/exercises the mechanism** over a black-box shortcut, when both deliver. (E.g. self-managed GPG index signing over server-side magic; writing the release glue over an opaque convenience block.)
+- **The guard against cargo-culting** is a two-part litmus, applied to every addition: *does it teach a real, transferable pattern, OR serve a real install/use?* If **neither**, it's out — "robust" is not a license for ornamentation with no learning or distribution payoff.
+- This philosophy does **not** override effort that demands ongoing external commitment with no payoff here — e.g. official distro-repo (Fedora/EPEL, Debian/Ubuntu) maintainership is correctly out of scope: months of process, no transferable-in-a-sandbox lesson, no real install need.
+
 ## Branching Strategy
 
 This project uses trunk-based development:

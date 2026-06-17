@@ -124,6 +124,33 @@ brew install --cask rocne/tap/dot-dagger
 Installs the `dotd` binary and tracks updates with `brew upgrade`. Each release
 auto-bumps the cask in [rocne/homebrew-tap](https://github.com/rocne/homebrew-tap).
 
+### apt (Debian / Ubuntu)
+
+dotd is published to a hosted apt repo, so you get `apt install` by name plus
+updates through `apt upgrade`. Add the repo once, then install:
+
+```sh
+curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.deb.sh' | sudo -E bash
+sudo apt install dotd
+```
+
+The setup script registers the repo and imports its signing key into a dedicated
+keyring (`signed-by=`), so apt cryptographically verifies the repo index — no
+`[trusted=yes]` shortcut. The packages themselves are independently GPG-signed.
+The repo-signing public key is also committed here as
+[`dotd-repo-signing-key.asc`](./dotd-repo-signing-key.asc) if you'd rather wire
+the source up by hand.
+
+### dnf (Fedora / RHEL)
+
+```sh
+curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.rpm.sh' | sudo -E bash
+sudo dnf install dotd
+```
+
+Same model: the script configures the repo with `gpgcheck`/`repo_gpgcheck`
+against the imported signing key.
+
 ### install.sh
 
 ```sh
