@@ -54,6 +54,11 @@ jobs:
           printf '%s' "$GPG_PRIVATE_KEY" > "$RUNNER_TEMP/dotd-signing-key.asc"
           echo "GPG_KEY_PATH=$RUNNER_TEMP/dotd-signing-key.asc" >> "$GITHUB_ENV"
 
+      # Used by the cloudsmith custom publisher in .goreleaser/dotd.yaml to push
+      # the signed .deb/.rpm to the hosted apt/dnf repo.
+      - name: Install Cloudsmith CLI
+        run: pipx install cloudsmith-cli
+
       - name: Release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -66,6 +71,7 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ inputs.version }}
           VERSION: ${{ inputs.version }}
           GPG_KEY_PATH: ${{ env.GPG_KEY_PATH }}
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
