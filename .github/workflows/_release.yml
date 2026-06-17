@@ -141,29 +141,12 @@ jobs:
             mgr: dnf
     container: ${{ matrix.image }}
     steps:
+      - uses: actions/checkout@v6
+
+      # Invoke via `bash` explicitly: the container's default /bin/sh is dash on
+      # Ubuntu, which can't run the script's `set -o pipefail`.
       - name: Install dotd from the Cloudsmith repo and verify
-        run: |
-          set -euxo pipefail
-          TAG="${{ inputs.version }}"
-          VER="${TAG#v}"
-          if [ "${{ matrix.mgr }}" = "apt" ]; then
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y curl sudo
-            curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.deb.sh' | bash
-            # The repo index can lag a few seconds behind the push; retry.
-            for i in 1 2 3 4 5; do
-              { apt-get update && apt-get install -y dotd && break; } \
-                || { echo "retry $i: dotd not in index yet"; sleep 15; }
-            done
-          else
-            dnf install -y curl sudo
-            curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.rpm.sh' | bash
-            for i in 1 2 3 4 5; do
-              dnf install -y dotd && break \
-                || { echo "retry $i: dotd not in index yet"; sleep 15; }
-            done
-          fi
-          command -v dotd
-          dotd --version
-          dotd --version | grep -F "$VER"
+        run: bash ./test/run-repo-install-smoke.sh
+        env:
+          MGR: ${{ matrix.mgr }}
+          VERSION: ${{ inputs.version }}
