@@ -115,6 +115,9 @@ Most stages are also inspectable standalone: `dotd env show`, `dotd dag check`, 
 
 ## Install
 
+> The **package** is `dot-dagger` (what you install); the **command** it installs
+> is `dotd` (what you run). This holds on every channel.
+
 ### Homebrew (macOS / Linux)
 
 ```sh
@@ -126,8 +129,10 @@ auto-bumps the cask in [rocne/homebrew-tap](https://github.com/rocne/homebrew-ta
 
 ### apt (Debian / Ubuntu)
 
-dotd is published to a hosted apt repo, so you get `apt install` by name plus
-updates through `apt upgrade`. Add the repo once, then install:
+dot-dagger is published to a hosted apt repo, so you get `apt install` by name plus
+updates through `apt upgrade`. The repo is **not** preconfigured — register it once
+with the setup script (it adds the source and imports the signing key) **before**
+the install will resolve:
 
 ```sh
 curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.deb.sh' | sudo -E bash
@@ -142,6 +147,8 @@ The repo-signing public key is also committed here as
 the source up by hand.
 
 ### dnf (Fedora / RHEL)
+
+Same model — run the setup script once first, then install:
 
 ```sh
 curl -1sLf 'https://dl.cloudsmith.io/public/rocne/releases/setup.rpm.sh' | sudo -E bash
@@ -162,7 +169,7 @@ Detects your OS and architecture, downloads the latest release, and installs to 
 Install a specific version:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.6.1
+curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --version v0.10.1
 ```
 
 Install to a custom directory:
@@ -212,7 +219,7 @@ verify manually.
 ### Signature (requires cosign v2+)
 
 ```sh
-TAG=v0.6.1   # the release you downloaded
+TAG=v0.10.1   # the release you downloaded
 BASE="https://github.com/rocne/dot-dagger/releases/download/$TAG"
 curl -fsSLO "$BASE/dotd_${TAG}_checksums.txt"
 curl -fsSLO "$BASE/dotd_${TAG}_checksums.txt.sig"
