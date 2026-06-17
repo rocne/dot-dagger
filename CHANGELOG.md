@@ -7,6 +7,13 @@ by [release-please](https://github.com/googleapis/release-please) from
 Releases prior to the adoption of release-please (≤ v0.5.5) are recorded on the
 [GitHub releases page](https://github.com/rocne/dot-dagger/releases).
 
+## [0.10.1](https://github.com/rocne/dot-dagger/compare/v0.10.0...v0.10.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* **dist:** use dot-dagger as the package name on all channels ([#172](https://github.com/rocne/dot-dagger/issues/172)) ([62d4d9c](https://github.com/rocne/dot-dagger/commit/62d4d9c24f812829a2450ed94cba9b5eb2c39222))
+
 ## [0.10.0](https://github.com/rocne/dot-dagger/compare/v0.9.1...v0.10.0) (2026-06-17)
 
 
