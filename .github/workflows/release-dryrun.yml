@@ -15,7 +15,6 @@ on:
   pull_request:
     paths:
       - .goreleaser/**
-      - .github/workflows/_release.yml
       - .github/workflows/release-dryrun.yml
       - install.sh
 
