@@ -13,6 +13,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Honor the generic VERSION env (central release-ci passes this); fall back to
+# DOTD_VERSION, then to the latest published release.
+DOTD_VERSION="${DOTD_VERSION:-${VERSION:-}}"
+
 if [ -z "${DOTD_VERSION}" ]; then
   DOTD_VERSION="$(curl -fsSL "https://api.github.com/repos/rocne/dot-dagger/releases/latest" \
     | grep '"tag_name"' \
