@@ -20,7 +20,7 @@ jobs:
       issues: write
       id-token: write
       attestations: write
-    uses: rocne/release-ci/.github/workflows/release.yml@v1.0.0-rc
+    uses: rocne/release-ci/.github/workflows/release.yml@v0.1.0
     with:
       version: ${{ github.ref_name }}
       goreleaser_config: .goreleaser/dotd.yaml
