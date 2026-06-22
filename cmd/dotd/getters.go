@@ -18,7 +18,7 @@ import (
 var getOSCmd = &cobra.Command{
 	Use:    "get-os",
 	Hidden: true,
-	Short:  "Print normalized OS name (macos, linux, windows)",
+	Short:  "Print the OS name (GOOS), with darwin normalized to macos",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := runtime.GOOS
 		if name == "darwin" {
