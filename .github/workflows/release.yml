@@ -20,7 +20,12 @@ jobs:
       issues: write
       id-token: write
       attestations: write
-    uses: ./.github/workflows/_release.yml
+    uses: rocne/release-ci/.github/workflows/release.yml@v1.0.0-rc
     with:
       version: ${{ github.ref_name }}
+      goreleaser_config: .goreleaser/dotd.yaml
+      project_name: dotd
+      package_name: dot-dagger
+      binary: dotd
+      e2e_script: ./test/run-e2e-release.sh
     secrets: inherit

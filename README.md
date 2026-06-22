@@ -228,7 +228,7 @@ curl -fsSLO "$BASE/dotd_${TAG}_checksums.txt.pem"
 cosign verify-blob \
   --certificate "dotd_${TAG}_checksums.txt.pem" \
   --signature   "dotd_${TAG}_checksums.txt.sig" \
-  --certificate-identity-regexp "^https://github\.com/rocne/dot-dagger/\.github/workflows/_release\.yml@" \
+  --certificate-identity-regexp "^https://github\.com/rocne/release-ci/\.github/workflows/release\.yml@refs/tags/v" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
   "dotd_${TAG}_checksums.txt"
 

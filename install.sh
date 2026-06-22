@@ -152,7 +152,7 @@ if command -v cosign >/dev/null 2>&1; then
     if cosign verify-blob \
         --certificate "$TMP/$CERT" \
         --signature   "$TMP/$SIG" \
-        --certificate-identity-regexp "^https://github\.com/${REPO}/\.github/workflows/_release\.yml@" \
+        --certificate-identity-regexp "^https://github\.com/rocne/release-ci/\.github/workflows/release\.yml@refs/tags/v" \
         --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
         "$TMP/$CHECKSUMS" >/dev/null 2>&1; then
       printf 'signature verified\n'

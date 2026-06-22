@@ -85,12 +85,13 @@ publishers:
     ids: [dotd]
     cmd: >-
       sh -c 'case "{{ .ArtifactName }}" in
-      *.deb) exec cloudsmith push deb --republish rocne/releases/any-distro/any-version "{{ .ArtifactPath }}" ;;
-      *.rpm) exec cloudsmith push rpm --republish rocne/releases/any-distro/any-version "{{ .ArtifactPath }}" ;;
+      *.deb) exec cloudsmith push deb --republish ${CLOUDSMITH_REPO}/any-distro/any-version "{{ .ArtifactPath }}" ;;
+      *.rpm) exec cloudsmith push rpm --republish ${CLOUDSMITH_REPO}/any-distro/any-version "{{ .ArtifactPath }}" ;;
       *) true ;;
       esac'
     env:
       - CLOUDSMITH_API_KEY={{ .Env.CLOUDSMITH_API_KEY }}
+      - CLOUDSMITH_REPO={{ .Env.CLOUDSMITH_REPO }}
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Tag }}_checksums.txt"
