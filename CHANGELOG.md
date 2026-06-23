@@ -7,6 +7,13 @@ by [release-please](https://github.com/googleapis/release-please) from
 Releases prior to the adoption of release-please (≤ v0.5.5) are recorded on the
 [GitHub releases page](https://github.com/rocne/dot-dagger/releases).
 
+## [0.10.3](https://github.com/rocne/dot-dagger/compare/v0.10.2...v0.10.3) (2026-06-23)
+
+
+### Bug Fixes
+
+* use consistent 'compose check:' prefix in up-to-date message ([#180](https://github.com/rocne/dot-dagger/issues/180)) ([d0d4cf9](https://github.com/rocne/dot-dagger/commit/d0d4cf99c16ede0ce4dbe4be0b73a5a7f20ba59f))
+
 ## [0.10.2](https://github.com/rocne/dot-dagger/compare/v0.10.1...v0.10.2) (2026-06-22)
 
 
