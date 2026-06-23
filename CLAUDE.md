@@ -46,8 +46,10 @@ updates `CHANGELOG.md`.
 
 - **Cutting a release = merging that release PR.** Merging it tags the commit and
   creates the GitHub release, then — in the *same* run — delegates the artifact
-  build + e2e to the reusable `_release.yml`. No PAT is needed because the build
-  is chained in-run rather than triggered by the API-created tag.
+  build + e2e to the central reusable workflow
+  `rocne/release-ci/.github/workflows/release.yml` (pinned `@v0.1.1`). No PAT is
+  needed because the build is chained in-run rather than triggered by the
+  API-created tag.
 - **The version is derived, not chosen.** `fix:` → patch, `feat:` → minor (while
   pre-1.0, per `bump-minor-pre-major`), `feat!:`/`BREAKING CHANGE` → still minor
   pre-1.0. Commits typed `docs:`/`chore:`/`ci:`/`style:`/`refactor:`/`test:` do
@@ -63,7 +65,7 @@ State lives in `release-please-config.json` and `.release-please-manifest.json`
 ### Break-glass path: manual tag
 
 `.github/workflows/release.yml` triggers on a pushed `v*` tag and calls the same
-`_release.yml`. Use only when release-please can't (e.g. re-cutting a botched
+central `rocne/release-ci` reusable workflow. Use only when release-please can't (e.g. re-cutting a botched
 release). Tag format `v<semver>` (e.g. `v0.6.1`); always tag from `main`, and the
 workflow files must exist at the tagged commit.
 
@@ -72,9 +74,10 @@ git tag v0.6.1
 git push origin v0.6.1
 ```
 
-Both paths funnel through `_release.yml` so the manual and automated releases can
-never drift: GoReleaser builds linux+darwin × amd64+arm64, publishes the GitHub
-release, bumps the Homebrew tap, then runs release e2e (opens an issue on failure).
+Both paths funnel through the central `rocne/release-ci` reusable workflow so the
+manual and automated releases can never drift: GoReleaser builds linux+darwin ×
+amd64+arm64, publishes the GitHub release, bumps the Homebrew tap, then runs
+release e2e (opens an issue on failure).
 
 ### Repo setting required
 
