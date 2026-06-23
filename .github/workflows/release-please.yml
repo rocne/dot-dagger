@@ -4,7 +4,7 @@ name: Release please
 # reads the Conventional Commit history and maintains a standing "release PR"
 # (next version + CHANGELOG). Merging that release PR is the human gate: it
 # creates the tag + GitHub release, then this workflow delegates the artifact
-# build to the reusable _release.yml — in the SAME run, so no PAT is needed
+# build to rocne/release-ci's reusable workflow — in the SAME run, so no PAT is needed
 # (an API-created tag would not trigger the tag-push release.yml on its own).
 #
 # release.yml (tag push) remains as a manual break-glass path.
