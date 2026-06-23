@@ -5,8 +5,8 @@ name: Release dotd
 # release PR); use this only when that can't run — e.g. re-cutting a botched
 # release.
 #
-# Delegates the actual release + e2e to the reusable _release.yml so the manual
-# and release-please paths can never drift.
+# Delegates the actual release + e2e to the central reusable workflow
+# (rocne/release-ci) so the manual and release-please paths can never drift.
 
 on:
   push:
