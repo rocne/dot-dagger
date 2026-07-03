@@ -3,6 +3,7 @@ package annotation
 import (
 	"fmt"
 
+	"github.com/rocne/dot-dagger/internal/node"
 	"github.com/rocne/dot-dagger/internal/predicate"
 )
 
@@ -105,9 +106,12 @@ func (ActionType) Description() string {
 }
 func (ActionType) Kind() InputKind { return KindChoice }
 
-// NOTE: must stay in sync with the pipeline.Action* constants in
-// internal/pipeline/walk.go; annotation cannot import pipeline (import cycle).
-func (ActionType) Options() []string      { return []string{"source", "no-source", "link"} }
+// Options come from the canonical action vocabulary in internal/node — the
+// same values the pipeline.Action* constants alias, so wizard and pipeline
+// can never drift.
+func (ActionType) Options() []string {
+	return []string{node.ActionSource, node.ActionNoSource, node.ActionLink}
+}
 func (ActionType) Format(s string) string { return "# @action(" + s + ")" }
 func (ActionType) Validate(string) error  { return nil }
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -59,9 +58,7 @@ Examples:
 				entries = append(entries, composeListEntry{Path: pipeline.ComposeFileName(n.Path)})
 			}
 			if jsonOutput {
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
+				return writeJSON(cmd.OutOrStdout(), entries)
 			}
 			for _, e := range entries {
 				fmt.Fprintln(cmd.OutOrStdout(), e.Path)
@@ -73,9 +70,17 @@ Examples:
 	return cmd
 }
 
+// Compose check status values — one definition shared by the JSON contract
+// (composeCheckEntry.Status) and the text renderer's switch.
+const (
+	composeStatusOK      = "ok"
+	composeStatusMissing = "missing"
+	composeStatusStale   = "stale"
+)
+
 type composeCheckEntry struct {
 	Path   string `json:"path"`
-	Status string `json:"status"` // ok | missing | stale
+	Status string `json:"status"` // composeStatusOK | composeStatusMissing | composeStatusStale
 }
 
 func newComposeCheckCmd(cfg *config) *cobra.Command {
@@ -108,32 +113,30 @@ Examples:
 				if gen.Path == "" {
 					continue
 				}
-				status := "ok"
+				status := composeStatusOK
 				existing, readErr := os.ReadFile(gen.Path)
 				if errors.Is(readErr, fs.ErrNotExist) {
-					status = "missing"
+					status = composeStatusMissing
 					hasStale = true
 				} else if readErr != nil {
 					return fmt.Errorf("compose check: read %s: %w", gen.Path, readErr)
 				} else if !bytes.Equal(existing, gen.Content) {
-					status = "stale"
+					status = composeStatusStale
 					hasStale = true
 				}
 				entries = append(entries, composeCheckEntry{Path: gen.Path, Status: status})
 			}
 
 			if jsonOutput {
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				if err := enc.Encode(entries); err != nil {
+				if err := writeJSON(cmd.OutOrStdout(), entries); err != nil {
 					return err
 				}
 			} else {
 				for _, e := range entries {
 					switch e.Status {
-					case "missing":
+					case composeStatusMissing:
 						ui.Missingf(errOut, "%s", filepath.Base(e.Path))
-					case "stale":
+					case composeStatusStale:
 						ui.Wrongf(errOut, "%s", filepath.Base(e.Path))
 					}
 				}

@@ -2,7 +2,6 @@
 package setup
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -17,10 +16,6 @@ import (
 // AppendSourceLine writes it; RemoveSourceLine matches it — one constant so
 // the two can never drift.
 const sourceLineHeader = "# dotd — generated shell init"
-
-// maxScanLine caps a single scanned RC-file line at 1 MiB — above any realistic
-// shell-config line, but bounded so a pathological file can't balloon memory.
-const maxScanLine = 1 << 20
 
 // ShellConfig holds the shell name and its RC file path.
 type ShellConfig struct {
@@ -106,10 +101,7 @@ func HasSourceLine(rcFile, initPath string) (bool, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	scanner := bufio.NewScanner(f)
-	// Raise the line cap above bufio's 64KiB default so a long line in the RC
-	// file doesn't abort detection with ErrTooLong.
-	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLine)
+	scanner := fileutil.NewLineScanner(f)
 	sawHeader := false
 	for scanner.Scan() {
 		line := scanner.Text()

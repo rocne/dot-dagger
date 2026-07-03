@@ -1,10 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -76,11 +76,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			keys := make([]string, 0, len(resolved))
-			for k := range resolved {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
+			keys := slices.Sorted(maps.Keys(resolved))
 			if jsonOutput {
 				entries := make([]envShowEntry, 0, len(keys))
 				for _, k := range keys {
@@ -90,9 +86,7 @@ Examples:
 					}
 					entries = append(entries, e)
 				}
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
+				return writeJSON(cmd.OutOrStdout(), entries)
 			}
 			if len(keys) == 0 {
 				// Logged (stderr) so piped stdout stays empty for scripts.
@@ -238,11 +232,7 @@ Examples:
 			}
 			shellVars := env.ShellVars(os.Environ())
 
-			keys := make([]string, 0, len(expanded))
-			for k := range expanded {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
+			keys := slices.Sorted(maps.Keys(expanded))
 
 			// Entries built once; JSON and text render the same slice.
 			entries := make([]envDiffEntry, 0)
@@ -261,9 +251,7 @@ Examples:
 			}
 
 			if jsonOutput {
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
+				return writeJSON(cmd.OutOrStdout(), entries)
 			}
 
 			for _, e := range entries {

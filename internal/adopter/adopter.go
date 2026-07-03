@@ -81,7 +81,7 @@ func Infer(src string, info os.FileInfo, conv ConventionNames) Inference {
 
 	// Hidden dotfile (.bashrc, .gitconfig) → config/dot-<name>
 	if strings.HasPrefix(name, ".") && len(name) > 1 {
-		dotName := "dot-" + name[1:]
+		dotName := node.PrefixDot + name[1:]
 		return Inference{
 			DestRel: filepath.Join(conv.Config, dotName),
 			Reason:  "dotfile (dot- prefix added)",

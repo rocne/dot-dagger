@@ -3,15 +3,12 @@
 package annotation
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"strings"
-)
 
-// maxScanLine caps a single scanned line at 1 MiB — well above any realistic
-// annotation/header line, but bounded so a pathological file can't balloon memory.
-const maxScanLine = 1 << 20
+	"github.com/rocne/dot-dagger/internal/fileutil"
+)
 
 // Key constants for the supported .dagger annotation vocabulary.
 // These are the canonical names for annotation keys used in file headers and
@@ -44,10 +41,7 @@ type Annotation struct {
 //  5. Blank lines do not stop the scan.
 func Scan(r io.Reader) ([]Annotation, error) {
 	var anns []Annotation
-	scanner := bufio.NewScanner(r)
-	// Raise the line cap above bufio's 64KiB default so one very long line
-	// (e.g. a minified config) doesn't abort the scan with ErrTooLong.
-	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLine)
+	scanner := fileutil.NewLineScanner(r)
 	lineNum := 0
 
 	for scanner.Scan() {

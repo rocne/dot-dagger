@@ -23,8 +23,8 @@ func newSetupCmd(cfg *config) *cobra.Command {
 		Short: "Interactive wizard: configure dot-dagger at the system level",
 		Long: fmt.Sprintf(`Configure dot-dagger for this machine.
 
-Writes config.yaml and (if absent) %s to the platform config dir.
-If config.yaml already exists, current values are shown as defaults.
+Writes %[1]s and (if absent) %[2]s to the platform config dir.
+If %[1]s already exists, current values are shown as defaults.
 
 Does not create symlinks or scaffold .dagger files.
 Run 'dotd init' next to scaffold your dotfiles repo.
@@ -35,7 +35,7 @@ prompting. Combine with the global path flags (--files) to script a fresh instal
 Examples:
   dotd setup                             # interactive
   dotd setup --non-interactive           # accept all defaults
-  dotd setup -n --files ~/dotfiles       # scripted with overrides`, ecosystem.EnvFileName),
+  dotd setup -n --files ~/dotfiles       # scripted with overrides`, ecosystem.ConfigFileName, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSetup(cmd, cfg, nonInteractive)
 		},
@@ -83,7 +83,7 @@ func runSetup(cmd *cobra.Command, cfg *config, nonInteractive bool) error {
 		Dotfiles: dotfilesPath,
 	}
 	if err := dotcfg.Save(cfg.configPath, toolCfg); err != nil {
-		return fmt.Errorf("setup: save config.yaml: %w", err)
+		return fmt.Errorf("setup: save %s: %w", ecosystem.ConfigFileName, err)
 	}
 	ui.OKf(out, "  wrote %s", cfg.configPath)
 

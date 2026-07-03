@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -28,4 +29,13 @@ func bannerf(w io.Writer, cmd *cobra.Command, subtitle string) {
 // for the flag name and help text across all list/show commands.
 func addJSONFlag(cmd *cobra.Command, target *bool) {
 	cmd.Flags().BoolVar(target, "json", false, "output JSON array")
+}
+
+// writeJSON renders v as two-space-indented JSON to w — the single owner of
+// the CLI's machine-readable output format. Every --json path routes through
+// it so indentation and encoding can never drift between commands.
+func writeJSON(w io.Writer, v any) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
 }

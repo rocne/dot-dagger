@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/annotation"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -38,6 +40,12 @@ Examples:
 type stagedEntry struct {
 	Type  annotation.AnnotationType
 	Value string
+}
+
+// stageEcho prints the wizard's staged-result line ("  → <result>") — one
+// owner for the arrow styling, matching the ui.Arrow used elsewhere.
+func stageEcho(out io.Writer, s string) {
+	fmt.Fprintf(out, "  %s %s\n", ui.Arrow("→"), s)
 }
 
 func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
@@ -137,9 +145,9 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 			staged = removeStagedKey(staged, t.Key())
 			if set {
 				staged = append(staged, stagedEntry{Type: t, Value: ""})
-				fmt.Fprintf(out, "  → %s\n", t.Format(""))
+				stageEcho(out, t.Format(""))
 			} else {
-				fmt.Fprintf(out, "  → (removed)\n")
+				stageEcho(out, "(removed)")
 			}
 
 		case annotation.KindChoice:
@@ -150,14 +158,14 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 			}
 			if chosen == "none" {
 				staged = removeStagedKey(staged, t.Key())
-				fmt.Fprintf(out, "  → (removed)\n")
+				stageEcho(out, "(removed)")
 			} else if len(entries) == 1 {
 				staged = replaceStagedKey(staged, t.Key(), chosen)
-				fmt.Fprintf(out, "  → %s\n", t.Format(chosen))
+				stageEcho(out, t.Format(chosen))
 			} else {
 				staged = removeStagedKey(staged, t.Key())
 				staged = append(staged, stagedEntry{Type: t, Value: chosen})
-				fmt.Fprintf(out, "  → %s\n", t.Format(chosen))
+				stageEcho(out, t.Format(chosen))
 			}
 
 		case annotation.KindText:
@@ -173,19 +181,19 @@ func runAnnotate(cmd *cobra.Command, cfg *config, fileArg string) error {
 			switch {
 			case val == "":
 				staged = removeStagedKey(staged, t.Key())
-				fmt.Fprintf(out, "  → (removed)\n")
+				stageEcho(out, "(removed)")
 			case len(entries) == 1:
 				staged = replaceStagedKey(staged, t.Key(), val)
-				fmt.Fprintf(out, "  → %s\n", t.Format(val))
+				stageEcho(out, t.Format(val))
 			default:
 				staged = append(staged, stagedEntry{Type: t, Value: val})
-				fmt.Fprintf(out, "  → %s\n", t.Format(val))
+				stageEcho(out, t.Format(val))
 			}
 		}
 	}
 
 	// Confirm + write.
-	fmt.Fprintf(out, "\nAnnotations to write:\n")
+	ui.Headerf(out, "Annotations to write:")
 	if len(staged) == 0 {
 		fmt.Fprintf(out, "  (none — all known annotations will be removed)\n")
 	}

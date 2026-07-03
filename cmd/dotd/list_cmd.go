@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -73,9 +72,7 @@ func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) err
 	}
 
 	if jsonOutput {
-		enc := json.NewEncoder(cmd.OutOrStdout())
-		enc.SetIndent("", "  ")
-		return enc.Encode(entries)
+		return writeJSON(cmd.OutOrStdout(), entries)
 	}
 
 	if len(entries) == 0 {

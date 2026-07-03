@@ -284,12 +284,12 @@ func packageName(pkg, manager string, reg *Registry) string {
 	return pkg
 }
 
-// resolveInstallCmd returns the manager name and install command for a package,
-// selecting the first manager in priority order that is present on PATH.
-func resolveInstallCmd(pkg string, reg *Registry, lookPath func(string) (string, error)) (mgr, cmd string, err error) {
+// resolveInstallCmd returns the install command for a package, selecting the
+// first manager in priority order that is present on PATH.
+func resolveInstallCmd(pkg string, reg *Registry, lookPath func(string) (string, error)) (string, error) {
 	entry, ok := reg.Packages[pkg]
 	if !ok {
-		return "", "", fmt.Errorf("packages: %q not in registry", pkg)
+		return "", fmt.Errorf("packages: %q not in registry", pkg)
 	}
 	for _, m := range ManagerOrder(pkg, reg) {
 		if _, hasEntry := entry.Managers[m]; !hasEntry {
@@ -298,13 +298,9 @@ func resolveInstallCmd(pkg string, reg *Registry, lookPath func(string) (string,
 		if _, err := lookPath(m); err != nil {
 			continue
 		}
-		c, err := InstallCmd(pkg, m, reg)
-		if err != nil {
-			return "", "", err
-		}
-		return m, c, nil
+		return InstallCmd(pkg, m, reg)
 	}
-	return "", "", fmt.Errorf("packages: no manager on PATH for %q", pkg)
+	return "", fmt.Errorf("packages: no manager on PATH for %q", pkg)
 }
 
 // GenerateScript writes a POSIX shell script that installs all required packages.
@@ -331,14 +327,13 @@ func GenerateScript(w io.Writer, reqs []PackageRequest, reg *Registry, lookPath 
 			continue
 		}
 
-		mgr, cmd, err := resolveInstallCmd(req.Package, reg, lookPath)
+		cmd, err := resolveInstallCmd(req.Package, reg, lookPath)
 		if err != nil {
 			if req.Hard {
 				return fmt.Errorf("packages: @require %q (from %s): %w", req.Package, req.NodePath, err)
 			}
 			continue
 		}
-		_ = mgr
 		fmt.Fprintln(w, cmd)
 	}
 	return nil

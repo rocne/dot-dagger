@@ -14,7 +14,9 @@ import (
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/env"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	dotlog "github.com/rocne/dot-dagger/internal/log"
+	"github.com/rocne/dot-dagger/internal/node"
 	"github.com/rocne/dot-dagger/internal/pipeline"
 	"github.com/rocne/dot-dagger/internal/predicate"
 	"github.com/rocne/dot-dagger/internal/ui"
@@ -157,8 +159,8 @@ agents and tooling.`,
 	}
 
 	pf := root.PersistentFlags()
-	pf.StringVarP(&cfg.files, "files", "f", "", "path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → config.yaml dotfiles → cwd)")
-	pf.StringVar(&cfg.configPath, "dotd-config", "", "path to dot-dagger's own config.yaml (default: $DOTD_CONFIG_FILE → ~/.config/dot-dagger/config.yaml)")
+	pf.StringVarP(&cfg.files, "files", "f", "", fmt.Sprintf("path to dotfiles repo (default: $DOTD_FILES → $DOTFILES → %s dotfiles → cwd)", ecosystem.ConfigFileName))
+	pf.StringVar(&cfg.configPath, "dotd-config", "", fmt.Sprintf("path to dot-dagger's own %[1]s (default: $DOTD_CONFIG_FILE → ~/.config/dot-dagger/%[1]s)", ecosystem.ConfigFileName))
 	pf.StringVar(&cfg.envFile, "dotd-env", "", fmt.Sprintf("path to dot-dagger's own %s (default: $DOTD_ENV_FILE → ~/.config/dot-dagger/%s)", ecosystem.EnvFileName, ecosystem.EnvFileName))
 	pf.StringArrayVar(&cfg.env, "env", nil, "env override as key=value (repeatable)")
 	pf.BoolVar(&cfg.dryRun, "dry-run", false, "print actions without executing")
@@ -382,9 +384,9 @@ func resolvePaths(cfg *config) error {
 	toolCfg, unknownFields, err := dotcfg.LoadLenient(cfg.configPath)
 	if err != nil {
 		toolCfg = &dotcfg.Config{}
-		cfg.configWarning = fmt.Sprintf("config.yaml could not be parsed (%v); ignoring it — run 'dotd setup' to rewrite it", err)
+		cfg.configWarning = fmt.Sprintf("%s could not be parsed (%v); ignoring it — run 'dotd setup' to rewrite it", ecosystem.ConfigFileName, err)
 	} else if len(unknownFields) > 0 {
-		cfg.configWarning = fmt.Sprintf("config.yaml has unrecognized field(s): %s (ignored) — run 'dotd setup' to rewrite it", strings.Join(unknownFields, ", "))
+		cfg.configWarning = fmt.Sprintf("%s has unrecognized field(s): %s (ignored) — run 'dotd setup' to rewrite it", ecosystem.ConfigFileName, strings.Join(unknownFields, ", "))
 	}
 	_, statErr := os.Stat(cfg.configPath)
 	cfg.configExists = statErr == nil
@@ -637,13 +639,11 @@ func warnIfNosyncUnignored(cfg *config) {
 		if err != nil {
 			return nil
 		}
-		// Never descend into the git object store — it holds no managed paths
-		// and walking it is pure waste on a large repo.
-		if d.IsDir() && d.Name() == ".git" {
+		if fileutil.IsGitDir(d) {
 			return filepath.SkipDir
 		}
 		base := filepath.Base(path)
-		if !strings.HasPrefix(base, "nosync-") {
+		if !strings.HasPrefix(base, node.PrefixNoSync) {
 			return nil
 		}
 		// git check-ignore exits 0 if ignored, 1 if not, 128 if not a git repo.

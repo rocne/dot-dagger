@@ -116,54 +116,10 @@ func (e *Evaluator) Eval(expr Expr) (bool, error) {
 		return false, nil
 
 	case AndExpr:
-		// A definitely-false operand decides the AND, so a MissingKeyError from
-		// another operand is deferred: it only surfaces if no operand is false.
-		// This keeps AND commutative under a missing key (see MissingKeyError).
-		var missErr error
-		for _, operand := range x.Operands {
-			ok, err := e.Eval(operand)
-			if err != nil {
-				if isMissingKey(err) {
-					if missErr == nil {
-						missErr = err
-					}
-					continue
-				}
-				return false, err
-			}
-			if !ok {
-				return false, nil
-			}
-		}
-		if missErr != nil {
-			return false, missErr
-		}
-		return true, nil
+		return e.evalOperands(x.Operands, false)
 
 	case OrExpr:
-		// A true operand decides the OR, so a MissingKeyError from another
-		// operand is deferred: it only surfaces if no operand is true. This
-		// keeps OR commutative under a missing key (see MissingKeyError).
-		var missErr error
-		for _, operand := range x.Operands {
-			ok, err := e.Eval(operand)
-			if err != nil {
-				if isMissingKey(err) {
-					if missErr == nil {
-						missErr = err
-					}
-					continue
-				}
-				return false, err
-			}
-			if ok {
-				return true, nil
-			}
-		}
-		if missErr != nil {
-			return false, missErr
-		}
-		return false, nil
+		return e.evalOperands(x.Operands, true)
 
 	case CallExpr:
 		return e.evalCall(x)
@@ -171,6 +127,35 @@ func (e *Evaluator) Eval(expr Expr) (bool, error) {
 	default:
 		return false, fmt.Errorf("predicate: unknown expr type %T", expr)
 	}
+}
+
+// evalOperands evaluates a junction's operands with missing-key deferral —
+// the single owner of AND/OR semantics. decide is the operand value that
+// decides the whole expression: false for AND, true for OR. A deciding
+// operand returns immediately, so a MissingKeyError from another operand is
+// deferred and only surfaces when no operand decides. This keeps AND and OR
+// commutative under a missing key (see MissingKeyError).
+func (e *Evaluator) evalOperands(operands []Expr, decide bool) (bool, error) {
+	var missErr error
+	for _, operand := range operands {
+		ok, err := e.Eval(operand)
+		if err != nil {
+			if isMissingKey(err) {
+				if missErr == nil {
+					missErr = err
+				}
+				continue
+			}
+			return false, err
+		}
+		if ok == decide {
+			return decide, nil
+		}
+	}
+	if missErr != nil {
+		return false, missErr
+	}
+	return !decide, nil
 }
 
 func (e *Evaluator) evalCall(x CallExpr) (bool, error) {

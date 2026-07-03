@@ -1,10 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/spf13/cobra"
 )
 
@@ -31,25 +30,23 @@ Examples:
 				{"generated", cfg.generatedDir},
 				{"init.sh", cfg.initFile},
 				{"dotfiles", cfg.files},
-				{"config.yaml", cfg.configPath},
-				{"env.yaml", cfg.envFile},
+				{ecosystem.ConfigFileName, cfg.configPath},
+				{ecosystem.EnvFileName, cfg.envFile},
 			}
 			if jsonOutput {
-				return writePathsJSON(cmd.OutOrStdout(), rows)
+				return writeJSON(cmd.OutOrStdout(), rows)
+			}
+			// Column width follows the longest label — no hand-maintained constant.
+			width := 0
+			for _, r := range rows {
+				width = max(width, len(r.Name))
 			}
 			for _, r := range rows {
-				// column width 11 = len("config.yaml"), the longest label; bump if a longer name is added
-				fmt.Fprintf(cmd.OutOrStdout(), "%-11s %s\n", r.Name, r.Path)
+				fmt.Fprintf(cmd.OutOrStdout(), "%-*s %s\n", width, r.Name, r.Path)
 			}
 			return nil
 		},
 	}
 	addJSONFlag(cmd, &jsonOutput)
 	return cmd
-}
-
-func writePathsJSON(w io.Writer, rows []pathRow) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(rows)
 }
