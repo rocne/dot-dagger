@@ -23,6 +23,9 @@ const PackagesFileName = "packages.yaml"
 // EnvFileName is the canonical filename for the per-machine env configuration.
 const EnvFileName = "env.yaml"
 
+// ConfigFileName is the canonical filename for the tool's own preferences file.
+const ConfigFileName = "config.yaml"
+
 // ToolD is the CLI binary name.
 const ToolD = "dotd"
 
@@ -69,7 +72,7 @@ func DefaultConfigFile() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, Name, "config.yaml"), nil
+	return filepath.Join(base, Name, ConfigFileName), nil
 }
 
 // DefaultEnvFile returns the default path to env.yaml: $XDG_CONFIG_HOME/dot-dagger/env.yaml.
@@ -78,7 +81,7 @@ func DefaultEnvFile() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, Name, "env.yaml"), nil
+	return filepath.Join(base, Name, EnvFileName), nil
 }
 
 // InitFile returns the path to init.sh: $XDG_DATA_HOME/dot-dagger/init.sh.

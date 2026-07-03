@@ -44,7 +44,8 @@ func Write(path string, preserved []string, lines []string) error {
 	}
 	for headerEnd < len(raw) {
 		t := strings.TrimSpace(raw[headerEnd])
-		if t == "" || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "//") {
+		_, isComment := commentContent(t)
+		if t == "" || isComment {
 			headerEnd++
 		} else {
 			break
@@ -67,8 +68,7 @@ func Write(path string, preserved []string, lines []string) error {
 		insertAt = 1
 	}
 	for insertAt < len(strippedHeader) {
-		trimmed := strings.TrimSpace(strippedHeader[insertAt])
-		if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "//") {
+		if _, isComment := commentContent(strippedHeader[insertAt]); isComment {
 			insertAt++
 		} else {
 			break

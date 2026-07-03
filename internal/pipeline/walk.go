@@ -10,18 +10,18 @@ import (
 	"github.com/rocne/dot-dagger/internal/annotation"
 	"github.com/rocne/dot-dagger/internal/dagger"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
+	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/node"
 )
 
-// Action type constants for Action.Type.
-// NOTE: the user-facing option list in internal/annotation/registry.go
-// (ActionType.Options) must stay in sync with these values; annotation
-// cannot import pipeline (import cycle).
+// Action type constants for Action.Type — aliases of the canonical vocabulary
+// in internal/node (the single owner, shared with internal/annotation which
+// cannot import pipeline).
 const (
-	ActionCompose  = "compose"
-	ActionSource   = "source"
-	ActionNoSource = "no-source"
-	ActionLink     = "link"
+	ActionCompose  = node.ActionCompose
+	ActionSource   = node.ActionSource
+	ActionNoSource = node.ActionNoSource
+	ActionLink     = node.ActionLink
 )
 
 // Action is a single action declared for a node.
@@ -88,10 +88,10 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 		if err != nil {
 			return err
 		}
+		if fileutil.IsGitDir(d) {
+			return filepath.SkipDir
+		}
 		if d.IsDir() {
-			if filepath.Base(path) == ".git" {
-				return filepath.SkipDir
-			}
 			cfg, err := dagger.LoadFile(filepath.Join(path, ecosystem.ConfigFile))
 			if err != nil {
 				return err
@@ -121,12 +121,12 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 			return err
 		}
 
+		if fileutil.IsGitDir(d) {
+			return filepath.SkipDir
+		}
 		if d.IsDir() {
 			if path == dotfilesRoot {
 				return nil
-			}
-			if filepath.Base(path) == ".git" {
-				return filepath.SkipDir
 			}
 			// Emit a compose-target node for directories with composition enabled.
 			cfg, ok := daggerMap[path]
@@ -146,13 +146,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 			dirActions := append([]Action{{Type: ActionCompose}}, parseDaggerActions(cfg.Actions)...)
 
 			// Dir-level when: cascade when AND dir's own when.
-			// Wrapped in parens like every other when source — AND binds
-			// tighter than OR, so an unwrapped "a=1 OR b=2" would regroup.
-			dirWhen := cfg.When
-			if dirWhen != "" {
-				dirWhen = "(" + dirWhen + ")"
-			}
-			effectiveWhen := combineWhen(state.when, dirWhen)
+			effectiveWhen := combineWhen(state.when, parenWhen(cfg.When))
 
 			// Dir's own link_root overrides inherited.
 			linkRoot := state.linkRoot
@@ -295,11 +289,7 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 				logicalName = fileNode.Name
 			}
 
-			fileWhen := ""
-			if fileNode.When != "" {
-				fileWhen = "(" + fileNode.When + ")"
-			}
-			effectiveWhen := combineWhen(state.when, fileWhen)
+			effectiveWhen := combineWhen(state.when, parenWhen(fileNode.When))
 
 			var fileActions []Action
 			seen := map[string]bool{}
@@ -390,12 +380,24 @@ func cascadeState(root, relPath string, daggerMap map[string]*dagger.ComposableN
 // applyDefaults merges a BasicNode's defaults into the accumulated state.
 func applyDefaults(state dirState, defaults dagger.BasicNode, _ string) dirState {
 	if defaults.When != "" {
-		state.when = combineWhen(state.when, "("+defaults.When+")")
+		state.when = combineWhen(state.when, parenWhen(defaults.When))
 	}
 	if len(defaults.Actions) > 0 {
 		state.actions = append(state.actions, defaults.Actions...)
 	}
 	return state
+}
+
+// parenWhen wraps a non-empty when expression in parentheses so it composes
+// safely under combineWhen — AND binds tighter than OR, so an unwrapped
+// "a=1 OR b=2" would regroup. Empty in, empty out. Every when source
+// (dir-level, files:-dict, defaults, file annotations via annotation.CombineWhen)
+// is wrapped before combining.
+func parenWhen(s string) string {
+	if s == "" {
+		return ""
+	}
+	return "(" + s + ")"
 }
 
 // combineWhen joins two when expressions with AND, wrapping each in parens if needed.

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -59,9 +58,7 @@ Examples:
 						When:        n.EffectiveWhen,
 					}
 				}
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
+				return writeJSON(cmd.OutOrStdout(), entries)
 			}
 			for i, n := range ordered {
 				fmt.Fprintf(cmd.OutOrStdout(), "%3d  %s\n", i+1, n.LogicalName)

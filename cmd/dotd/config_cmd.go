@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	dotcfg "github.com/rocne/dot-dagger/internal/config"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/spf13/cobra"
 )
 
@@ -13,10 +13,10 @@ func newConfigCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Inspect and modify tool configuration",
-		Long: `Read and write entries in config.yaml.
+		Long: fmt.Sprintf(`Read and write entries in %s.
 
-The only stored preference is the dotfiles repo location (` + "`dotfiles`" + `). All
-other paths resolve from the environment (XDG); run ` + "`dotd paths`" + ` to see them.`,
+The only stored preference is the dotfiles repo location (`+"`dotfiles`"+`). All
+other paths resolve from the environment (XDG); run `+"`dotd paths`"+` to see them.`, ecosystem.ConfigFileName),
 	}
 	cmd.AddCommand(
 		newConfigShowCmd(cfg),
@@ -69,9 +69,7 @@ Examples:
 					val, _ := toolCfg.Get(k)
 					entries = append(entries, configEntry{Key: k, Value: val})
 				}
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
+				return writeJSON(cmd.OutOrStdout(), entries)
 			}
 			for _, k := range dotcfg.Keys {
 				val, _ := toolCfg.Get(k)
@@ -112,10 +110,10 @@ func newConfigSetCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set a config value",
-		Long: `Write a value to a config key. Persists to config.yaml.
+		Long: fmt.Sprintf(`Write a value to a config key. Persists to %s.
 
 Examples:
-  dotd config set dotfiles ~/dotfiles`,
+  dotd config set dotfiles ~/dotfiles`, ecosystem.ConfigFileName),
 		Args: configKeyArgs(2, "usage: dotd config set <key> <value>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			toolCfg, err := dotcfg.Load(cfg.configPath)
@@ -133,12 +131,12 @@ Examples:
 func newConfigEditCmd(cfg *config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
-		Short: "Open config.yaml in $EDITOR",
-		Long: `Open config.yaml in $EDITOR. Falls back to vi if $EDITOR is unset.
+		Short: fmt.Sprintf("Open %s in $EDITOR", ecosystem.ConfigFileName),
+		Long: fmt.Sprintf(`Open %s in $EDITOR. Falls back to vi if $EDITOR is unset.
 
 Examples:
   dotd config edit
-  EDITOR=nano dotd config edit`,
+  EDITOR=nano dotd config edit`, ecosystem.ConfigFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return launchEditor(cfg.configPath)
 		},

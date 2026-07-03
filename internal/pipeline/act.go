@@ -222,11 +222,7 @@ func deriveLinkDest(n RawNode) string {
 	}
 	parts := strings.Split(filepath.ToSlash(rel), "/")
 	for i, p := range parts {
-		p = strings.TrimPrefix(p, "nosync-")
-		if strings.HasPrefix(p, "dot-") {
-			p = "." + p[4:]
-		}
-		parts[i] = p
+		parts[i] = node.LinkName(p)
 	}
 	return filepath.Join(root, filepath.Join(parts...))
 }

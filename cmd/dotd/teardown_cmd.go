@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -17,11 +18,11 @@ func newTeardownCmd(cfg *config) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "teardown",
-		Short: fmt.Sprintf("Remove dot-dagger system config (config.yaml, %s, RC source line)", ecosystem.EnvFileName),
+		Short: fmt.Sprintf("Remove dot-dagger system config (%s, %s, RC source line)", ecosystem.ConfigFileName, ecosystem.EnvFileName),
 		Long: fmt.Sprintf(`Remove dot-dagger system-level configuration from this machine.
 
 Removes (at the resolved paths — honors --dotd-config, --dotd-env, DOTD_* vars):
-  - config.yaml
+  - %s
   - %s
   - The dotd source line from the shell RC file (if detected)
 
@@ -32,7 +33,7 @@ Shows a preview and prompts for confirmation before making any changes.
 
 Examples:
   dotd teardown            # interactive — shows preview, asks before removing
-  dotd teardown --yes      # non-interactive (CI / scripts)`, ecosystem.EnvFileName),
+  dotd teardown --yes      # non-interactive (CI / scripts)`, ecosystem.ConfigFileName, ecosystem.EnvFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTeardown(cmd, cfg, yes)
 		},
@@ -118,28 +119,8 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	// teardown never leaves a half-removed install just because the first target
 	// resisted. Failures are reported to stderr and aggregated into a non-zero
 	// exit — the same contract runUnapply follows.
-	var failures int
-	if configExists {
-		if err := os.Remove(configPath); err != nil {
-			ui.Errf(errOut, "removing %s: %v", configPath, err)
-			failures++
-		} else {
-			ui.OKf(out, "removed %s", configPath)
-		}
-	} else {
-		ui.Skipf(out, "skip: %s", configPath)
-	}
-
-	if envExists {
-		if err := os.Remove(envPath); err != nil {
-			ui.Errf(errOut, "removing %s: %v", envPath, err)
-			failures++
-		} else {
-			ui.OKf(out, "removed %s", envPath)
-		}
-	} else {
-		ui.Skipf(out, "skip: %s", envPath)
-	}
+	failures := removeTarget(out, errOut, configPath, configExists)
+	failures += removeTarget(out, errOut, envPath, envExists)
 
 	if rcFile != "" {
 		if err := setup.RemoveSourceLine(rcFile, cfg.initFile); err != nil {
@@ -164,6 +145,22 @@ func runTeardown(cmd *cobra.Command, cfg *config, yes bool) error {
 	return nil
 }
 
+// removeTarget removes path when it exists, reporting the outcome — the
+// shared shape for teardown's best-effort removals. Returns 1 on failure so
+// callers can aggregate a failure count.
+func removeTarget(out, errOut io.Writer, path string, exists bool) int {
+	if !exists {
+		ui.Skipf(out, "skip: %s", path)
+		return 0
+	}
+	if err := os.Remove(path); err != nil {
+		ui.Errf(errOut, "removing %s: %v", path, err)
+		return 1
+	}
+	ui.OKf(out, "removed %s", path)
+	return 0
+}
+
 // hasDaggerFiles reports whether any .dagger file exists under root.
 func hasDaggerFiles(root string) bool {
 	found := false
@@ -171,7 +168,7 @@ func hasDaggerFiles(root string) bool {
 		if err != nil {
 			return nil
 		}
-		if d.IsDir() && d.Name() == ".git" {
+		if fileutil.IsGitDir(d) {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && d.Name() == ecosystem.ConfigFile {

@@ -14,7 +14,7 @@ func FuzzScan(f *testing.F) {
 		"#!/bin/sh\n# @action(link)\n",
 		"// @name(thing)\n// @require(bar)\n",
 		"# @when(os=linux) and more\n",
-		"# @when(\n",      // unterminated paren
+		"# @when(\n",       // unterminated paren
 		"# @(empty key)\n", // empty key after @
 		"",
 		"no annotations here\n",

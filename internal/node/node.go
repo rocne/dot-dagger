@@ -6,12 +6,44 @@ import (
 	"strings"
 )
 
-// StripRepoPrefix strips the "nosync-" then "dot-" leading prefixes from a single
-// path component — the naming convention for repo entries that should not sync or
-// that map to dotfiles (hidden files).
+// Action type constants — the canonical vocabulary for node actions, shared by
+// the pipeline (execution) and the annotation wizard (user-facing options).
+// This leaf package is the single owner; annotation cannot import pipeline
+// (import cycle), so both sides reference these values instead of re-declaring
+// them.
+const (
+	ActionCompose  = "compose"
+	ActionSource   = "source"
+	ActionNoSource = "no-source"
+	ActionLink     = "link"
+)
+
+// Repo naming-convention prefixes for path components. PrefixNoSync marks
+// entries sync tools should ignore; PrefixDot maps a repo-visible name to a
+// hidden dotfile ("dot-bashrc" ↔ ".bashrc"). Single owner — all prefix
+// stripping and construction routes through these.
+const (
+	PrefixNoSync = "nosync-"
+	PrefixDot    = "dot-"
+)
+
+// StripRepoPrefix strips the PrefixNoSync then PrefixDot leading prefixes from
+// a single path component — the naming convention for repo entries that should
+// not sync or that map to dotfiles (hidden files).
 func StripRepoPrefix(s string) string {
-	s = strings.TrimPrefix(s, "nosync-")
-	s = strings.TrimPrefix(s, "dot-")
+	s = strings.TrimPrefix(s, PrefixNoSync)
+	s = strings.TrimPrefix(s, PrefixDot)
+	return s
+}
+
+// LinkName converts one repo path component to its on-disk name for link
+// destinations: strips PrefixNoSync, then rewrites a PrefixDot prefix to a
+// leading dot ("dot-tmux.conf" → ".tmux.conf").
+func LinkName(s string) string {
+	s = strings.TrimPrefix(s, PrefixNoSync)
+	if rest, ok := strings.CutPrefix(s, PrefixDot); ok {
+		return "." + rest
+	}
 	return s
 }
 

@@ -139,8 +139,8 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 		fmt.Fprintf(out, "%s  %s %s %s\n",
 			ui.OK("adopted"), res.Links[0].Dest, ui.Arrow("→"), destAbs)
 	} else {
-		fmt.Fprintf(out, "%s  %s → %s\n", ui.OK("adopted"), srcAbs, destAbs)
-		fmt.Fprintf(out, "added to shellrc/ — run %s to regenerate init.sh\n", ui.Header("dotd apply"))
+		fmt.Fprintf(out, "%s  %s %s %s\n", ui.OK("adopted"), srcAbs, ui.Arrow("→"), destAbs)
+		fmt.Fprintf(out, "added to shellrc/ — run %s to regenerate init.sh\n", ui.Key("dotd apply"))
 	}
 	return nil
 }

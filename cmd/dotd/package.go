@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/rocne/dot-dagger/internal/annotation"
 	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/packages"
 	"github.com/rocne/dot-dagger/internal/pipeline"
@@ -64,9 +64,7 @@ Examples:
 				entries[i] = packageCheckEntry{Package: r.Package, Installed: installed}
 			}
 			if jsonOutput {
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
+				return writeJSON(cmd.OutOrStdout(), entries)
 			}
 			for _, e := range entries {
 				status := "not installed"
@@ -140,16 +138,16 @@ Examples:
 			pkgs := uniquePackages(collectPackageRequests(ordered))
 			entries := make([]packageListEntry, len(pkgs))
 			for i, r := range pkgs {
-				kind := "request"
+				// Kind values are the annotation keys the requests came from
+				// (@require / @request) — reuse the canonical constants.
+				kind := annotation.KeyRequest
 				if r.Hard {
-					kind = "require"
+					kind = annotation.KeyRequire
 				}
 				entries[i] = packageListEntry{Package: r.Package, Kind: kind}
 			}
 			if jsonOutput {
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(entries)
+				return writeJSON(cmd.OutOrStdout(), entries)
 			}
 			for _, e := range entries {
 				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %s\n", e.Package, e.Kind)

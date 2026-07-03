@@ -22,13 +22,13 @@ func newInitCmd(cfg *config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Scaffold .dagger convention files in your dotfiles repo",
-		Long: `Scaffold .dagger convention files in the configured dotfiles repo.
+		Long: fmt.Sprintf(`Scaffold .dagger convention files in the configured dotfiles repo.
 
 Prompts for shell scripts, config files, and bin scripts directories.
 Creates each directory if absent, writes .dagger if absent (idempotent).
 Also offers to append the init.sh source line to your shell RC file.
 
-Requires config.yaml — run 'dotd setup' first if you haven't already.
+Requires %s — run 'dotd setup' first if you haven't already.
 
 Use --non-interactive (or -n) to accept every default without prompting:
 all three convention directories are created under their default names and
@@ -38,7 +38,7 @@ fresh install.
 Examples:
   dotd init
   dotd init --files /path/to/dotfiles
-  dotd init --non-interactive`,
+  dotd init --non-interactive`, ecosystem.ConfigFileName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(cmd, cfg, nonInteractive)
 		},
