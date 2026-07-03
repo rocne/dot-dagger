@@ -36,9 +36,13 @@ Examples:
 			if jsonOutput {
 				return writeJSON(cmd.OutOrStdout(), rows)
 			}
+			// Column width follows the longest label — no hand-maintained constant.
+			width := 0
 			for _, r := range rows {
-				// column width 11 = len("config.yaml"), the longest label; bump if a longer name is added
-				fmt.Fprintf(cmd.OutOrStdout(), "%-11s %s\n", r.Name, r.Path)
+				width = max(width, len(r.Name))
+			}
+			for _, r := range rows {
+				fmt.Fprintf(cmd.OutOrStdout(), "%-*s %s\n", width, r.Name, r.Path)
 			}
 			return nil
 		},
