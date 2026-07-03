@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // TestPromptYN_EOF_ReturnsFalse is the regression guard for AUDIT-035.
@@ -88,6 +91,47 @@ func TestPromptConfirm_Interactive(t *testing.T) {
 			got := promptConfirm(io.Discard, r)
 			if got != tc.want {
 				t.Errorf("input=%q: got %v, want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+// newPromptTestCmd returns a cobra command wired to the given stdin content
+// with discarded output, for driving the huh-backed prompt helpers.
+func newPromptTestCmd(stdin string) *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.SetIn(strings.NewReader(stdin))
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	return cmd
+}
+
+// TestPromptMenu_EOF_Aborts guards against the wizard's infinite loop on
+// exhausted stdin. In accessible mode, huh fills the selection with its
+// default and returns nil on EOF instead of erroring — so a menu presented
+// in a loop (dotd annotate) re-selects the first option forever. EOF with no
+// input consumed must surface as errUserAborted.
+func TestPromptMenu_EOF_Aborts(t *testing.T) {
+	cmd := newPromptTestCmd("") // stdin already at EOF
+	_, err := promptMenu(cmd, "Select annotation", []string{"When", "After", "Done"})
+	if !errors.Is(err, errUserAborted) {
+		t.Fatalf("promptMenu with EOF stdin: err=%v, want errUserAborted", err)
+	}
+}
+
+// TestPromptMenu_SelectsOption verifies a normal piped selection still works,
+// including without a trailing newline (input that ends exactly at the answer
+// must not be mistaken for an EOF abort).
+func TestPromptMenu_SelectsOption(t *testing.T) {
+	for name, input := range map[string]string{"newline": "2\n", "no-trailing-newline": "2"} {
+		t.Run(name, func(t *testing.T) {
+			cmd := newPromptTestCmd(input)
+			idx, err := promptMenu(cmd, "Select annotation", []string{"When", "After", "Done"})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if idx != 1 {
+				t.Errorf("idx = %d, want 1", idx)
 			}
 		})
 	}
