@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"strings"
 
 	dotdagger "github.com/rocne/dot-dagger"
@@ -52,41 +54,123 @@ func renderCommandRef(root *cobra.Command) string {
 	return b.String()
 }
 
-// newDocsCmd builds the `docs` command. With --full it prints the complete
-// machine-readable reference (an llms-full-style blob): a provenance header,
-// the embedded prose, then the full CLI reference. Without --full it falls
-// through to cobra's own help (which lists --full); per-topic human output is
-// a future follow-up that reuses RenderProse.
+// newDocsCmd builds the `docs` command. Three ways in: --list shows the
+// available topics, `docs <topic>` prints one page, --full prints the
+// complete machine-readable reference (an llms-full-style blob): a
+// provenance header, the embedded prose, then the full CLI reference.
+// Bare `dotd docs` falls through to cobra's own help.
 func newDocsCmd() *cobra.Command {
-	var full bool
+	var full, list bool
 	cmd := &cobra.Command{
-		Use:   "docs",
+		Use:   "docs [topic]",
 		Short: "Print embedded documentation",
 		Long: `Print dot-dagger's documentation, embedded in the binary.
+
+With a topic argument, prints that single page. Topics are addressed by
+path (concepts/conditions) or, when unambiguous, by name (conditions).
+Run --list to see every topic.
 
 With --full, prints the complete machine-readable reference to stdout: every
 concept and reference page plus the full CLI reference, as one llms-full-style
 blob — the form intended for agents and tooling. Offline; no doc-site needed.
 
 Examples:
-  dotd docs --full              # complete reference (for agents)
-  dotd docs --full | less       # page it
-  dotd docs --full > dotd.txt   # capture to a file`,
+  dotd docs --list                  # list available topics
+  dotd docs conditions              # print one page by name
+  dotd docs reference/annotations   # by path when the name is ambiguous
+  dotd docs --full                  # complete reference (for agents)
+  dotd docs --full | less           # page it`,
+		Args: usageArgs(cobra.MaximumNArgs(1)),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) != 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			topics, err := docs.Topics(dotdagger.DocsFS)
+			if err != nil {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			comps := make([]string, 0, len(topics))
+			for _, t := range topics {
+				comps = append(comps, t.Slug+"\t"+t.Title)
+			}
+			return comps, cobra.ShellCompDirectiveNoFileComp
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !full {
-				return cmd.Help()
+			if len(args) == 1 && (full || list) {
+				return asUsageError(fmt.Errorf("a topic argument cannot be combined with --full or --list"))
 			}
 			out := cmd.OutOrStdout()
-			fmt.Fprintf(out, "# dotd %s — embedded reference\n\n", version)
-			prose, err := docs.RenderProse(dotdagger.DocsFS)
-			if err != nil {
-				return fmt.Errorf("render docs: %w", err)
+			switch {
+			case list:
+				return runDocsList(out)
+			case len(args) == 1:
+				return runDocsTopic(out, args[0])
+			case full:
+				fmt.Fprintf(out, "# dotd %s — embedded reference\n\n", version)
+				prose, err := docs.RenderProse(dotdagger.DocsFS)
+				if err != nil {
+					return fmt.Errorf("render docs: %w", err)
+				}
+				fmt.Fprint(out, prose)
+				fmt.Fprint(out, renderCommandRef(cmd.Root()))
+				return nil
+			default:
+				return cmd.Help()
 			}
-			fmt.Fprint(out, prose)
-			fmt.Fprint(out, renderCommandRef(cmd.Root()))
-			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&full, "full", false, "print the complete machine-readable reference (for agents)")
+	cmd.Flags().BoolVar(&list, "list", false, "list available documentation topics")
+	cmd.MarkFlagsMutuallyExclusive("full", "list")
 	return cmd
+}
+
+// runDocsList prints one topic per line: slug column, then title.
+func runDocsList(w io.Writer) error {
+	topics, err := docs.Topics(dotdagger.DocsFS)
+	if err != nil {
+		return fmt.Errorf("list docs: %w", err)
+	}
+	// Column width follows the longest slug — no hand-maintained constant.
+	width := 0
+	for _, t := range topics {
+		width = max(width, len(t.Slug))
+	}
+	for _, t := range topics {
+		fmt.Fprintf(w, "%-*s  %s\n", width, t.Slug, t.Title)
+	}
+	return nil
+}
+
+// runDocsTopic prints the single page query resolves to, or a usage error
+// when the query is unknown or ambiguous.
+func runDocsTopic(w io.Writer, query string) error {
+	topics, err := docs.Topics(dotdagger.DocsFS)
+	if err != nil {
+		return fmt.Errorf("resolve docs topic: %w", err)
+	}
+	matches := docs.Match(topics, query)
+	switch len(matches) {
+	case 1:
+		body, err := fs.ReadFile(dotdagger.DocsFS, matches[0].Path)
+		if err != nil {
+			return fmt.Errorf("read docs topic %q: %w", matches[0].Slug, err)
+		}
+		_, err = w.Write(body)
+		return err
+	case 0:
+		return &usageError{err: &hintError{
+			err:  fmt.Errorf("unknown docs topic %q", query),
+			hint: "run 'dotd docs --list' to see available topics",
+		}}
+	default:
+		slugs := make([]string, len(matches))
+		for i, m := range matches {
+			slugs[i] = m.Slug
+		}
+		return &usageError{err: &hintError{
+			err:  fmt.Errorf("docs topic %q is ambiguous: %s", query, strings.Join(slugs, ", ")),
+			hint: fmt.Sprintf("pass the full path, e.g. 'dotd docs %s'", slugs[0]),
+		}}
+	}
 }

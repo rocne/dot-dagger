@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -75,6 +76,74 @@ func TestDocsCmd_FullRendersEmbeddedReference(t *testing.T) {
 	}
 	if !strings.Contains(s, "## dotd apply") {
 		t.Errorf("CLI reference does not include real commands from the tree; got:\n%s", s)
+	}
+}
+
+func TestDocsCmd_ListPrintsTopics(t *testing.T) {
+	out, err := run(t, "docs", "--list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"concepts/conditions", "reference/dotd", "getting-started/first-machine"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("`docs --list` missing topic %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestDocsCmd_TopicRendersSinglePage(t *testing.T) {
+	out, err := run(t, "docs", "conditions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "# Conditions") {
+		t.Errorf("topic output missing conditions page heading:\n%.400s", out)
+	}
+	if strings.Contains(out, "# === docs/reference/dotd.md ===") {
+		t.Error("topic output leaked other pages — expected a single page")
+	}
+}
+
+func TestDocsCmd_FullSlugAlsoResolves(t *testing.T) {
+	out, err := run(t, "docs", "concepts/conditions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "# Conditions") {
+		t.Errorf("full-slug topic output missing page heading:\n%.400s", out)
+	}
+}
+
+func TestDocsCmd_UnknownTopicIsUsageErrorWithHint(t *testing.T) {
+	_, err := run(t, "docs", "no-such-topic")
+	if err == nil {
+		t.Fatal("expected error for unknown topic")
+	}
+	var ue *usageError
+	if !errors.As(err, &ue) {
+		t.Errorf("unknown topic should be a usage error (exit 2), got %T: %v", err, err)
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "--list") {
+		t.Errorf("unknown topic hint should point at 'dotd docs --list', got: %v", err)
+	}
+}
+
+func TestDocsCmd_AmbiguousTopicListsCandidates(t *testing.T) {
+	// "annotations" exists under both concepts/ and reference/.
+	_, err := run(t, "docs", "annotations")
+	if err == nil {
+		t.Fatal("expected error for ambiguous topic")
+	}
+	msg := err.Error()
+	var h Hinter
+	if errors.As(err, &h) {
+		msg += " " + h.Hint()
+	}
+	for _, want := range []string{"concepts/annotations", "reference/annotations"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("ambiguous-topic error should list candidate %q, got: %s", want, msg)
+		}
 	}
 }
 

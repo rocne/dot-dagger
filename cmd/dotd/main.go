@@ -150,12 +150,26 @@ func newRootCmd() *cobra.Command {
 		Short: "Dotfiles manager — env resolution, DAG, symlinks, and init.sh generation",
 		Long: `dotd — dotfiles manager: env resolution, DAG, symlinks, and init.sh generation.
 
-Run 'dotd docs --full' for the complete machine-readable reference (concepts,
-reference docs, and the full CLI help) embedded in the binary — intended for
-agents and tooling.`,
+Documentation is embedded in the binary: 'dotd docs --list' shows the topics,
+'dotd docs <topic>' prints one page, and 'dotd docs --full' prints the complete
+machine-readable reference (concepts, reference docs, and the full CLI help) —
+the form intended for agents and tooling.`,
 		Version:       fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		// The root is runnable only so an unrecognized first argument lands
+		// in RunE instead of cobra's untyped exit-1 "unknown command" error:
+		// known subcommands are routed before the root runs, so any argument
+		// seen here is an unknown command — reported as a usage error (exit
+		// 2) with suggestions and a hint. ArbitraryArgs is required to keep
+		// cobra's legacy arg validation from erroring first.
+		Args: cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			return unknownCommandError(cmd, args[0])
+		},
 	}
 
 	pf := root.PersistentFlags()
@@ -176,6 +190,12 @@ agents and tooling.`,
 	})
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if cmd == root {
+			// The root RunE only prints help or an unknown-command error —
+			// it needs no resolved paths or logger, and must stay able to
+			// show help even when config resolution would warn or fail.
+			return nil
+		}
 		if err := resolvePaths(cfg); err != nil {
 			return err
 		}

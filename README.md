@@ -207,6 +207,16 @@ dotd completion powershell | Out-String | Invoke-Expression
 
 Reload your shell and tab-completion for commands, flags, and subcommands works.
 
+### Offline documentation
+
+The full documentation set is embedded in the binary — no network needed:
+
+```sh
+dotd docs --list        # list available topics
+dotd docs conditions    # print one page
+dotd docs --full        # everything, in one machine-readable blob (for agents)
+```
+
 ---
 
 ## Verifying releases

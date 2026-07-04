@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -73,6 +74,27 @@ func keyArgs(nArgs int, usage, hint string) cobra.PositionalArgs {
 			hint: usage + " — " + hint,
 		}}
 	}
+}
+
+// unknownCommandError builds the usage error for an unrecognized first
+// argument at the root. Cobra routes known subcommands before the root RunE
+// runs, so reaching this means the command does not exist. Suggestions reuse
+// cobra's Levenshtein matching.
+func unknownCommandError(root *cobra.Command, name string) error {
+	hint := fmt.Sprintf("run '%s --help' for the full command list", root.Name())
+	// SuggestionsFor honors SuggestionsMinimumDistance but never defaults it —
+	// cobra only backfills the default (2) on its internal unknown-command
+	// path, which the runnable root bypasses.
+	if root.SuggestionsMinimumDistance <= 0 {
+		root.SuggestionsMinimumDistance = 2
+	}
+	if s := root.SuggestionsFor(name); len(s) > 0 {
+		hint = fmt.Sprintf("did you mean '%s'? %s", strings.Join(s, "', '"), hint)
+	}
+	return &usageError{err: &hintError{
+		err:  fmt.Errorf("unknown command %q for %q", name, root.Name()),
+		hint: hint,
+	}}
 }
 
 // usageArgs wraps a cobra.PositionalArgs so validation failures surface as
