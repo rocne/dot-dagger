@@ -54,6 +54,59 @@ func RenderProse(fsys fs.FS) (string, error) {
 	return b.String(), nil
 }
 
+// Topic is one embedded documentation page addressable from the CLI.
+type Topic struct {
+	Slug  string // page path under docsRoot without the .md suffix, e.g. "concepts/conditions"
+	Path  string // full embedded path, e.g. "docs/concepts/conditions.md"
+	Title string // first "# " heading in the page, or the slug when it has none
+}
+
+// Topics returns the embedded pages in the same curated order RenderProse
+// uses, so listings and the --full blob never disagree about ordering.
+func Topics(fsys fs.FS) ([]Topic, error) {
+	files, err := orderedFiles(fsys)
+	if err != nil {
+		return nil, err
+	}
+	topics := make([]Topic, 0, len(files))
+	for _, f := range files {
+		body, err := fs.ReadFile(fsys, f)
+		if err != nil {
+			return nil, err
+		}
+		slug := strings.TrimSuffix(strings.TrimPrefix(f, docsRoot+"/"), ".md")
+		title := slug
+		for _, line := range strings.Split(string(body), "\n") {
+			if strings.HasPrefix(line, "# ") {
+				title = strings.TrimSpace(strings.TrimPrefix(line, "# "))
+				break
+			}
+		}
+		topics = append(topics, Topic{Slug: slug, Path: f, Title: title})
+	}
+	return topics, nil
+}
+
+// Match resolves query to candidate topics, case-insensitively. An exact
+// slug match wins outright; otherwise every topic whose final path element
+// equals the query is a candidate — the caller decides how to report
+// ambiguity (len > 1) or no match (len == 0).
+func Match(topics []Topic, query string) []Topic {
+	q := strings.ToLower(query)
+	for _, t := range topics {
+		if strings.ToLower(t.Slug) == q {
+			return []Topic{t}
+		}
+	}
+	var out []Topic
+	for _, t := range topics {
+		if strings.ToLower(path.Base(t.Slug)) == q {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // orderedFiles returns the .md files under docsRoot in curated-then-alphabetical
 // order (see priority). Files within a directory are alphabetical.
 func orderedFiles(fsys fs.FS) ([]string, error) {

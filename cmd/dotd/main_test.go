@@ -2129,3 +2129,52 @@ func TestResolvePaths_AnchorsFromEnv(t *testing.T) {
 		t.Fatalf("home=%q configDir=%q binDir=%q", cfg.home, cfg.configDir, cfg.binDir)
 	}
 }
+
+// TestUnknownCommand_UsageErrorWithHint verifies that a nonexistent
+// subcommand is reported as a usage error (exit 2) with a hint pointing at
+// --help, instead of cobra's bare exit-1 message.
+func TestUnknownCommand_UsageErrorWithHint(t *testing.T) {
+	_, err := run(t, "frobnicate")
+	if err == nil {
+		t.Fatal("expected error for unknown command")
+	}
+	if !strings.Contains(err.Error(), `unknown command "frobnicate"`) {
+		t.Errorf("error should name the unknown command, got: %v", err)
+	}
+	var ue *usageError
+	if !errors.As(err, &ue) {
+		t.Errorf("unknown command should be a usage error (exit 2), got %T: %v", err, err)
+	}
+	var h Hinter
+	if !errors.As(err, &h) || !strings.Contains(h.Hint(), "--help") {
+		t.Errorf("unknown command hint should point at 'dotd --help', got: %v", err)
+	}
+}
+
+// TestUnknownCommand_SuggestsClosest verifies typo suggestions survive the
+// custom unknown-command handling.
+func TestUnknownCommand_SuggestsClosest(t *testing.T) {
+	_, err := run(t, "aply")
+	if err == nil {
+		t.Fatal("expected error for unknown command")
+	}
+	msg := err.Error()
+	var h Hinter
+	if errors.As(err, &h) {
+		msg += " " + h.Hint()
+	}
+	if !strings.Contains(msg, "apply") {
+		t.Errorf("expected 'apply' suggestion for 'aply', got: %s", msg)
+	}
+}
+
+// TestBareRootShowsHelp pins the no-args behavior: print help, no error.
+func TestBareRootShowsHelp(t *testing.T) {
+	out, err := run(t)
+	if err != nil {
+		t.Fatalf("bare dotd should print help without error, got: %v", err)
+	}
+	if !strings.Contains(out, "Usage:") {
+		t.Errorf("bare dotd output missing Usage section:\n%.400s", out)
+	}
+}

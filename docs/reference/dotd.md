@@ -268,3 +268,21 @@ dotd compose check             # check whether generated files are up to date
 `dotd apply` automatically regenerates compose targets when they are stale. Use `dotd compose check` to inspect state without making changes.
 
 See [`.dagger` reference](dagger.md#composition) for how to declare a compose target.
+
+---
+
+## dotd docs
+
+Prints documentation embedded in the binary — the full doc set ships inside
+`dotd`, so it works offline with no doc-site round-trip.
+
+```sh
+dotd docs --list                  # list available topics
+dotd docs conditions              # print one page by name
+dotd docs reference/annotations   # by path when the name is ambiguous
+dotd docs --full                  # complete machine-readable reference
+```
+
+`--full` prints every concept and reference page plus the full CLI reference
+as one blob — the form intended for agents and tooling. Topic names
+tab-complete when shell completion is installed.

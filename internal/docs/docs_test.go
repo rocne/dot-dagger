@@ -52,6 +52,75 @@ func TestRenderProse_OrderHeadersBodies(t *testing.T) {
 	}
 }
 
+func TestTopics_SlugsTitlesOrder(t *testing.T) {
+	fsys := fstest.MapFS{
+		"docs/index.md":               {Data: []byte("# Welcome\n\nintro")},
+		"docs/concepts/conditions.md": {Data: []byte("# Conditions\n\nbody")},
+		"docs/reference/dotd.md":      {Data: []byte("no heading here")},
+	}
+	topics, err := Topics(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []Topic{
+		{Slug: "index", Path: "docs/index.md", Title: "Welcome"},
+		{Slug: "concepts/conditions", Path: "docs/concepts/conditions.md", Title: "Conditions"},
+		{Slug: "reference/dotd", Path: "docs/reference/dotd.md", Title: "reference/dotd"},
+	}
+	if len(topics) != len(want) {
+		t.Fatalf("got %d topics, want %d: %+v", len(topics), len(want), topics)
+	}
+	for i, w := range want {
+		if topics[i] != w {
+			t.Errorf("topic[%d] = %+v, want %+v", i, topics[i], w)
+		}
+	}
+}
+
+func TestMatch_ExactSlugBeatsBasename(t *testing.T) {
+	topics := []Topic{
+		{Slug: "index"},
+		{Slug: "getting-started/index"},
+	}
+	got := Match(topics, "index")
+	if len(got) != 1 || got[0].Slug != "index" {
+		t.Fatalf("Match(index) = %+v, want exact slug match only", got)
+	}
+}
+
+func TestMatch_UniqueBasename(t *testing.T) {
+	topics := []Topic{
+		{Slug: "concepts/conditions"},
+		{Slug: "reference/dotd"},
+	}
+	got := Match(topics, "conditions")
+	if len(got) != 1 || got[0].Slug != "concepts/conditions" {
+		t.Fatalf("Match(conditions) = %+v, want concepts/conditions", got)
+	}
+}
+
+func TestMatch_AmbiguousBasenameReturnsAll(t *testing.T) {
+	topics := []Topic{
+		{Slug: "concepts/annotations"},
+		{Slug: "reference/annotations"},
+	}
+	got := Match(topics, "annotations")
+	if len(got) != 2 {
+		t.Fatalf("Match(annotations) = %+v, want both candidates", got)
+	}
+}
+
+func TestMatch_CaseInsensitiveAndNone(t *testing.T) {
+	topics := []Topic{{Slug: "concepts/conditions"}}
+	if got := Match(topics, "Conditions"); len(got) != 1 {
+		t.Errorf("Match(Conditions) = %+v, want case-insensitive hit", got)
+	}
+	if got := Match(topics, "nope"); len(got) != 0 {
+		t.Errorf("Match(nope) = %+v, want empty", got)
+	}
+}
+
 func TestRenderProse_UnknownDirsAppendedAlphabetically(t *testing.T) {
 	fsys := fstest.MapFS{
 		"docs/index.md":        {Data: []byte("I")},
