@@ -72,6 +72,18 @@ dotd check -f ~/dotfiles --debug
 
 ---
 
+## dotd list
+
+Lists the nodes the pipeline discovered, one per line: logical name, actions, path.
+
+```sh
+dotd list                # active nodes only
+dotd list --inactive     # nodes filtered out by @when predicates
+dotd list --json         # machine-readable JSON
+```
+
+---
+
 ## dotd setup
 
 Interactive onboarding. Writes config.yaml and (if absent) env.yaml. Does not touch your dotfiles repo or shell RC file — `dotd init` does that.
@@ -176,6 +188,19 @@ The original file is replaced with a symlink to its new location in the repo. Us
 
 ---
 
+## dotd annotate
+
+Interactively adds or edits dotd annotations (`@when`, `@after`, `@require`, …) in a file's header block. Existing annotations are pre-loaded; the updated block is written atomically on confirm.
+
+```sh
+dotd annotate shellrc/base.sh
+dotd annotate config/dot-gitconfig
+```
+
+The file must be inside the dotfiles repo. Works in non-interactive contexts too (accessible mode).
+
+---
+
 ## dotd env
 
 Environment inspection and modification.
@@ -268,6 +293,19 @@ dotd compose check             # check whether generated files are up to date
 `dotd apply` automatically regenerates compose targets when they are stale. Use `dotd compose check` to inspect state without making changes.
 
 See [`.dagger` reference](dagger.md#composition) for how to declare a compose target.
+
+---
+
+## dotd concepts
+
+Prints a single-page digest of dotd concepts: pipeline stages, `@when` predicates, annotations, env.yaml, and directory naming conventions. Made for grepping.
+
+```sh
+dotd concepts
+dotd concepts | grep -A4 PREDICATES
+```
+
+For the full documentation set, see `dotd docs` below.
 
 ---
 
