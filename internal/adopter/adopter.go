@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rocne/dot-dagger/internal/dagger"
+	"github.com/rocne/dot-dagger/internal/ecosystem"
 	"github.com/rocne/dot-dagger/internal/fileutil"
 	"github.com/rocne/dot-dagger/internal/node"
 	"github.com/rocne/dot-dagger/internal/pipeline"
@@ -100,20 +102,40 @@ func Infer(src string, info os.FileInfo, conv ConventionNames) Inference {
 	return Inference{Unknown: true}
 }
 
+// PersistResult describes whether adopt needed to record the link destination
+// in the destination directory's .dagger for apply to round-trip, and how the
+// recording went. A future apply re-derives the symlink destination from the
+// .dagger cascade; when that derivation would differ from the symlink adopt
+// just made, the original location must be persisted as a files: entry or
+// apply creates a second, wrong symlink (issue #191).
+type PersistResult struct {
+	Needed     bool   // derived dest differs from adopt's symlink — an entry must be recorded
+	Persisted  bool   // the files: entry was written to DaggerPath
+	Dest       string // home-contracted destination recorded (or to record)
+	Derived    string // what apply would derive without the entry ("" = apply would not link at all)
+	DaggerPath string // .dagger file that was (or must be) updated
+	Snippet    string // exact YAML to add manually when Needed && !Persisted
+	Err        error  // why automatic persistence failed (when Needed && !Persisted)
+}
+
 // Adopt copies src to <DotfilesRoot>/<destRel>, removes the original,
 // and creates a symlink at the original src path (or the managed bin dir
-// for bin/ files). Returns the pipeline.ActResult from pipeline.Act.
-func Adopt(src, destRel string, opts AdoptOptions) (*pipeline.ActResult, error) {
+// for bin/ files). When the destination a future apply would derive for the
+// adopted file differs from that symlink, Adopt also records the destination
+// as a files: entry in the containing directory's .dagger (see PersistResult;
+// a failure to record never fails the adopt — it is reported for manual
+// follow-up instead). Returns the pipeline.ActResult from pipeline.Act.
+func Adopt(src, destRel string, opts AdoptOptions) (*pipeline.ActResult, *PersistResult, error) {
 	destAbs := filepath.Join(opts.DotfilesRoot, destRel)
 
 	// Fail fast if dest already exists.
 	if _, err := os.Stat(destAbs); err == nil {
-		return nil, fmt.Errorf("adopt: destination already exists: %s", destAbs)
+		return nil, nil, fmt.Errorf("adopt: destination already exists: %s", destAbs)
 	}
 
 	rel, err := filepath.Rel(opts.DotfilesRoot, destAbs)
 	if err != nil {
-		return nil, fmt.Errorf("adopt: rel path: %w", err)
+		return nil, nil, fmt.Errorf("adopt: rel path: %w", err)
 	}
 
 	actions := actionsFor(destRel, src, opts)
@@ -128,16 +150,21 @@ func Adopt(src, destRel string, opts AdoptOptions) (*pipeline.ActResult, error) 
 
 	// In dry-run, skip all filesystem writes.
 	if opts.DryRun {
-		return pipeline.Act([]pipeline.RawNode{n}, actOpts)
+		res, err := pipeline.Act([]pipeline.RawNode{n}, actOpts)
+		if err != nil {
+			return nil, nil, err
+		}
+		// The file has not moved — scan annotations from src.
+		return res, planPersist(src, destRel, src, opts), nil
 	}
 
 	if err := copyFile(src, destAbs); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := os.Remove(src); err != nil {
 		// Copy succeeded but remove failed — both copies exist, safe state.
-		return nil, fmt.Errorf("adopt: remove original %s: %w", src, err)
+		return nil, nil, fmt.Errorf("adopt: remove original %s: %w", src, err)
 	}
 
 	res, err := pipeline.Act([]pipeline.RawNode{n}, actOpts)
@@ -145,11 +172,71 @@ func Adopt(src, destRel string, opts AdoptOptions) (*pipeline.ActResult, error) 
 		// Remove succeeded, Act failed — file moved but no symlink.
 		// Attempt to restore the original.
 		if renameErr := os.Rename(destAbs, src); renameErr == nil {
-			return nil, fmt.Errorf("adopt: create symlink: %w (original restored at %s)", err, src)
+			return nil, nil, fmt.Errorf("adopt: create symlink: %w (original restored at %s)", err, src)
 		}
-		return nil, fmt.Errorf("adopt: create symlink: %w — recovery: mv %s %s", err, destAbs, src)
+		return nil, nil, fmt.Errorf("adopt: create symlink: %w — recovery: mv %s %s", err, destAbs, src)
 	}
-	return res, nil
+
+	persist := planPersist(src, destRel, destAbs, opts)
+	if persist.Needed {
+		if perr := dagger.SetFileLink(persist.DaggerPath, filepath.Base(destRel), persist.Dest); perr != nil {
+			// The adopt itself succeeded (file moved, symlink made) — never
+			// fail it over bookkeeping. Report for manual follow-up.
+			persist.Err = perr
+		} else {
+			persist.Persisted = true
+		}
+	}
+	return res, persist, nil
+}
+
+// PlanPersist computes, without writing anything, whether adopting src at
+// destRel would require recording a link destination (and where). For use by
+// dry-run callers; src must still exist at its original location.
+func PlanPersist(src, destRel string, opts AdoptOptions) *PersistResult {
+	return planPersist(src, destRel, src, opts)
+}
+
+// planPersist decides whether the symlink adopt creates for destRel survives
+// a future apply. contentPath is the current location of the file's content:
+// src before the move (dry-run), destAbs after.
+func planPersist(src, destRel, contentPath string, opts AdoptOptions) *PersistResult {
+	destAbs := filepath.Join(opts.DotfilesRoot, destRel)
+	res := &PersistResult{
+		DaggerPath: filepath.Join(filepath.Dir(destAbs), ecosystem.ConfigFile),
+	}
+
+	// Which symlink does adopt itself create?
+	var adoptDest string
+	for _, a := range actionsFor(destRel, src, opts) {
+		if a.Type == pipeline.ActionLink {
+			adoptDest = a.Dest
+		}
+	}
+	if adoptDest == "" {
+		return res // shellrc/: sourced, no symlink to round-trip
+	}
+
+	derived, err := pipeline.DerivedLinkDest(opts.DotfilesRoot, destAbs, contentPath, pipeline.ActOptions{
+		HomeDir:   opts.HomeDir,
+		BinDir:    opts.BinDir,
+		ConfigDir: opts.ConfigDir,
+	})
+	if err != nil {
+		// The file (or an ancestor .dagger) can't be read the way apply's
+		// walk would read it — apply would fail the same way, and a files:
+		// entry sidesteps the in-file scan. Treat as "apply derives nothing".
+		derived = ""
+	}
+	res.Derived = derived
+	if derived != "" && filepath.Clean(derived) == filepath.Clean(adoptDest) {
+		return res // apply already derives the same destination
+	}
+
+	res.Needed = true
+	res.Dest = fileutil.ContractHome(adoptDest, opts.HomeDir)
+	res.Snippet = dagger.FileLinkSnippet(filepath.Base(destRel), res.Dest)
+	return res
 }
 
 // actionsFor returns pipeline actions for the node at destRel.

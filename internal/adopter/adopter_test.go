@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rocne/dot-dagger/internal/pipeline"
 )
 
 func TestInfer_Executable(t *testing.T) {
@@ -124,7 +126,7 @@ func TestAdopt_Config(t *testing.T) {
 		HomeDir:      srcDir,
 	}
 
-	res, err := Adopt(src, "config/dot-bashrc", opts)
+	res, _, err := Adopt(src, "config/dot-bashrc", opts)
 	if err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
@@ -178,7 +180,7 @@ func TestAdopt_Bin(t *testing.T) {
 		BinDir:       binDir,
 	}
 
-	res, err := Adopt(src, "bin/my-script", opts)
+	res, _, err := Adopt(src, "bin/my-script", opts)
 	if err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
@@ -219,7 +221,7 @@ func TestAdopt_Shellrc(t *testing.T) {
 		HomeDir:      srcDir,
 	}
 
-	res, err := Adopt(src, "shellrc/aliases.sh", opts)
+	res, _, err := Adopt(src, "shellrc/aliases.sh", opts)
 	if err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
@@ -261,7 +263,7 @@ func TestAdopt_DestExists(t *testing.T) {
 	}
 
 	opts := AdoptOptions{DotfilesRoot: dotfiles, Conventions: DefaultConventions(), HomeDir: t.TempDir()}
-	_, err := Adopt(src, "config/dot-bashrc", opts)
+	_, _, err := Adopt(src, "config/dot-bashrc", opts)
 	if err == nil {
 		t.Fatal("expected error when dest exists, got nil")
 	}
@@ -281,7 +283,7 @@ func TestAdopt_DryRun(t *testing.T) {
 		DryRun:       true,
 	}
 
-	_, err := Adopt(src, "config/dot-bashrc", opts)
+	_, _, err := Adopt(src, "config/dot-bashrc", opts)
 	if err != nil {
 		t.Fatalf("Adopt dry-run: %v", err)
 	}
@@ -295,5 +297,173 @@ func TestAdopt_DryRun(t *testing.T) {
 	destAbs := filepath.Join(dotfiles, "config/dot-bashrc")
 	if _, statErr := os.Stat(destAbs); !os.IsNotExist(statErr) {
 		t.Error("dest should not be created in dry-run")
+	}
+}
+
+// --- adopt-time link-destination persistence (issue #191) ---
+
+// scaffoldConfigDagger writes the same config/.dagger dotd init scaffolds:
+// link_root "$config" with a link default.
+func scaffoldConfigDagger(t *testing.T, dotfiles string) string {
+	t.Helper()
+	dir := filepath.Join(dotfiles, "config")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, ".dagger")
+	content := "link_root: \"$config\"\ndefaults:\n  actions:\n    - link\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestAdopt_PersistsLinkDestWhenDerivedDiffers(t *testing.T) {
+	dotfiles := t.TempDir()
+	home := t.TempDir()
+	daggerPath := scaffoldConfigDagger(t, dotfiles)
+
+	src := filepath.Join(home, ".bashrc")
+	if err := os.WriteFile(src, []byte("# bashrc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{
+		DotfilesRoot: dotfiles,
+		Conventions:  DefaultConventions(),
+		HomeDir:      home,
+		ConfigDir:    filepath.Join(home, ".config"),
+	}
+
+	_, persist, err := Adopt(src, "config/dot-bashrc", opts)
+	if err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+	if persist == nil || !persist.Needed || !persist.Persisted {
+		t.Fatalf("persist = %+v, want Needed && Persisted", persist)
+	}
+	if persist.Dest != "~/.bashrc" {
+		t.Errorf("persist.Dest = %q, want home-contracted ~/.bashrc", persist.Dest)
+	}
+	if want := filepath.Join(home, ".config", ".bashrc"); persist.Derived != want {
+		t.Errorf("persist.Derived = %q, want %q", persist.Derived, want)
+	}
+	if persist.DaggerPath != daggerPath {
+		t.Errorf("persist.DaggerPath = %q, want %q", persist.DaggerPath, daggerPath)
+	}
+
+	// The entry must actually round-trip: apply's derivation now lands on src.
+	destAbs := filepath.Join(dotfiles, "config", "dot-bashrc")
+	derived, err := pipeline.DerivedLinkDest(dotfiles, destAbs, destAbs, pipeline.ActOptions{
+		HomeDir: home, ConfigDir: filepath.Join(home, ".config"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if derived != src {
+		t.Errorf("post-adopt derived dest = %q, want original path %q", derived, src)
+	}
+}
+
+func TestAdopt_NoPersistWhenDerivedMatches(t *testing.T) {
+	dotfiles := t.TempDir()
+	home := t.TempDir()
+	daggerPath := scaffoldConfigDagger(t, dotfiles)
+	before, err := os.ReadFile(daggerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A file already living in $config: derived dest == original path.
+	configDir := filepath.Join(home, ".config")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(configDir, "app.toml")
+	if err := os.WriteFile(src, []byte("[a]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{
+		DotfilesRoot: dotfiles,
+		Conventions:  DefaultConventions(),
+		HomeDir:      home,
+		ConfigDir:    configDir,
+	}
+
+	_, persist, err := Adopt(src, "config/app.toml", opts)
+	if err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+	if persist == nil || persist.Needed || persist.Persisted {
+		t.Fatalf("persist = %+v, want nothing needed", persist)
+	}
+	after, err := os.ReadFile(daggerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Errorf(".dagger modified although derivation already matched:\n%s", after)
+	}
+}
+
+func TestAdopt_DryRunPlansPersistWithoutWriting(t *testing.T) {
+	dotfiles := t.TempDir()
+	home := t.TempDir()
+	daggerPath := scaffoldConfigDagger(t, dotfiles)
+	before, _ := os.ReadFile(daggerPath)
+
+	src := filepath.Join(home, ".zshrc")
+	if err := os.WriteFile(src, []byte("# rc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{
+		DotfilesRoot: dotfiles,
+		Conventions:  DefaultConventions(),
+		HomeDir:      home,
+		ConfigDir:    filepath.Join(home, ".config"),
+		DryRun:       true,
+	}
+
+	_, persist, err := Adopt(src, "config/dot-zshrc", opts)
+	if err != nil {
+		t.Fatalf("Adopt dry-run: %v", err)
+	}
+	if persist == nil || !persist.Needed {
+		t.Fatalf("persist = %+v, want Needed in dry-run plan", persist)
+	}
+	if persist.Persisted {
+		t.Error("dry-run must not report Persisted")
+	}
+	if persist.Dest != "~/.zshrc" {
+		t.Errorf("persist.Dest = %q, want ~/.zshrc", persist.Dest)
+	}
+	after, _ := os.ReadFile(daggerPath)
+	if string(after) != string(before) {
+		t.Error("dry-run must not modify .dagger")
+	}
+	// PlanPersist (the exported dry-run helper) agrees.
+	plan := PlanPersist(src, "config/dot-zshrc", opts)
+	if !plan.Needed || plan.Dest != persist.Dest {
+		t.Errorf("PlanPersist = %+v, want same decision as Adopt dry-run", plan)
+	}
+}
+
+func TestAdopt_ShellrcNeedsNoPersist(t *testing.T) {
+	dotfiles := t.TempDir()
+	srcDir := t.TempDir()
+	src := filepath.Join(srcDir, "aliases.sh")
+	if err := os.WriteFile(src, []byte("alias ll='ls -la'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := AdoptOptions{DotfilesRoot: dotfiles, Conventions: DefaultConventions(), HomeDir: srcDir}
+	_, persist, err := Adopt(src, "shellrc/aliases.sh", opts)
+	if err != nil {
+		t.Fatalf("Adopt: %v", err)
+	}
+	if persist == nil || persist.Needed {
+		t.Fatalf("persist = %+v, want not needed for sourced files", persist)
 	}
 }

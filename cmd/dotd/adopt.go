@@ -38,6 +38,12 @@ is not provided, the command errors.
 For shellrc/ files, no symlink is created. The file is sourced via init.sh
 after running dotd apply.
 
+When the destination directory's .dagger rules would derive a different
+symlink location than the file's original path (the default config/ scaffold
+links into $config, but ~/.gitconfig lives in ~), adopt records the original
+location as a files: entry in that .dagger, so a later 'dotd apply' re-creates
+exactly the symlink adopt made — on this machine and any other.
+
 Examples:
   dotd adopt ~/.bashrc                              # → config/dot-bashrc
   dotd adopt ~/bin/my-script                        # → bin/my-script
@@ -87,10 +93,24 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 		cfg.log.Debugf("inferred destination: %s (%s)", destRel, inf.Reason)
 	}
 
+	opts := adopter.AdoptOptions{
+		DotfilesRoot: cfg.files,
+		Conventions:  conv,
+		HomeDir:      cfg.home,
+		ConfigDir:    cfg.configDir,
+		BinDir:       cfg.binDir,
+		Force:        cfg.force,
+	}
+
 	// Dry-run stops here — nothing moves, so no confirmation is needed.
 	if cfg.dryRun {
 		destAbs := filepath.Join(cfg.files, destRel)
-		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: adopt %s → %s\n", srcAbs, destAbs)
+		out := cmd.OutOrStdout()
+		fmt.Fprintf(out, "dry-run: adopt %s → %s\n", srcAbs, destAbs)
+		if persist := adopter.PlanPersist(srcAbs, destRel, opts); persist.Needed {
+			fmt.Fprintf(out, "dry-run: record link destination %s in %s (%s)\n",
+				persist.Dest, persist.DaggerPath, persistReason(persist))
+		}
 		return nil
 	}
 
@@ -116,16 +136,7 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 		}
 	}
 
-	opts := adopter.AdoptOptions{
-		DotfilesRoot: cfg.files,
-		Conventions:  conv,
-		HomeDir:      cfg.home,
-		ConfigDir:    cfg.configDir,
-		BinDir:       cfg.binDir,
-		Force:        cfg.force,
-	}
-
-	res, err := adopter.Adopt(srcAbs, destRel, opts)
+	res, persist, err := adopter.Adopt(srcAbs, destRel, opts)
 	if err != nil {
 		return err
 	}
@@ -142,7 +153,32 @@ func runAdopt(cmd *cobra.Command, cfg *config, src, to string, yes bool) error {
 		fmt.Fprintf(out, "%s  %s %s %s\n", ui.OK("adopted"), srcAbs, ui.Arrow("→"), destAbs)
 		fmt.Fprintf(out, "added to shellrc/ — run %s to regenerate init.sh\n", ui.Key("dotd apply"))
 	}
+
+	switch {
+	case persist == nil || !persist.Needed:
+		// Nothing to record — apply already derives the same destination
+		// (or the file is sourced, not linked).
+	case persist.Persisted:
+		fmt.Fprintf(out, "%s  link destination %s in %s (%s)\n",
+			ui.OK("recorded"), persist.Dest, persist.DaggerPath, persistReason(persist))
+	default:
+		// Could not mutate .dagger safely — the adopt itself succeeded, so
+		// instruct instead of failing (issue #191: without this entry the
+		// next apply creates a second, wrong symlink).
+		ui.Warnf(cmd.ErrOrStderr(), "could not record the link destination in %s automatically: %v", persist.DaggerPath, persist.Err)
+		fmt.Fprintf(out, "add this to %s so %s re-creates the symlink at %s:\n\n%s\n",
+			persist.DaggerPath, ui.Key("dotd apply"), persist.Dest, persist.Snippet)
+	}
 	return nil
+}
+
+// persistReason explains why adopt records (or would record) a link
+// destination override for the adopted file.
+func persistReason(p *adopter.PersistResult) string {
+	if p.Derived == "" {
+		return "no .dagger rule would otherwise link this file"
+	}
+	return fmt.Sprintf("apply would otherwise link it to %s", p.Derived)
 }
 
 // resolveToFlag resolves the --to flag to a relative destination path.
