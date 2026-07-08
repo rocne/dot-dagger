@@ -484,6 +484,7 @@ type pipelineRun struct {
 	allCount      int
 	activeCount   int
 	result        *pipeline.ActResult
+	unmet         []pipeline.UnmetRequire
 }
 
 // runOpts tunes a single pipeline run.
@@ -494,9 +495,16 @@ type pipelineRun struct {
 //     affordance — only 'apply' sets it. check/unapply/teardown and every
 //     read-only command leave it false, so a missing key surfaces as an
 //     annotated hint error rather than ambushing the user with a form mid-op.
+//   - hardRequire: when true, a non-empty unmet-@require set fails the run
+//     before Act touches the filesystem, per docs/reference/annotations.md
+//     ("if it can't [be installed] ... dotd errors"). Only 'apply' sets it —
+//     check/unapply/teardown reuse runPipeline for other purposes (state
+//     preview, removal planning) where refusing to compute a plan at all
+//     would be counterproductive (see #193 PR discussion).
 type runOpts struct {
 	dryRun      bool
 	interactive bool
+	hardRequire bool
 }
 
 // guardWalkSource refuses to walk the cwd-fallback dotfiles path on an
@@ -516,7 +524,7 @@ func guardWalkSource(cfg *config) error {
 
 // walkActive runs the shared pipeline preamble:
 //
-//	guard → resolveEnv → Walk → ValidateNodes(all) → filterWithPrompt → Order
+//	guard → resolveEnv → Walk → ValidateNodes(all) → filterWithPrompt → CheckRequirements → Order
 //
 // Validation covers every walked node (not just active ones) in both the
 // read and write paths, so a config that apply rejects also fails under
@@ -525,50 +533,67 @@ func guardWalkSource(cfg *config) error {
 // interactive gates the missing-@when-key prompt: true only on the write path
 // ('apply'). When false, a missing key flows through filterWithPrompt's
 // non-TTY branch and returns an annotated hint error.
-func walkActive(cmd *cobra.Command, cfg *config, interactive bool) (ordered []pipeline.RawNode, resolvedCount, allCount int, err error) {
+//
+// unmet reports nodes whose @require is neither installed nor installable.
+// walkActive does not act on it — active/ordered still includes those nodes,
+// so read-only commands (dag/bundle/compose/package, via walkOrdered) and the
+// non-apply runPipeline callers (check/teardown/unapply) are unaffected. It's
+// up to the caller to decide what an unmet require means: 'dotd apply' hard-
+// errors on it (see runApply), 'dotd list' excludes the node and warns (see
+// walkOrderedWithRequires / runList).
+func walkActive(cmd *cobra.Command, cfg *config, interactive bool) (ordered []pipeline.RawNode, resolvedCount, allCount int, unmet []pipeline.UnmetRequire, err error) {
 	if err := guardWalkSource(cfg); err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, nil, err
 	}
 	resolved, err := resolveEnv(cfg)
 	if err != nil {
-		return nil, 0, 0, annotateKeyError(err)
+		return nil, 0, 0, nil, annotateKeyError(err)
 	}
 
 	nodes, disabled, err := pipeline.Walk(cfg.files)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("walk %s: %w", cfg.files, err)
+		return nil, 0, 0, nil, fmt.Errorf("walk %s: %w", cfg.files, err)
 	}
 	for _, p := range disabled {
 		cfg.log.Debugf("disabled: %s", p)
 	}
 
 	if err := pipeline.ValidateNodes(nodes, pipeline.ActOptions{HomeDir: cfg.home, BinDir: cfg.binDir, ConfigDir: cfg.configDir}); err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, nil, err
 	}
 
 	// Registry backs installed()/installable() in @when predicates — the same
 	// packages.yaml the package subcommands consult (empty when absent).
 	reg, err := loadRegistry(cfg)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, nil, err
 	}
 
 	active, err := filterWithPrompt(cmd, nodes, resolved, interactive && isTTY(cmd.InOrStdin()), reg)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, nil, err
+	}
+
+	unmet, err = pipeline.CheckRequirements(active, reg, exec.LookPath)
+	if err != nil {
+		return nil, 0, 0, nil, fmt.Errorf("check requirements: %w", err)
 	}
 
 	ordered, err = pipeline.Order(active)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("order: %w", err)
+		return nil, 0, 0, nil, fmt.Errorf("order: %w", err)
 	}
-	return ordered, len(resolved), len(nodes), nil
+	return ordered, len(resolved), len(nodes), unmet, nil
 }
 
 func runPipeline(cmd *cobra.Command, cfg *config, opts runOpts) (*pipelineRun, error) {
-	ordered, resolvedCount, allCount, err := walkActive(cmd, cfg, opts.interactive)
+	ordered, resolvedCount, allCount, unmet, err := walkActive(cmd, cfg, opts.interactive)
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.hardRequire && len(unmet) > 0 {
+		return nil, unmetRequireError(unmet)
 	}
 
 	actOpts := buildActOptions(cfg, opts.dryRun)
@@ -582,15 +607,28 @@ func runPipeline(cmd *cobra.Command, cfg *config, opts runOpts) (*pipelineRun, e
 		allCount:      allCount,
 		activeCount:   len(ordered),
 		result:        res,
+		unmet:         unmet,
 	}, nil
 }
 
 // walkOrdered is walkActive for read-only commands that need just the
 // ordered active nodes. Write-path commands use runPipeline (walkActive + Act).
 // Read-only commands never prompt — a missing @when key is a hint error.
+// Unmet @require nodes stay in the returned set here — dag/bundle/compose/
+// package intentionally don't gate on @require (package especially: its whole
+// job is reporting on unmet requires, so it must still see the node). 'dotd
+// list' needs the unmet detail to exclude+warn, so it uses
+// walkOrderedWithRequires instead.
 func (cfg *appConfig) walkOrdered(cmd *cobra.Command) ([]pipeline.RawNode, error) {
-	ordered, _, _, err := walkActive(cmd, cfg, false)
+	ordered, _, _, _, err := walkActive(cmd, cfg, false)
 	return ordered, err
+}
+
+// walkOrderedWithRequires is walkOrdered plus the unmet-@require detail that
+// 'dotd list' needs to exclude gated nodes from the active set and warn.
+func (cfg *appConfig) walkOrderedWithRequires(cmd *cobra.Command) (ordered []pipeline.RawNode, unmet []pipeline.UnmetRequire, err error) {
+	ordered, _, _, unmet, err = walkActive(cmd, cfg, false)
+	return ordered, unmet, err
 }
 
 func annotateKeyError(err error) error {
@@ -681,7 +719,9 @@ func warnIfNosyncUnignored(cfg *config) {
 func runApply(cmd *cobra.Command, cfg *config) error {
 	warnIfNosyncUnignored(cfg)
 	// apply is the one interactive write path: prompt for missing @when keys.
-	run, err := runPipeline(cmd, cfg, runOpts{interactive: true})
+	// hardRequire: apply must refuse to write anything (dry-run or not) when
+	// an @require can't be satisfied — see docs/reference/annotations.md.
+	run, err := runPipeline(cmd, cfg, runOpts{interactive: true, hardRequire: true})
 	if err != nil {
 		return err
 	}
