@@ -3,10 +3,10 @@
 A condition is an expression that evaluates to true or false for a given machine. Files annotated with `@when` are only included when their condition is true. Files with no `@when` are always included.
 
 ```sh
-# @when os=macos                          # only on macOS
-# @when os=macos AND context=work         # macOS and work context
-# @when os=linux AND exists(brew)         # Linux with Homebrew installed
-# @when shell=zsh,bash                    # zsh or bash
+# @when(os=macos)                          # only on macOS
+# @when(os=macos AND context=work)         # macOS and work context
+# @when(os=linux AND exists(brew))         # Linux with Homebrew installed
+# @when(shell=zsh,bash)                    # zsh or bash
 ```
 
 Conditions are evaluated once when you run `dotd apply`. They are never re-evaluated at shell startup.
@@ -52,9 +52,9 @@ dotd apply --env context=work
 ### Key-value comparison
 
 ```sh
-# @when os=macos
-# @when context=work
-# @when shell=zsh
+# @when(os=macos)
+# @when(context=work)
+# @when(shell=zsh)
 ```
 
 ### OR with commas (same key)
@@ -62,16 +62,16 @@ dotd apply --env context=work
 A comma within a value means "any of these":
 
 ```sh
-# @when os=macos,linux        # os is macos or linux
-# @when shell=zsh,bash        # shell is zsh or bash
+# @when(os=macos,linux)        # os is macos or linux
+# @when(shell=zsh,bash)        # shell is zsh or bash
 ```
 
 ### AND / OR operators
 
 ```sh
-# @when os=macos AND context=work
-# @when os=macos OR os=linux
-# @when os=macos AND (shell=zsh OR shell=bash)
+# @when(os=macos AND context=work)
+# @when(os=macos OR os=linux)
+# @when(os=macos AND (shell=zsh OR shell=bash))
 ```
 
 `AND` binds more tightly than `OR`. Use parentheses to change precedence.
@@ -81,9 +81,9 @@ A comma within a value means "any of these":
 Multiple `@when` lines on the same file are ANDed together:
 
 ```sh
-# @when os=macos
-# @when context=work
-# equivalent to: @when os=macos AND context=work
+# @when(os=macos)
+# @when(context=work)
+# equivalent to: @when(os=macos AND context=work)
 ```
 
 ### Functions
@@ -91,9 +91,9 @@ Multiple `@when` lines on the same file are ANDed together:
 Conditions can call built-in functions:
 
 ```sh
-# @when exists(brew)          # brew is on PATH
-# @when installed(ripgrep)    # ripgrep binary is on PATH
-# @when installable(ripgrep)  # ripgrep is in packages.yaml with an available manager
+# @when(exists(brew))          # brew is on PATH
+# @when(installed(ripgrep))    # ripgrep binary is on PATH
+# @when(installable(ripgrep))  # ripgrep is in packages.yaml with an available manager
 ```
 
 | Function | True when |
@@ -105,8 +105,8 @@ Conditions can call built-in functions:
 Functions and comparisons can be mixed freely:
 
 ```sh
-# @when os=macos AND exists(brew)
-# @when shell=zsh AND installed(starship)
+# @when(os=macos AND exists(brew))
+# @when(shell=zsh AND installed(starship))
 ```
 
 ## Debugging conditions

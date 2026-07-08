@@ -71,16 +71,16 @@ Use `@name` to replace the derived logical name entirely. The main use case is *
 
 ```sh
 # shellrc/aliases-macos.sh
-# @name shellrc.aliases
-# @when os=macos
+# @name(shellrc.aliases)
+# @when(os=macos)
 ```
 
 ```sh
 # shellrc/aliases-linux.sh
-# @name shellrc.aliases
-# @when os=linux
+# @name(shellrc.aliases)
+# @when(os=linux)
 ```
 
-Since only one is active at a time, they share the same logical name without conflict. Other files can `@after shellrc.aliases` to depend on whichever variant is active.
+Since only one is active at a time, they share the same logical name without conflict. Other files can `@after(shellrc.aliases)` to depend on whichever variant is active.
 
 Two active files with the same logical name is an error. Conditions on variant files must be mutually exclusive.

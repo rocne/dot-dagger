@@ -2,6 +2,7 @@
 package pipeline
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -417,14 +418,49 @@ func combineWhen(a, b string) string {
 	}
 }
 
-// scanFileAnnotations opens path and returns its annotations.
+// bareAnnotationVocabulary is the known annotation keys and action aliases
+// checked against bare (unparenthesized) annotation text — e.g. "@when
+// os=macos" instead of "@when(os=macos)". It lives here rather than in
+// internal/annotation because the action aliases (source/no-source/link/
+// symlink) are owned by internal/node and internal/pipeline; annotation must
+// not import either.
+var bareAnnotationVocabulary = []string{
+	annotation.KeyAction,
+	annotation.KeyAfter,
+	annotation.KeyRequire,
+	annotation.KeyRequest,
+	annotation.KeyDisable,
+	annotation.KeyName,
+	annotation.KeyWhen,
+	node.ActionSource,
+	node.ActionNoSource,
+	node.ActionLink,
+	"symlink",
+}
+
+// scanFileAnnotations opens path and returns its annotations. It hard-errors
+// on bare-form annotations whose first token is a recognized key (e.g. "@when
+// os=macos") — the whole string would otherwise become an unmatched
+// Annotation.Key that every consumer silently ignores, flipping a conditional
+// file to unconditionally active. See bareAnnotationVocabulary.
 func scanFileAnnotations(path string) ([]annotation.Annotation, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	return annotation.Scan(f)
+	anns, err := annotation.Scan(f)
+	if err != nil {
+		return nil, err
+	}
+	if bad := annotation.BareFormErrors(anns, bareAnnotationVocabulary); len(bad) > 0 {
+		a := bad[0]
+		i := strings.IndexAny(a.Key, " \t")
+		first, rest := a.Key[:i], strings.TrimSpace(a.Key[i+1:])
+		return nil, fmt.Errorf("%s:%d: bare annotation \"@%s\" is not supported — write \"@%s(%s)\"",
+			path, a.Line, a.Key, first, rest)
+	}
+	return anns, nil
 }
 
 // parseActionString converts an action string like "link(~/.gitconfig)" or "source"

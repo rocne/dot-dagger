@@ -106,8 +106,8 @@ The preference order is:
 These can be used in `@when` conditions:
 
 ```sh
-# @when installed(ripgrep)    # true if binary is on PATH
-# @when installable(ripgrep)  # true if a manager can install it
+# @when(installed(ripgrep))    # true if binary is on PATH
+# @when(installable(ripgrep))  # true if a manager can install it
 ```
 
 `installed()` uses the `binary` field from `packages.yaml` for name resolution. `installable()` checks whether any manager in the package's entry is available on `$PATH`.

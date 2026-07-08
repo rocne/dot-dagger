@@ -40,9 +40,9 @@ Any key you want to use in `@when` conditions that isn't auto-detected must be s
 
 ```yaml
 env:
-  context: personal   # used in @when context=work
-  machine: laptop     # used in @when machine=laptop
-  team: platform      # used in @when team=platform
+  context: personal   # used in @when(context=work)
+  machine: laptop     # used in @when(machine=laptop)
+  team: platform      # used in @when(team=platform)
 ```
 
 ## Overriding at runtime
