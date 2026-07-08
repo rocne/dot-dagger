@@ -171,6 +171,82 @@ func TestLoad_Conventions(t *testing.T) {
 	}
 }
 
+// TestLoad_LinkRootBareTildeIsNullRejected guards the YAML footgun this type
+// exists to close: an unquoted ~ is the YAML null literal, not the string
+// "~". Silently falling back to "" (indistinguishable from the key being
+// absent) is exactly the bug in #192 — it must be a hard decode error instead.
+func TestLoad_LinkRootBareTildeIsNullRejected(t *testing.T) {
+	_, err := Load(strings.NewReader("link_root: ~\n"))
+	if err == nil {
+		t.Fatal("expected error for unquoted link_root: ~, got nil")
+	}
+	if !strings.Contains(err.Error(), "quote") {
+		t.Errorf("error should hint at quoting the value, got: %v", err)
+	}
+}
+
+// TestLoad_LinkRootQuotedTildeOK is the corresponding positive case: quoting
+// the anchor makes it a plain string and decodes without error.
+func TestLoad_LinkRootQuotedTildeOK(t *testing.T) {
+	node, err := Load(strings.NewReader(`link_root: "~"` + "\n"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if node.LinkRoot != "~" {
+		t.Errorf("LinkRoot = %q, want %q", node.LinkRoot, "~")
+	}
+}
+
+// TestLoad_WhenBareTildeIsNullRejected covers the sibling hazard: a null
+// `when` would silently make a conditional file unconditionally active.
+func TestLoad_WhenBareTildeIsNullRejected(t *testing.T) {
+	_, err := Load(strings.NewReader("when: ~\n"))
+	if err == nil {
+		t.Fatal("expected error for unquoted when: ~, got nil")
+	}
+	if !strings.Contains(err.Error(), "quote") {
+		t.Errorf("error should hint at quoting the value, got: %v", err)
+	}
+}
+
+// TestLoad_LinkRootEmptyValueRejected covers `link_root:` with no value at
+// all — also YAML null, and just as easy to write by accident (e.g. deleting
+// a value while editing) as an unquoted ~.
+func TestLoad_LinkRootEmptyValueRejected(t *testing.T) {
+	_, err := Load(strings.NewReader("link_root:\n"))
+	if err == nil {
+		t.Fatal("expected error for empty-value link_root:, got nil")
+	}
+	if !strings.Contains(err.Error(), "quote") {
+		t.Errorf("error should hint at quoting the value, got: %v", err)
+	}
+}
+
+// TestLoad_LinkRootAbsentKeyOK guards against over-rejection: a key that is
+// simply not present must still decode to the zero value without error, same
+// as before this type existed.
+func TestLoad_LinkRootAbsentKeyOK(t *testing.T) {
+	node, err := Load(strings.NewReader("when: os=linux\n"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if node.LinkRoot != "" {
+		t.Errorf("LinkRoot = %q, want empty (key absent)", node.LinkRoot)
+	}
+}
+
+// TestLoad_NameBareTildeIsNullRejected covers the third field the null-guard
+// applies to: NamedNode.Name.
+func TestLoad_NameBareTildeIsNullRejected(t *testing.T) {
+	_, err := Load(strings.NewReader("name: ~\n"))
+	if err == nil {
+		t.Fatal("expected error for unquoted name: ~, got nil")
+	}
+	if !strings.Contains(err.Error(), "quote") {
+		t.Errorf("error should hint at quoting the value, got: %v", err)
+	}
+}
+
 // TestBasicNodeYAMLTagsMatchKeys guards that BasicNode and NamedNode yaml struct
 // tags stay in sync with the annotation.Key* vocabulary constants. A one-sided
 // rename (tag but not const, or const but not tag) fails this test.
