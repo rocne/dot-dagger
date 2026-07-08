@@ -147,20 +147,20 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 			dirActions := append([]Action{{Type: ActionCompose}}, parseDaggerActions(cfg.Actions)...)
 
 			// Dir-level when: cascade when AND dir's own when.
-			effectiveWhen := combineWhen(state.when, parenWhen(cfg.When))
+			effectiveWhen := combineWhen(state.when, parenWhen(string(cfg.When)))
 
 			// Dir's own link_root overrides inherited.
 			linkRoot := state.linkRoot
 			linkRootDir := state.linkRootDir
 			if cfg.LinkRoot != "" {
-				linkRoot = cfg.LinkRoot
+				linkRoot = string(cfg.LinkRoot)
 				linkRootDir = path
 			}
 
 			// Apply .dagger name override if set; otherwise derive from path.
 			logicalName := node.DeriveName(rel)
 			if cfg.Name != "" {
-				logicalName = cfg.Name
+				logicalName = string(cfg.Name)
 			}
 
 			nodes = append(nodes, RawNode{
@@ -287,10 +287,10 @@ func Walk(dotfilesRoot string) ([]RawNode, []string, error) {
 
 			logicalName := node.DeriveName(rel)
 			if fileNode.Name != "" {
-				logicalName = fileNode.Name
+				logicalName = string(fileNode.Name)
 			}
 
-			effectiveWhen := combineWhen(state.when, parenWhen(fileNode.When))
+			effectiveWhen := combineWhen(state.when, parenWhen(string(fileNode.When)))
 
 			var fileActions []Action
 			seen := map[string]bool{}
@@ -347,7 +347,7 @@ func cascadeState(root, relPath string, daggerMap map[string]*dagger.ComposableN
 	if cfg, ok := daggerMap[root]; ok {
 		state = applyDefaults(state, cfg.Defaults, root)
 		if cfg.LinkRoot != "" {
-			state.linkRoot = cfg.LinkRoot
+			state.linkRoot = string(cfg.LinkRoot)
 			state.linkRootDir = root
 		}
 	}
@@ -362,7 +362,7 @@ func cascadeState(root, relPath string, daggerMap map[string]*dagger.ComposableN
 		if cfg, ok := daggerMap[cur]; ok {
 			state = applyDefaults(state, cfg.Defaults, cur)
 			if cfg.LinkRoot != "" {
-				state.linkRoot = cfg.LinkRoot
+				state.linkRoot = string(cfg.LinkRoot)
 				state.linkRootDir = cur
 			}
 			// Detect compose target directories. Honor the `compose: true`
@@ -381,7 +381,7 @@ func cascadeState(root, relPath string, daggerMap map[string]*dagger.ComposableN
 // applyDefaults merges a BasicNode's defaults into the accumulated state.
 func applyDefaults(state dirState, defaults dagger.BasicNode, _ string) dirState {
 	if defaults.When != "" {
-		state.when = combineWhen(state.when, parenWhen(defaults.When))
+		state.when = combineWhen(state.when, parenWhen(string(defaults.When)))
 	}
 	if len(defaults.Actions) > 0 {
 		state.actions = append(state.actions, defaults.Actions...)

@@ -26,8 +26,8 @@ The `dot-` prefix is a naming convention for files that should become hidden fil
 The convention is to name them with `dot-` instead:
 
 ```
-config/dot-zshrc     →  symlinked to ~/.zshrc (with link_root: ~)
-config/dot-gitconfig →  symlinked to ~/.gitconfig (with link_root: ~)
+config/dot-zshrc     →  symlinked to ~/.zshrc (with link_root: "~")
+config/dot-gitconfig →  symlinked to ~/.gitconfig (with link_root: "~")
 config/nvim/         →  symlinked under ~/.config/nvim/ (default link_root: $config)
 ```
 
