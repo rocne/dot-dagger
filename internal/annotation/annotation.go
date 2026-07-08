@@ -159,6 +159,36 @@ func IsAnnotationLine(line string) bool {
 	return ok
 }
 
+// BareFormErrors returns the subset of anns using the unsupported bare
+// (unparenthesized) annotation form: a Key containing whitespace whose first
+// token — the text before the first run of whitespace — matches a name in
+// known. known is the caller-supplied annotation/action vocabulary; this
+// package has no opinion on it beyond the Key* constants, since action
+// aliases like "source" and "symlink" live in internal/pipeline / internal/node.
+//
+// An annotation whose first token is *not* in known (e.g. "@author foo",
+// "@todo fix this") is left out: unrecognized text is assumed to be a comment
+// convention, not a mistyped annotation, so it stays silently ignored.
+// Zero-arg annotations (e.g. bare "@disable") have no whitespace in Key and
+// are never flagged.
+func BareFormErrors(anns []Annotation, known []string) []Annotation {
+	knownSet := make(map[string]bool, len(known))
+	for _, k := range known {
+		knownSet[k] = true
+	}
+	var bad []Annotation
+	for _, a := range anns {
+		i := strings.IndexAny(a.Key, " \t")
+		if i < 0 {
+			continue
+		}
+		if knownSet[a.Key[:i]] {
+			bad = append(bad, a)
+		}
+	}
+	return bad
+}
+
 // Get returns all annotations with the given key.
 func Get(anns []Annotation, key string) []Annotation {
 	var result []Annotation

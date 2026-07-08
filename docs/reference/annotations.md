@@ -6,10 +6,10 @@ Shell files use `#`. C-style files use `//`. Files without supported comment syn
 
 ```sh
 #!/bin/bash
-# @when os=macos AND context=work
-# @after shellrc/base/
-# @require ripgrep
-# @action no-source
+# @when(os=macos AND context=work)
+# @after(shellrc/base/)
+# @require(ripgrep)
+# @action(no-source)
 
 export EDITOR=nvim
 ```
@@ -21,11 +21,11 @@ export EDITOR=nvim
 Gates file inclusion on a condition. A file with no `@when` is always active. Multiple `@when` lines are ANDed together.
 
 ```sh
-# @when os=macos
-# @when os=macos AND context=work
-# @when os=macos,linux               # comma = OR shorthand for the same key
-# @when shell=zsh AND exists(brew)
-# @when os=macos AND (shell=zsh OR shell=bash)
+# @when(os=macos)
+# @when(os=macos AND context=work)
+# @when(os=macos,linux)               # comma = OR shorthand for the same key
+# @when(shell=zsh AND exists(brew))
+# @when(os=macos AND (shell=zsh OR shell=bash))
 ```
 
 See [Conditions](../concepts/conditions.md) for the full expression syntax.
@@ -37,22 +37,22 @@ See [Conditions](../concepts/conditions.md) for the full expression syntax.
 Overrides the file's logical name. The default logical name is derived from the path by stripping `nosync-`/`dot-` prefixes and extensions.
 
 ```sh
-# @name shellrc.aliases
+# @name(shellrc.aliases)
 ```
 
 Primary use: **variant files** — two files representing the same thing under mutually exclusive conditions:
 
 ```sh
 # shellrc/aliases-macos.sh
-# @name shellrc.aliases
-# @when os=macos
+# @name(shellrc.aliases)
+# @when(os=macos)
 
 # shellrc/aliases-linux.sh
-# @name shellrc.aliases
-# @when os=linux
+# @name(shellrc.aliases)
+# @when(os=linux)
 ```
 
-Other files can then `@after shellrc.aliases` to depend on whichever variant is active. Two active files with the same logical name is an error.
+Other files can then `@after(shellrc.aliases)` to depend on whichever variant is active. Two active files with the same logical name is an error.
 
 ---
 
@@ -61,9 +61,9 @@ Other files can then `@after shellrc.aliases` to depend on whichever variant is 
 Declares a load-order dependency. Only meaningful for files that are sourced into `init.sh`. Controls the order scripts appear in `init.sh`.
 
 ```sh
-# @after shellrc/base/       # all active files under shellrc/base/
-# @after shellrc/env/        # all active files under shellrc/env/
-# @after shellrc.helpers     # one specific file, by logical name
+# @after(shellrc/base/)       # all active files under shellrc/base/
+# @after(shellrc/env/)        # all active files under shellrc/env/
+# @after(shellrc.helpers)     # one specific file, by logical name
 ```
 
 - A path ending in `/` expands to all active files under that path
@@ -79,10 +79,10 @@ Files with no `@after` are ordered alphabetically by logical name within their p
 The unified action annotation. Declares what dotd does with this file. Multiple `@action` lines can appear; they are additive (with the exception that `no-source` cancels `source`).
 
 ```sh
-# @action source                   # source in init.sh
-# @action no-source                # keep in graph but don't source
-# @action link(~/.gitconfig)       # symlink to explicit path
-# @action link                     # symlink; destination derived from link_root
+# @action(source)                   # source in init.sh
+# @action(no-source)                # keep in graph but don't source
+# @action(link(~/.gitconfig))       # symlink to explicit path
+# @action(link)                     # symlink; destination derived from link_root
 ```
 
 ### Action types
@@ -101,20 +101,20 @@ These shorthand annotations normalize to `@action` internally:
 
 | Shorthand | Equivalent |
 |---|---|
-| `@source` | `@action source` |
-| `@no-source` | `@action no-source` |
-| `@link(<dest>)` | `@action link(<dest>)` |
-| `@symlink <dest>` | `@action link(<dest>)` (legacy spelling) |
+| `@source` | `@action(source)` |
+| `@no-source` | `@action(no-source)` |
+| `@link(<dest>)` | `@action(link(<dest>))` |
+| `@symlink(<dest>)` | `@action(link(<dest>))` (legacy spelling) |
 
 ---
 
 ## @link
 
-Symlinks the file to an explicit path. Alias for `@action link(<dest>)`.
+Symlinks the file to an explicit path. Alias for `@action(link(<dest>))`.
 
 ```sh
-# @link ~/.gitconfig
-# @link ~/.config/nvim/init.lua
+# @link(~/.gitconfig)
+# @link(~/.config/nvim/init.lua)
 ```
 
 Usually unnecessary — files in `config/` and `bin/` are symlinked automatically via inherited `.dagger` defaults. Use `@link` to override the destination or to symlink a file that lives outside those directories.
@@ -142,8 +142,8 @@ Directory components above the filename are always stripped regardless of `@reta
 Declares a hard package dependency. The file is only active if the package is installed or can be installed. If it can be installed, `dotd` installs it automatically. If it can't and isn't already present, `dotd` errors.
 
 ```sh
-# @require ripgrep
-# @require fzf
+# @require(ripgrep)
+# @require(fzf)
 ```
 
 See [dotd package](dotd.md#dotd-package) and [packages.yaml](packages-yaml.md) for how packages are defined and installed.
@@ -155,8 +155,8 @@ See [dotd package](dotd.md#dotd-package) and [packages.yaml](packages-yaml.md) f
 Declares a soft package dependency. The file is always active. `dotd` installs the package if it can, silently skips it if not.
 
 ```sh
-# @request fzf
-# @request starship
+# @request(fzf)
+# @request(starship)
 ```
 
 Use `@require` when the file won't work without the package. Use `@request` when the file is useful without it, or when the package is optional.
@@ -177,7 +177,7 @@ Useful for keeping files in the repo (for reference, backup, or future use) with
 
 ## @no-source
 
-Keeps the file in the dependency graph so other files can `@after` it, but excludes it from `init.sh`. Alias for `@action no-source`.
+Keeps the file in the dependency graph so other files can `@after` it, but excludes it from `init.sh`. Alias for `@action(no-source)`.
 
 ```sh
 # shellrc/helpers.sh
@@ -190,7 +190,7 @@ Use this when a file defines shared state or functions that other scripts depend
 
 ## @source
 
-Forces a file into `init.sh` sourcing even if it isn't in `shellrc/`. Works with any file anywhere in your dotfiles repo. Alias for `@action source`.
+Forces a file into `init.sh` sourcing even if it isn't in `shellrc/`. Works with any file anywhere in your dotfiles repo. Alias for `@action(source)`.
 
 ```sh
 # config/shell/extras.sh

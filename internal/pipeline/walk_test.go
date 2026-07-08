@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/rocne/dot-dagger/internal/ecosystem"
@@ -166,7 +167,7 @@ func TestWalk_SkipsGitDir(t *testing.T) {
 	if err := os.MkdirAll(shellrc, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(shellrc, "base.sh"), []byte("# @action source\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(shellrc, "base.sh"), []byte("# @action(source)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Create .git with a file that would conflict if walked.
@@ -280,6 +281,33 @@ func TestWalk_AtDisable_AnnotationPath(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("disabled.sh should appear in disabled slice (has @disable annotation), got: %v", disabled)
+	}
+}
+
+// TestWalk_BareAnnotation_Errors checks that a bare (unparenthesized)
+// annotation whose first token is a known key — e.g. "# @when os=x" — makes
+// Walk hard-error with the "@when(...)" correction hint, instead of silently
+// dropping the condition (see internal/annotation.BareFormErrors).
+func TestWalk_BareAnnotation_Errors(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "dot-bare")
+	if err := os.WriteFile(path, []byte("# @when os=x\nexport FOO=bar\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := Walk(root)
+	if err == nil {
+		t.Fatal("expected Walk to error on bare-form @when annotation, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `bare annotation "@when os=x" is not supported`) {
+		t.Errorf("error = %q, want it to name the bare annotation", msg)
+	}
+	if !strings.Contains(msg, `@when(os=x)`) {
+		t.Errorf("error = %q, want it to suggest the parenthesized form", msg)
+	}
+	if !strings.Contains(msg, path+":1:") {
+		t.Errorf("error = %q, want it to include %q line 1", msg, path)
 	}
 }
 

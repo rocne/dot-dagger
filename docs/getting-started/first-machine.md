@@ -53,13 +53,13 @@ Now that your files are in the repo, add annotations to declare conditions and d
 
 ```sh
 # config/dot-zshrc
-# @when shell=zsh
+# @when(shell=zsh)
 ```
 
 ```sh
 # shellrc/homebrew.sh
-# @when os=macos AND exists(brew)
-# @after shellrc/base/
+# @when(os=macos AND exists(brew))
+# @after(shellrc/base/)
 ```
 
 Annotations are read at apply time — they have no effect at runtime. See [Annotations](../concepts/annotations.md) for the full reference.
@@ -126,7 +126,7 @@ On any new machine:
 3. Run `dotd apply -f ~/dotfiles`
 4. Wire up your shell
 
-dotd will evaluate conditions for the new machine — only files where `@when` is true get applied. Scripts written with `@when os=macos` stay quiet on Linux. Packages not available on this machine are skipped if they're `@request`, or produce an error if they're `@require`.
+dotd will evaluate conditions for the new machine — only files where `@when` is true get applied. Scripts written with `@when(os=macos)` stay quiet on Linux. Packages not available on this machine are skipped if they're `@request`, or produce an error if they're `@require`.
 
 ---
 

@@ -9,7 +9,7 @@ The kind of problems dotd is designed for:
 | | |
 |---|---|
 | **Multiple OS and shells** | Your Mac aliases and Homebrew paths don't belong on your Fedora box. Your zsh config and bash config share a lot but not everything. |
-| **Work/personal coexistence** | Work aliases, internal hostnames, and credentials that can never go in a public repo — kept in a private or local-only directory, gated with `@when context=work`, coexisting cleanly with the rest of your dotfiles. |
+| **Work/personal coexistence** | Work aliases, internal hostnames, and credentials that can never go in a public repo — kept in a private or local-only directory, gated with `@when(context=work)`, coexisting cleanly with the rest of your dotfiles. |
 | **Tool availability** | Scripts that use `fzf` or `ripgrep` shouldn't silently break on machines where those aren't installed. |
 | **Package manager fragmentation** | Personal Mac uses Homebrew. Work Linux uses `apt` and you can't replace it. Remote server has `dnf`. One package name, right install command per machine. |
 | **Script load order** | `00-base.zsh`, `10-path.zsh`, `20-tools.zsh` — hacking lexical sort into a load order. Breaks the moment you need to insert something, and says nothing about *why* the order matters. |
@@ -18,9 +18,9 @@ dotd's approach: **annotate files, not shell code**. Each file declares when it 
 
 ```sh
 #!/bin/bash
-# @when os=macos
-# @after shellrc/base/
-# @require ripgrep
+# @when(os=macos)
+# @after(shellrc/base/)
+# @require(ripgrep)
 
 alias ls='ls -G'
 export HOMEBREW_PREFIX="/opt/homebrew"

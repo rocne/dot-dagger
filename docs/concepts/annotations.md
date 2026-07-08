@@ -4,9 +4,9 @@ Annotations are metadata written as comments at the top of a file. They tell dot
 
 ```sh
 #!/bin/bash
-# @when os=macos AND context=work
-# @after shellrc/base/
-# @require ripgrep
+# @when(os=macos AND context=work)
+# @after(shellrc/base/)
+# @require(ripgrep)
 
 # --- script body below ---
 alias ls='ls -G'
@@ -33,13 +33,13 @@ Scanning begins at the first line of the file. If the first line is a **shebang*
 | [`@name`](../reference/annotations.md#name) | Override the file's logical name |
 | [`@after`](../reference/annotations.md#after) | Declare a load-order dependency |
 | [`@action`](../reference/annotations.md#action) | Declare what dotd does with this file |
-| [`@link`](../reference/annotations.md#link) | Symlink to an explicit path (alias for `@action link`) |
+| [`@link`](../reference/annotations.md#link) | Symlink to an explicit path (alias for `@action(link)`) |
 | [`@retain-prefix`](../reference/annotations.md#retain-prefix) | Keep `dot-`/`nosync-` prefix on the filename |
 | [`@require`](../reference/annotations.md#require) | Hard package gate |
 | [`@request`](../reference/annotations.md#request) | Soft package ask |
 | [`@disable`](../reference/annotations.md#disable) | Exclude from all processing |
-| [`@no-source`](../reference/annotations.md#no-source) | In load order, not sourced (alias for `@action no-source`) |
-| [`@source`](../reference/annotations.md#source) | Force-source regardless of directory (alias for `@action source`) |
+| [`@no-source`](../reference/annotations.md#no-source) | In load order, not sourced (alias for `@action(no-source)`) |
+| [`@source`](../reference/annotations.md#source) | Force-source regardless of directory (alias for `@action(source)`) |
 
 ## Files without comment syntax
 

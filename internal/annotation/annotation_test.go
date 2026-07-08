@@ -206,6 +206,46 @@ func TestFirst(t *testing.T) {
 	}
 }
 
+func TestBareFormErrors_KnownKeyFlagged(t *testing.T) {
+	anns := []Annotation{{Key: "when os=macos", Line: 3}}
+	known := []string{KeyWhen, KeyAfter}
+	bad := BareFormErrors(anns, known)
+	if len(bad) != 1 || bad[0] != anns[0] {
+		t.Errorf("BareFormErrors() = %+v, want the bare @when annotation flagged", bad)
+	}
+}
+
+func TestBareFormErrors_UnknownFirstTokenIgnored(t *testing.T) {
+	// "@author foo" is a comment convention, not a mistyped annotation —
+	// "author" is not in the known vocabulary, so it must not be flagged.
+	anns := []Annotation{{Key: "author foo", Line: 1}}
+	known := []string{KeyWhen, KeyAfter, KeyRequire, KeyRequest, KeyDisable, KeyName, KeyAction}
+	bad := BareFormErrors(anns, known)
+	if len(bad) != 0 {
+		t.Errorf("BareFormErrors() = %+v, want none flagged for unrecognized first token", bad)
+	}
+}
+
+func TestBareFormErrors_ZeroArgDisableNotFlagged(t *testing.T) {
+	// Bare "@disable" has no whitespace in its Key, so it's unaffected.
+	anns := []Annotation{{Key: KeyDisable, Line: 1}}
+	known := []string{KeyDisable}
+	bad := BareFormErrors(anns, known)
+	if len(bad) != 0 {
+		t.Errorf("BareFormErrors() = %+v, want zero-arg @disable left alone", bad)
+	}
+}
+
+func TestBareFormErrors_ParenthesizedNotFlagged(t *testing.T) {
+	// Normal parenthesized annotations have no whitespace in Key.
+	anns := []Annotation{{Key: "when", Args: "os=macos", Line: 1}}
+	known := []string{KeyWhen}
+	bad := BareFormErrors(anns, known)
+	if len(bad) != 0 {
+		t.Errorf("BareFormErrors() = %+v, want well-formed annotation left alone", bad)
+	}
+}
+
 func TestCombineWhen(t *testing.T) {
 	tests := []struct {
 		name string
