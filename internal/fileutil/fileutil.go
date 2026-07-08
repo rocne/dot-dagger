@@ -68,6 +68,23 @@ func ExpandHome(path, home string) string {
 	return path
 }
 
+// ContractHome is the inverse of ExpandHome: home itself becomes "~" and a
+// path under home becomes "~/<rel>". Any other input (including "") is
+// returned unchanged. Pass "" for home to short-circuit contraction.
+func ContractHome(path, home string) string {
+	if home == "" || path == "" {
+		return path
+	}
+	home = filepath.Clean(home)
+	if filepath.Clean(path) == home {
+		return "~"
+	}
+	if strings.HasPrefix(path, home+string(filepath.Separator)) {
+		return "~/" + path[len(home)+1:]
+	}
+	return path
+}
+
 // SaveYAML encodes v as YAML and writes it to path atomically via WriteAtomic.
 // Creates parent directories as needed.
 func SaveYAML(path string, v any) error {

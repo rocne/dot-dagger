@@ -173,3 +173,37 @@ func TestShellQuote_BraceExpansion(t *testing.T) {
 		}
 	}
 }
+
+func TestContractHome(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		home string
+		want string
+	}{
+		{"under home", "/home/u/.gitconfig", "/home/u", "~/.gitconfig"},
+		{"nested under home", "/home/u/.config/app/conf.toml", "/home/u", "~/.config/app/conf.toml"},
+		{"home itself", "/home/u", "/home/u", "~"},
+		{"outside home", "/etc/hosts", "/home/u", "/etc/hosts"},
+		{"prefix but not child", "/home/user2/.x", "/home/u", "/home/user2/.x"},
+		{"empty home", "/home/u/.x", "", "/home/u/.x"},
+		{"empty path", "", "/home/u", ""},
+		{"home with trailing slash", "/home/u/.x", "/home/u/", "~/.x"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ContractHome(tc.path, tc.home); got != tc.want {
+				t.Errorf("ContractHome(%q, %q) = %q, want %q", tc.path, tc.home, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestContractHome_RoundTripsWithExpandHome(t *testing.T) {
+	home := "/home/u"
+	for _, p := range []string{"/home/u/.gitconfig", "/home/u", "/opt/x"} {
+		if got := ExpandHome(ContractHome(p, home), home); got != p {
+			t.Errorf("ExpandHome(ContractHome(%q)) = %q, want the original", p, got)
+		}
+	}
+}

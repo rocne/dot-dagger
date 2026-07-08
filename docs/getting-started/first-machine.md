@@ -41,6 +41,17 @@ dotd adopt ~/.bashrc         # → config/dot-bashrc
 
 Each adoption moves the file into your dotfiles repo and replaces the original with a symlink — `~/.zshrc` now points at `dotfiles/config/dot-zshrc`, so everything continues to work but is now managed.
 
+adopt also makes sure the move survives `dotd apply`. The default `config/` scaffold links files into `$config` (`~/.config`), but `~/.zshrc` lives in `~` — so for each adoption whose original location differs from what those rules would derive, adopt records the original location in the directory's `.dagger`:
+
+```yaml
+files:
+  dot-zshrc:
+    actions:
+      - link(~/.zshrc)
+```
+
+adopt prints a `recorded link destination …` line whenever it does this. That entry is what makes `dotd apply` — on this machine or a brand-new one — re-create exactly the symlink adopt made, instead of deriving a different one.
+
 You can override the destination with `--to`:
 
 ```sh
