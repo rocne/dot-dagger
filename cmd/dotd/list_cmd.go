@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/rocne/dot-dagger/internal/pipeline"
+	"github.com/rocne/dot-dagger/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -40,17 +41,39 @@ type listEntry struct {
 	Actions     []string `json:"actions"`
 	When        string   `json:"when,omitempty"`
 	Active      bool     `json:"active"`
+	Reason      string   `json:"reason,omitempty"`
 }
 
 func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) error {
-	ordered, err := cfg.walkOrdered(cmd)
+	ordered, unmet, err := cfg.walkOrderedWithRequires(cmd)
 	if err != nil {
 		return err
 	}
 
+	// A node with an unmet @require is excluded from the active set here
+	// (mirrors an unmet @when) rather than erroring — 'list' stays usable for
+	// diagnosis; 'apply' is the one that hard-errors (see runApply).
+	unmetPkgs := map[string][]string{} // LogicalName -> unmet package names
+	for _, u := range unmet {
+		unmetPkgs[u.Node] = append(unmetPkgs[u.Node], u.Package)
+	}
+
+	errOut := cmd.ErrOrStderr()
+	var trulyActive []pipeline.RawNode
+	reasonByPath := map[string]string{}
+	for _, n := range ordered {
+		pkgs, isUnmet := unmetPkgs[n.LogicalName]
+		if !isUnmet {
+			trulyActive = append(trulyActive, n)
+			continue
+		}
+		reasonByPath[n.Path] = requireReason(pkgs)
+		ui.Warnf(errOut, "%s: %s", n.LogicalName, requireReason(pkgs))
+	}
+
 	// Build active set for tagging (used when showInactive=true).
 	activeSet := map[string]bool{}
-	for _, n := range ordered {
+	for _, n := range trulyActive {
 		activeSet[n.Path] = true
 	}
 
@@ -63,11 +86,11 @@ func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) err
 			return fmt.Errorf("walk %s: %w", cfg.files, err)
 		}
 		for _, n := range nodes {
-			entries = append(entries, toEntry(n, activeSet[n.Path]))
+			entries = append(entries, toEntry(n, activeSet[n.Path], reasonByPath[n.Path]))
 		}
 	} else {
-		for _, n := range ordered {
-			entries = append(entries, toEntry(n, true))
+		for _, n := range trulyActive {
+			entries = append(entries, toEntry(n, true, ""))
 		}
 	}
 
@@ -90,13 +113,17 @@ func runList(cmd *cobra.Command, cfg *config, showInactive, jsonOutput bool) err
 				status = "inactive "
 			}
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s%-40s  %-20s  %s\n",
+		line := fmt.Sprintf("%s%-40s  %-20s  %s",
 			status, e.LogicalName, strings.Join(e.Actions, ","), e.Path)
+		if e.Reason != "" {
+			line += "  (" + e.Reason + ")"
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), line)
 	}
 	return nil
 }
 
-func toEntry(n pipeline.RawNode, active bool) listEntry {
+func toEntry(n pipeline.RawNode, active bool, reason string) listEntry {
 	actions := make([]string, len(n.Actions))
 	for i, a := range n.Actions {
 		if a.Dest != "" {
@@ -111,5 +138,6 @@ func toEntry(n pipeline.RawNode, active bool) listEntry {
 		Actions:     actions,
 		When:        n.EffectiveWhen,
 		Active:      active,
+		Reason:      reason,
 	}
 }

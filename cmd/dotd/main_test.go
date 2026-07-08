@@ -2178,3 +2178,120 @@ func TestBareRootShowsHelp(t *testing.T) {
 		t.Errorf("bare dotd output missing Usage section:\n%.400s", out)
 	}
 }
+
+// --- @require gating (#193) ---
+//
+// A file's @require(pkg) must gate activation: apply refuses to write
+// anything when a required package is neither installed nor installable
+// (docs/reference/annotations.md); list excludes the node from the active
+// set (mirroring an unmet @when) and surfaces it under --inactive instead.
+
+// requireGatedRepo builds a shellrc/ dir (source action via .dagger defaults)
+// containing a single file annotated with @require(pkg).
+func requireGatedRepo(t *testing.T, pkg string) string {
+	t.Helper()
+	dotfiles := t.TempDir()
+	shellrcDir := filepath.Join(dotfiles, "shellrc")
+	if err := os.MkdirAll(shellrcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, ecosystem.ConfigFile),
+		[]byte("defaults:\n  actions:\n    - source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shellrcDir, "req-test.sh"),
+		[]byte("# @require("+pkg+")\nexport FOO=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dotfiles
+}
+
+// TestApply_UnmetRequire_HardErrors pins the #193 repro: a file requiring a
+// package that is neither installed nor installable must make 'apply' (even
+// --dry-run) refuse to write anything, naming the node and the package.
+func TestApply_UnmetRequire_HardErrors(t *testing.T) {
+	dotfiles := requireGatedRepo(t, "nonexistent-pkg-xyz")
+
+	t.Setenv("HOME", t.TempDir())
+	xdgData := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdgData)
+	initFile := filepath.Join(xdgData, "dot-dagger", "init.sh")
+
+	_, err := run(t, "apply", "--dry-run",
+		"--dotd-env", emptyEnvFile(t),
+		"--files", dotfiles,
+	)
+	if err == nil {
+		t.Fatal("expected apply to hard-error on an unmet @require")
+	}
+	if !strings.Contains(err.Error(), "shellrc.req-test") || !strings.Contains(err.Error(), "nonexistent-pkg-xyz") {
+		t.Errorf("error should name the node and the package, got: %v", err)
+	}
+	if _, statErr := os.Stat(initFile); !os.IsNotExist(statErr) {
+		t.Error("apply must not write init.sh when a hard @require is unmet")
+	}
+}
+
+// TestApply_MetRequire_OK verifies @require(sh) — always on PATH — does not
+// gate activation: apply succeeds normally.
+func TestApply_MetRequire_OK(t *testing.T) {
+	dotfiles := requireGatedRepo(t, "sh")
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	out, err := run(t, "apply", "--dry-run",
+		"--dotd-env", emptyEnvFile(t),
+		"--files", dotfiles,
+	)
+	if err != nil {
+		t.Fatalf("apply --dry-run with a met @require should succeed, got: %v", err)
+	}
+	if !strings.Contains(out, "would write") {
+		t.Errorf("expected 'would write' in dry-run output: %q", out)
+	}
+}
+
+// TestList_UnmetRequire_ExcludedAndWarned verifies 'list' stays usable for
+// diagnosis: the require-gated node drops out of the default active view,
+// reappears under --inactive with a reason, and a warning goes to stderr.
+func TestList_UnmetRequire_ExcludedAndWarned(t *testing.T) {
+	dotfiles := requireGatedRepo(t, "nonexistent-pkg-xyz")
+
+	out, err := run(t, "list",
+		"--dotd-env", emptyEnvFile(t),
+		"--files", dotfiles,
+	)
+	if err != nil {
+		t.Fatalf("list error = %v", err)
+	}
+	// The repo's only node is require-gated, so the active view is empty —
+	// the row format is "<name>  <actions>  <path>"; only the warning line
+	// (not a listed row) should mention the node.
+	if strings.Contains(out, "shellrc.req-test  ") {
+		t.Errorf("require-gated node should be excluded from the default active list: %q", out)
+	}
+	if !strings.Contains(out, "no nodes found") {
+		t.Errorf("expected the active view to report no nodes found, got: %q", out)
+	}
+	if !strings.Contains(out, "warning:") || !strings.Contains(out, "require: nonexistent-pkg-xyz missing") {
+		t.Errorf("expected a stderr warning naming the unmet require, got: %q", out)
+	}
+
+	out, err = run(t, "list", "--inactive",
+		"--dotd-env", emptyEnvFile(t),
+		"--files", dotfiles,
+	)
+	if err != nil {
+		t.Fatalf("list --inactive error = %v", err)
+	}
+	if !strings.Contains(out, "shellrc.req-test") {
+		t.Errorf("expected shellrc.req-test under --inactive, got: %q", out)
+	}
+	if !strings.Contains(out, "inactive") {
+		t.Errorf("expected 'inactive' tag, got: %q", out)
+	}
+	if !strings.Contains(out, "require: nonexistent-pkg-xyz missing") {
+		t.Errorf("expected require-missing reason under --inactive, got: %q", out)
+	}
+}
