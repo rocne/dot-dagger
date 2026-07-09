@@ -7,6 +7,22 @@ by [release-please](https://github.com/googleapis/release-please) from
 Releases prior to the adoption of release-please (≤ v0.5.5) are recorded on the
 [GitHub releases page](https://github.com/rocne/dot-dagger/releases).
 
+## [0.11.0](https://github.com/rocne/dot-dagger/compare/v0.10.3...v0.11.0) (2026-07-08)
+
+
+### Features
+
+* **cli:** browse embedded docs by topic ([#189](https://github.com/rocne/dot-dagger/issues/189)) ([f854e9f](https://github.com/rocne/dot-dagger/commit/f854e9fb5d0f364befdc3e2b7d3fbf9df6e38eb6))
+
+
+### Bug Fixes
+
+* abort interactive prompts when piped stdin runs dry ([#187](https://github.com/rocne/dot-dagger/issues/187)) ([9db19a0](https://github.com/rocne/dot-dagger/commit/9db19a01499a59c85454682ec7ffdc6787a419fa))
+* error on explicit-null .dagger values (unquoted link_root: ~) ([#198](https://github.com/rocne/dot-dagger/issues/198)) ([b142e72](https://github.com/rocne/dot-dagger/commit/b142e72fc3c3afd596d553658fe536124832e037)), closes [#192](https://github.com/rocne/dot-dagger/issues/192)
+* gate file activation on unmet [@require](https://github.com/require) ([#196](https://github.com/rocne/dot-dagger/issues/196)) ([f3bfba2](https://github.com/rocne/dot-dagger/commit/f3bfba2296764d851056fa99de0361c042865e45)), closes [#193](https://github.com/rocne/dot-dagger/issues/193)
+* persist adopt-time link destination so apply round-trips ([#199](https://github.com/rocne/dot-dagger/issues/199)) ([af32683](https://github.com/rocne/dot-dagger/commit/af32683a7c74b79d94157d5e5d0534feb9864d09)), closes [#191](https://github.com/rocne/dot-dagger/issues/191)
+* reject bare-form annotations instead of silently ignoring them ([#197](https://github.com/rocne/dot-dagger/issues/197)) ([99e1190](https://github.com/rocne/dot-dagger/commit/99e1190720add12eaea5a12a36bd41ba4df112b1)), closes [#190](https://github.com/rocne/dot-dagger/issues/190)
+
 ## [0.10.3](https://github.com/rocne/dot-dagger/compare/v0.10.2...v0.10.3) (2026-06-23)
 
 
