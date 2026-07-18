@@ -64,7 +64,7 @@ State lives in `release-please-config.json` and `.release-please-manifest.json`
 
 ### Break-glass path: manual tag
 
-`.github/workflows/release.yml` triggers on a pushed `v*` tag and calls the same
+`.github/workflows/release-manual.yml` triggers on a pushed `v*` tag and calls the same
 central `rocne/release-ci` reusable workflow. Use only when release-please can't (e.g. re-cutting a botched
 release). Tag format `v<semver>` (e.g. `v0.6.1`); always tag from `main`, and the
 workflow files must exist at the tagged commit.

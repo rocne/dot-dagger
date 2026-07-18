@@ -56,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | 
 **Install to a custom directory:**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --dir /usr/local/bin
+curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --install-dir /usr/local/bin
 ```
 
 ## From source
