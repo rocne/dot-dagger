@@ -178,6 +178,21 @@ Install to a custom directory:
 curl -fsSL https://raw.githubusercontent.com/rocne/dot-dagger/main/install.sh | sh -s -- --dir /usr/local/bin
 ```
 
+### With mise
+
+If you use [mise](https://mise.jdx.dev), install straight from the GitHub
+releases — no registry entry needed:
+
+```sh
+mise use -g github:rocne/dot-dagger
+```
+
+Use the **package** name (`dot-dagger`); mise installs the `dotd` command,
+resolving the name difference itself. Of every method here, this is the only one
+that **verifies dotd's build provenance attestations by default** — mise checks
+them unprompted before installing. Pin a version with `@` (e.g.
+`github:rocne/dot-dagger@0.11.0`).
+
 ### From source
 
 ```sh
