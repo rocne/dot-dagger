@@ -72,9 +72,9 @@ homebrew_casks:
 # `apt install dot-dagger` / `dnf install dot-dagger` by name with auto-update.
 # (GoReleaser's native `cloudsmiths` block is Pro-only, so we drive the
 # cloudsmith CLI via a custom publisher instead.) Repo-index signing is handled
-# server-side by Cloudsmith using the dedicated repo-signing key — separate from
-# the package-signing key, which never leaves our control; the public half is
-# committed as dotd-repo-signing-key.asc.
+# server-side by a Cloudsmith-managed key (rocne/releases) — separate from the
+# package-signing key, which never leaves our control. Cloudsmith serves that
+# index key's public half via its setup scripts, so it is not committed here.
 #
 # Publishers iterate every linux package and archive artifact, so the command
 # dispatches on extension and pushes only deb/rpm — tar.gz archives are skipped.
@@ -111,7 +111,6 @@ signs:
 release:
   extra_files:
     - glob: ./dotd-signing-key.asc
-    - glob: ./dotd-repo-signing-key.asc
 
 changelog:
   sort: asc
