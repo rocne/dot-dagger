@@ -7,6 +7,13 @@ by [release-please](https://github.com/googleapis/release-please) from
 Releases prior to the adoption of release-please (≤ v0.5.5) are recorded on the
 [GitHub releases page](https://github.com/rocne/dot-dagger/releases).
 
+## [0.11.1](https://github.com/rocne/dot-dagger/compare/v0.11.0...v0.11.1) (2026-07-23)
+
+
+### Bug Fixes
+
+* **signing:** adopt cosign v3 Sigstore bundle (release-ci[#45](https://github.com/rocne/dot-dagger/issues/45), D35) ([#210](https://github.com/rocne/dot-dagger/issues/210)) ([c2420e8](https://github.com/rocne/dot-dagger/commit/c2420e851adb71d5b415593be3c6bf10a570b066))
+
 ## [0.11.0](https://github.com/rocne/dot-dagger/compare/v0.10.3...v0.11.0) (2026-07-08)
 
 
